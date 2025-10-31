@@ -3,11 +3,6 @@
 [![Moodle](https://img.shields.io/badge/Moodle-4.0%2B-orange)](https://moodle.org)
 [![PHP](https://img.shields.io/badge/PHP-7.4%2B-blue)](https://php.net)
 [![License](https://img.shields.io/badge/License-GPL%20v3-green)](https://www.gnu.org/licenses/gpl-3.0)
-
-**Repository Name:** `moodle-mod_classengage`
-
-**Description:** AI-powered interactive quiz system for Moodle with real-time student engagement, automated question generation from slides using Google Gemini AI, and comprehensive analytics dashboard.
-
 ---
 
 ## 🎯 Features
