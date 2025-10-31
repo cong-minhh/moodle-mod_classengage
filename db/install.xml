@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<XMLDB PATH="mod/classengage/db" VERSION="20251028" COMMENT="XMLDB file for Moodle mod/classengage"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
+>
+  <TABLES>
+    <TABLE NAME="classengage" COMMENT="Main table for classengage activity instances">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="course" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Foreign key to course table"/>
+        <FIELD NAME="name" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" COMMENT="Activity name"/>
+        <FIELD NAME="intro" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Activity description"/>
+        <FIELD NAME="introformat" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Format of intro field"/>
+        <FIELD NAME="grade" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="100" SEQUENCE="false" COMMENT="Maximum grade"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="course" TYPE="foreign" FIELDS="course" REFTABLE="course" REFFIELDS="id"/>
+      </KEYS>
+    </TABLE>
+    <TABLE NAME="classengage_slides" COMMENT="Stores uploaded lecture slides">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="classengageid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Foreign key to classengage table"/>
+        <FIELD NAME="title" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" COMMENT="Slide title"/>
+        <FIELD NAME="filename" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" COMMENT="Original filename"/>
+        <FIELD NAME="filepath" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" COMMENT="Path to stored file"/>
+        <FIELD NAME="filesize" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="File size in bytes"/>
+        <FIELD NAME="mimetype" TYPE="char" LENGTH="100" NOTNULL="true" SEQUENCE="false" COMMENT="MIME type of file"/>
+        <FIELD NAME="extractedtext" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Extracted text content from slides"/>
+        <FIELD NAME="status" TYPE="char" LENGTH="50" NOTNULL="true" DEFAULT="uploaded" SEQUENCE="false" COMMENT="Processing status: uploaded, processing, completed, error"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="User who uploaded the slide"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="classengageid" TYPE="foreign" FIELDS="classengageid" REFTABLE="classengage" REFFIELDS="id"/>
+        <KEY NAME="userid" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="status" UNIQUE="false" FIELDS="status"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="classengage_questions" COMMENT="Stores quiz questions (generated or manual)">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="classengageid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Foreign key to classengage table"/>
+        <FIELD NAME="slideid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Foreign key to classengage_slides (null if manual)"/>
+        <FIELD NAME="questiontext" TYPE="text" NOTNULL="true" SEQUENCE="false" COMMENT="The question text"/>
+        <FIELD NAME="questiontype" TYPE="char" LENGTH="50" NOTNULL="true" DEFAULT="multichoice" SEQUENCE="false" COMMENT="Question type: multichoice, truefalse, shortanswer"/>
+        <FIELD NAME="optiona" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Option A"/>
+        <FIELD NAME="optionb" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Option B"/>
+        <FIELD NAME="optionc" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Option C"/>
+        <FIELD NAME="optiond" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Option D"/>
+        <FIELD NAME="correctanswer" TYPE="char" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Correct answer (A/B/C/D or specific text)"/>
+        <FIELD NAME="difficulty" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="medium" SEQUENCE="false" COMMENT="Difficulty level: easy, medium, hard"/>
+        <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="pending" SEQUENCE="false" COMMENT="Status: pending, approved, rejected"/>
+        <FIELD NAME="source" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="nlp" SEQUENCE="false" COMMENT="Source: nlp, manual"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="classengageid" TYPE="foreign" FIELDS="classengageid" REFTABLE="classengage" REFFIELDS="id"/>
+        <KEY NAME="slideid" TYPE="foreign" FIELDS="slideid" REFTABLE="classengage_slides" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="status" UNIQUE="false" FIELDS="status"/>
+        <INDEX NAME="difficulty" UNIQUE="false" FIELDS="difficulty"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="classengage_sessions" COMMENT="Stores quiz session information">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="classengageid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Foreign key to classengage table"/>
+        <FIELD NAME="name" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" COMMENT="Session name"/>
+        <FIELD NAME="numquestions" TYPE="int" LENGTH="5" NOTNULL="true" DEFAULT="10" SEQUENCE="false" COMMENT="Number of questions in session"/>
+        <FIELD NAME="timelimit" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="30" SEQUENCE="false" COMMENT="Time limit per question in seconds"/>
+        <FIELD NAME="shufflequestions" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="1" SEQUENCE="false" COMMENT="Shuffle question order"/>
+        <FIELD NAME="shuffleanswers" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="1" SEQUENCE="false" COMMENT="Shuffle answer options"/>
+        <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="ready" SEQUENCE="false" COMMENT="Status: ready, active, completed"/>
+        <FIELD NAME="currentquestion" TYPE="int" LENGTH="5" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Current question number (0-based)"/>
+        <FIELD NAME="questionstarttime" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="When current question was started"/>
+        <FIELD NAME="createdby" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="User who created session"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timestarted" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="When session was started"/>
+        <FIELD NAME="timecompleted" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="When session was completed"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="classengageid" TYPE="foreign" FIELDS="classengageid" REFTABLE="classengage" REFFIELDS="id"/>
+        <KEY NAME="createdby" TYPE="foreign" FIELDS="createdby" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="status" UNIQUE="false" FIELDS="status"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="classengage_session_questions" COMMENT="Maps questions to sessions in specific order">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="sessionid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Foreign key to classengage_sessions"/>
+        <FIELD NAME="questionid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Foreign key to classengage_questions"/>
+        <FIELD NAME="questionorder" TYPE="int" LENGTH="5" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Order in which question appears"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="sessionid" TYPE="foreign" FIELDS="sessionid" REFTABLE="classengage_sessions" REFFIELDS="id"/>
+        <KEY NAME="questionid" TYPE="foreign" FIELDS="questionid" REFTABLE="classengage_questions" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="sessionid_order" UNIQUE="true" FIELDS="sessionid, questionorder"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="classengage_responses" COMMENT="Stores student responses to quiz questions">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="sessionid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Foreign key to classengage_sessions"/>
+        <FIELD NAME="questionid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Foreign key to classengage_questions"/>
+        <FIELD NAME="classengageid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Foreign key to classengage (for easy lookup)"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="User who submitted response"/>
+        <FIELD NAME="answer" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" COMMENT="The answer submitted"/>
+        <FIELD NAME="iscorrect" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Whether answer was correct"/>
+        <FIELD NAME="score" TYPE="number" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" DECIMALS="2" COMMENT="Score for this response"/>
+        <FIELD NAME="responsetime" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Time taken to respond (seconds)"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="sessionid" TYPE="foreign" FIELDS="sessionid" REFTABLE="classengage_sessions" REFFIELDS="id"/>
+        <KEY NAME="questionid" TYPE="foreign" FIELDS="questionid" REFTABLE="classengage_questions" REFFIELDS="id"/>
+        <KEY NAME="classengageid" TYPE="foreign" FIELDS="classengageid" REFTABLE="classengage" REFFIELDS="id"/>
+        <KEY NAME="userid" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="session_user" UNIQUE="false" FIELDS="sessionid, userid"/>
+        <INDEX NAME="session_question_user" UNIQUE="true" FIELDS="sessionid, questionid, userid" COMMENT="One response per user per question per session"/>
+      </INDEXES>
+    </TABLE>
+  </TABLES>
+</XMLDB>
+
