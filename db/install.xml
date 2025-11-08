@@ -141,6 +141,24 @@
         <INDEX NAME="session_question_user" UNIQUE="true" FIELDS="sessionid, questionid, userid" COMMENT="One response per user per question per session"/>
       </INDEXES>
     </TABLE>
+    <TABLE NAME="classengage_clicker_devices" COMMENT="Maps clicker device IDs to Moodle users">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Foreign key to user table"/>
+        <FIELD NAME="clickerid" TYPE="char" LENGTH="100" NOTNULL="true" SEQUENCE="false" COMMENT="Unique clicker device identifier (e.g., serial number)"/>
+        <FIELD NAME="contextid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Context where registered"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="When device was registered"/>
+        <FIELD NAME="lastused" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Last time device was used"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="userid" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="clickerid" UNIQUE="true" FIELDS="clickerid" COMMENT="Each clicker can only be registered to one user"/>
+        <INDEX NAME="userid_clickerid" UNIQUE="true" FIELDS="userid, clickerid"/>
+      </INDEXES>
+    </TABLE>
   </TABLES>
 </XMLDB>
 

@@ -41,6 +41,7 @@ $string['classengage:startquiz'] = 'Start and manage quiz sessions';
 $string['classengage:takequiz'] = 'Participate in quiz sessions';
 $string['classengage:viewanalytics'] = 'View analytics and reports';
 $string['classengage:grade'] = 'Grade student responses';
+$string['classengage:submitclicker'] = 'Submit clicker responses via Web Services API';
 
 // General
 $string['name'] = 'Activity name';
@@ -220,6 +221,18 @@ $string['error:cannotextracttext'] = 'Cannot extract text from slide file';
 $string['error:nlpservicefailed'] = 'NLP service request failed';
 $string['error:invalidresponse'] = 'Invalid response data';
 
+// Clicker Integration
+$string['clickerdevice'] = 'Clicker device';
+$string['clickerid'] = 'Clicker ID';
+$string['registerclicker'] = 'Register clicker';
+$string['clickerregistered'] = 'Clicker device registered successfully';
+$string['clickeralreadyregistered'] = 'This clicker is already registered';
+$string['clickernotregistered'] = 'Clicker device not registered';
+$string['clickerinuse'] = 'This clicker is already registered to another user';
+$string['webserviceapi'] = 'Web Services API';
+$string['clickerapi'] = 'Clicker API Integration';
+$string['clickerapi_help'] = 'This activity supports classroom clicker integration via REST/JSON Web Services API. See CLICKER_API_DOCUMENTATION.md for setup instructions.';
+
 // Privacy
 $string['privacy:metadata:classengage_responses'] = 'Information about user responses to quiz questions';
 $string['privacy:metadata:classengage_responses:userid'] = 'The ID of the user who submitted the response';
@@ -228,4 +241,10 @@ $string['privacy:metadata:classengage_responses:sessionid'] = 'The ID of the qui
 $string['privacy:metadata:classengage_responses:answer'] = 'The answer submitted by the user';
 $string['privacy:metadata:classengage_responses:score'] = 'The score achieved for this response';
 $string['privacy:metadata:classengage_responses:timecreated'] = 'The time when the response was submitted';
+
+$string['privacy:metadata:classengage_clicker_devices'] = 'Information about registered clicker devices';
+$string['privacy:metadata:classengage_clicker_devices:userid'] = 'The ID of the user who owns the clicker device';
+$string['privacy:metadata:classengage_clicker_devices:clickerid'] = 'The unique identifier of the clicker device';
+$string['privacy:metadata:classengage_clicker_devices:timecreated'] = 'When the clicker was registered';
+$string['privacy:metadata:classengage_clicker_devices:lastused'] = 'When the clicker was last used';
 

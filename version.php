@@ -25,8 +25,8 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'mod_classengage';
-$plugin->version = 20251028016;  // YYYYMMDDXX format
+$plugin->version = 2025110302;  // YYYYMMDDXX format
 $plugin->requires = 2022041900; // Moodle 4.0 or later
 $plugin->maturity = MATURITY_ALPHA;
-$plugin->release = 'v1.0.0-alpha';
+$plugin->release = 'v1.1.0-alpha';
 

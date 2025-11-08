@@ -147,5 +147,20 @@ $capabilities = array(
         )
     ),
 
+    /**
+     * Ability to submit clicker responses via Web Services API
+     * This is for clicker hubs/devices to submit responses on behalf of students
+     */
+    'mod/classengage:submitclicker' => array(
+        'riskbitmask' => RISK_SPAM | RISK_DATALOSS,
+        'captype' => 'write',
+        'contextlevel' => CONTEXT_MODULE,
+        'archetypes' => array(
+            'editingteacher' => CAP_ALLOW,
+            'teacher' => CAP_ALLOW,
+            'manager' => CAP_ALLOW
+        )
+    ),
+
 );
 

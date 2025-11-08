@@ -11,6 +11,7 @@
 - **🤖 AI Question Generation** - Automatically generate quiz questions using Google Gemini AI
 - **✏️ Question Management** - Review, edit, and approve AI-generated questions
 - **⚡ Live Quiz Sessions** - Conduct real-time interactive quizzes with instant feedback
+- **🎮 Clicker Integration** - Full Web Services API for classroom clicker devices (A/B/C/D keypads)
 - **📊 Analytics Dashboard** - Comprehensive performance analytics and reporting
 - **🔄 Real-time Updates** - AJAX polling for seamless live experience
 - **📱 Responsive Design** - Works on desktop, tablet, and mobile devices
@@ -26,6 +27,7 @@
 - [Installation](#installation)
 - [Configuration](#configuration)
 - [Usage Guide](#usage-guide)
+- [Clicker Integration](#clicker-integration)
 - [Database Schema](#database-schema)
 - [Development](#development)
 - [Troubleshooting](#troubleshooting)
@@ -235,6 +237,73 @@ Polling Interval: 1000 (milliseconds)
 
 ---
 
+## 🎮 Clicker Integration
+
+ClassEngage supports **classroom clicker hardware** integration via REST/JSON Web Services API. This allows wireless clicker devices (A/B/C/D keypads) to submit student responses in real-time.
+
+### Architecture
+
+```
+┌─────────────┐      Wireless      ┌──────────────┐      HTTP/JSON      ┌────────────┐
+│   Student   │ ──────────────────> │ Classroom    │ ──────────────────> │  Moodle    │
+│   Clicker   │   (A/B/C/D Press)   │     Hub      │  (Web Services)     │  Server    │
+│  (Keypad)   │                     │  (Bridge)    │                     │            │
+└─────────────┘                     └──────────────┘                     └────────────┘
+```
+
+### Quick Start
+
+1. **Enable Web Services** in Moodle
+   - Site Administration → Advanced features → Enable web services
+   - Site Administration → Server → Web services → Manage protocols → Enable REST
+
+2. **Create Service Account**
+   - Create user: `clicker_hub`
+   - Create role: "Clicker Hub Service" with capability `mod/classengage:submitclicker`
+   - Assign role to user in course
+
+3. **Generate Token**
+   - Site Administration → Server → Web services → Manage tokens
+   - Add token for `clicker_hub` user
+   - Select service: "ClassEngage Clicker Service"
+
+4. **Configure Hub**
+   - Install hub software on classroom computer
+   - Configure with Moodle URL and token
+   - Map clicker device IDs to student accounts
+
+### API Endpoints
+
+- **Get Active Session** - Check for running quiz
+- **Get Current Question** - Retrieve question being shown
+- **Submit Response** - Send student answer (A/B/C/D)
+- **Submit Bulk Responses** - Send multiple answers at once
+- **Register Clicker** - Map device ID to student
+
+### Example API Call
+
+```bash
+curl -X POST "https://your-moodle.edu/webservice/rest/server.php" \
+  -d "wstoken=YOUR_TOKEN" \
+  -d "moodlewsrestformat=json" \
+  -d "wsfunction=mod_classengage_submit_clicker_response" \
+  -d "sessionid=12" \
+  -d "userid=42" \
+  -d "clickerid=CLICKER-001" \
+  -d "answer=B"
+```
+
+### Complete Documentation
+
+See **[CLICKER_API_DOCUMENTATION.md](CLICKER_API_DOCUMENTATION.md)** for:
+- Complete setup instructions
+- Full API reference
+- Python and Node.js examples
+- Error handling
+- Security best practices
+
+---
+
 ## 🗄️ Database Schema
 
 ### Tables
@@ -335,6 +404,18 @@ Student responses.
 - score (decimal 10,5)
 - responsetime (bigint, nullable)
 - timecreated (bigint)
+```
+
+#### classengage_clicker_devices
+Clicker device registrations (for hardware integration).
+
+```sql
+- id (bigint, primary key)
+- userid (bigint, foreign key)
+- clickerid (varchar 100, unique)
+- contextid (bigint)
+- timecreated (bigint)
+- lastused (bigint)
 ```
 
 ---

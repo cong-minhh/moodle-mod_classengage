@@ -35,12 +35,36 @@ function xmldb_classengage_upgrade($oldversion) {
 
     $dbman = $DB->get_manager();
 
-    // Upgrade steps will be added here as needed
-    // Example:
-    // if ($oldversion < 2025102801) {
-    //     // Add new field or table
-    //     upgrade_mod_savepoint(true, 2025102801, 'classengage');
-    // }
+    // Add clicker devices table for Web Services integration
+    if ($oldversion < 2025110301) {
+        
+        // Define table classengage_clicker_devices to be created.
+        $table = new xmldb_table('classengage_clicker_devices');
+
+        // Adding fields to table classengage_clicker_devices.
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('clickerid', XMLDB_TYPE_CHAR, '100', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('contextid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('lastused', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+
+        // Adding keys to table classengage_clicker_devices.
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, array('id'));
+        $table->add_key('userid', XMLDB_KEY_FOREIGN, array('userid'), 'user', array('id'));
+
+        // Adding indexes to table classengage_clicker_devices.
+        $table->add_index('clickerid', XMLDB_INDEX_UNIQUE, array('clickerid'));
+        $table->add_index('userid_clickerid', XMLDB_INDEX_UNIQUE, array('userid', 'clickerid'));
+
+        // Conditionally launch create table for classengage_clicker_devices.
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Classengage savepoint reached.
+        upgrade_mod_savepoint(true, 2025110301, 'classengage');
+    }
 
     return true;
 }
