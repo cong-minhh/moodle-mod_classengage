@@ -3,25 +3,22 @@
 [![Moodle](https://img.shields.io/badge/Moodle-4.0%2B-orange)](https://moodle.org)
 [![PHP](https://img.shields.io/badge/PHP-7.4%2B-blue)](https://php.net)
 [![License](https://img.shields.io/badge/License-GPL%20v3-green)](https://www.gnu.org/licenses/gpl-3.0)
----
 
-## 🎯 Features
+## Features
 
-- **📤 Slide Upload** - Upload PDF, PPT, PPTX, DOC, DOCX lecture slides
-- **🤖 AI Question Generation** - Automatically generate quiz questions using Google Gemini AI
-- **✏️ Question Management** - Review, edit, and approve AI-generated questions
-- **⚡ Live Quiz Sessions** - Conduct real-time interactive quizzes with instant feedback
-- **🎮 Clicker Integration** - Full Web Services API for classroom clicker devices (A/B/C/D keypads)
-- **📊 Analytics Dashboard** - Comprehensive performance analytics and reporting
-- **🔄 Real-time Updates** - AJAX polling for seamless live experience
-- **📱 Responsive Design** - Works on desktop, tablet, and mobile devices
-- **🔒 Privacy Compliant** - Full GDPR support with Privacy API implementation
-- **💾 Backup & Restore** - Complete Moodle backup/restore integration
-- **📈 Gradebook Integration** - Automatic grade synchronization
+- **Slide Upload** - Upload PDF, PPT, PPTX, DOC, DOCX lecture slides
+- **AI Question Generation** - Automatically generate quiz questions using Google Gemini AI
+- **Question Management** - Review, edit, and approve AI-generated questions
+- **Live Quiz Sessions** - Conduct real-time interactive quizzes with instant feedback
+- **Clicker Integration** - Full Web Services API for classroom clicker devices (A/B/C/D keypads)
+- **Analytics Dashboard** - Comprehensive performance analytics and reporting
+- **Real-time Updates** - AJAX polling for seamless live experience
+- **Responsive Design** - Works on desktop, tablet, and mobile devices
+- **Privacy Compliant** - Full GDPR support with Privacy API implementation
+- **Backup & Restore** - Complete Moodle backup/restore integration
+- **Gradebook Integration** - Automatic grade synchronization
 
----
-
-## 📋 Table of Contents
+## Table of Contents
 
 - [Requirements](#requirements)
 - [Installation](#installation)
@@ -33,9 +30,7 @@
 - [Troubleshooting](#troubleshooting)
 - [License](#license)
 
----
-
-## 🔧 Requirements
+## Requirements
 
 - **Moodle:** 4.0 or later
 - **PHP:** 7.4 or later
@@ -45,9 +40,7 @@
 - **NLP Service:** (Optional) External Node.js service for AI question generation
   - See: https://github.com/cong-minhh/classengage-nlp-service
 
----
-
-## 📦 Installation
+## Installation
 
 ### Step 1: Install Moodle Plugin
 
@@ -86,9 +79,7 @@ You should see 6 tables:
 - `mdl_classengage_session_questions`
 - `mdl_classengage_responses`
 
----
-
-## ⚙️ Configuration
+## Configuration
 
 ### Plugin Settings
 
@@ -96,17 +87,17 @@ Navigate to: **Site Administration → Plugins → Activity modules → In-class
 
 #### NLP Service Settings
 
-To enable AI-powered question generation, set up the external NLP service first:  
-👉 **See:** https://github.com/cong-minhh/classengage-nlp-service
+To enable AI-powered question generation, set up the external NLP service first:
+**See:** https://github.com/cong-minhh/classengage-nlp-service
 
 ```
 NLP Service Endpoint: http://localhost:3000 (or your service URL)
 NLP API Key: (leave empty if not using authentication)
-Auto-generate Questions on Upload: ✓ Enabled
+Auto-generate Questions on Upload: Enabled
 Default Number of Questions: 10
 ```
 
-> **Note:** Without the NLP service, you can still manually create questions.
+**Note:** Without the NLP service, you can still manually create questions.
 
 #### File Upload Settings
 
@@ -142,13 +133,11 @@ Default Time Limit: 30 (seconds per question)
 #### Real-time Settings
 
 ```
-Enable Real-time Updates: ✓ Enabled
+Enable Real-time Updates: Enabled
 Polling Interval: 1000 (milliseconds)
 ```
 
----
-
-## 📖 Usage Guide
+## Usage Guide
 
 ### For Instructors
 
@@ -191,8 +180,8 @@ Polling Interval: 1000 (milliseconds)
    - Title: "Lecture 5 Live Quiz"
    - Number of Questions: 10
    - Time Limit: 30 seconds
-   - Shuffle Questions: ✓
-   - Shuffle Answers: ✓
+   - Shuffle Questions: Enabled
+   - Shuffle Answers: Enabled
 4. Click "Create Session"
 ```
 
@@ -235,20 +224,14 @@ Polling Interval: 1000 (milliseconds)
 8. View final score when quiz ends
 ```
 
----
+## Clicker Integration
 
-## 🎮 Clicker Integration
-
-ClassEngage supports **classroom clicker hardware** integration via REST/JSON Web Services API. This allows wireless clicker devices (A/B/C/D keypads) to submit student responses in real-time.
+ClassEngage supports classroom clicker hardware integration via REST/JSON Web Services API. This allows wireless clicker devices (A/B/C/D keypads) to submit student responses in real-time.
 
 ### Architecture
 
 ```
-┌─────────────┐      Wireless      ┌──────────────┐      HTTP/JSON      ┌────────────┐
-│   Student   │ ──────────────────> │ Classroom    │ ──────────────────> │  Moodle    │
-│   Clicker   │   (A/B/C/D Press)   │     Hub      │  (Web Services)     │  Server    │
-│  (Keypad)   │                     │  (Bridge)    │                     │            │
-└─────────────┘                     └──────────────┘                     └────────────┘
+Student Clicker --(A/B/C/D Press)--> Classroom Hub --(HTTP/JSON)--> Moodle Server
 ```
 
 ### Quick Start
@@ -302,9 +285,7 @@ See **[CLICKER_API_DOCUMENTATION.md](CLICKER_API_DOCUMENTATION.md)** for:
 - Error handling
 - Security best practices
 
----
-
-## 🗄️ Database Schema
+## Database Schema
 
 ### Tables
 
@@ -418,9 +399,7 @@ Clicker device registrations (for hardware integration).
 - lastused (bigint)
 ```
 
----
-
-## 🛠️ Development
+## Development
 
 ### Project Structure
 
@@ -485,9 +464,7 @@ View logs:
 Site Administration → Reports → Logs
 ```
 
----
-
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Plugin Installation Issues
 
@@ -529,8 +506,8 @@ Error: NLP service connection failed
 3. Test service: `curl http://localhost:3000/health`
 4. Check firewall rules if on different server
 
-For NLP service troubleshooting, see:  
-👉 https://github.com/cong-minhh/classengage-nlp-service
+For NLP service troubleshooting, see:
+**See:** https://github.com/cong-minhh/classengage-nlp-service
 
 ### File Upload Issues
 
@@ -577,25 +554,21 @@ top
 htop
 ```
 
----
-
-## 📊 Capabilities
+## Capabilities
 
 | Capability | Teacher | Student | Description |
 |---|---|---|---|
-| `mod/classengage:addinstance` | ✓ | ✗ | Add activity to course |
-| `mod/classengage:view` | ✓ | ✓ | View activity |
-| `mod/classengage:uploadslides` | ✓ | ✗ | Upload slides |
-| `mod/classengage:managequestions` | ✓ | ✗ | Manage questions |
-| `mod/classengage:configurequiz` | ✓ | ✗ | Configure sessions |
-| `mod/classengage:startquiz` | ✓ | ✗ | Start/stop sessions |
-| `mod/classengage:takequiz` | ✗ | ✓ | Participate in quizzes |
-| `mod/classengage:viewanalytics` | ✓ | ✗ | View analytics |
-| `mod/classengage:grade` | ✓ | ✗ | Grade responses |
+| `mod/classengage:addinstance` | Yes | No | Add activity to course |
+| `mod/classengage:view` | Yes | Yes | View activity |
+| `mod/classengage:uploadslides` | Yes | No | Upload slides |
+| `mod/classengage:managequestions` | Yes | No | Manage questions |
+| `mod/classengage:configurequiz` | Yes | No | Configure sessions |
+| `mod/classengage:startquiz` | Yes | No | Start/stop sessions |
+| `mod/classengage:takequiz` | No | Yes | Participate in quizzes |
+| `mod/classengage:viewanalytics` | Yes | No | View analytics |
+| `mod/classengage:grade` | Yes | No | Grade responses |
 
----
-
-## 🔐 Privacy & GDPR
+## Privacy & GDPR
 
 This plugin implements Moodle's Privacy API (GDPR compliant):
 
@@ -606,9 +579,7 @@ This plugin implements Moodle's Privacy API (GDPR compliant):
 
 Configure at: **Site Administration → Users → Privacy and policies**
 
----
-
-## 🚀 Deployment Checklist
+## Deployment Checklist
 
 ### Pre-Deployment
 
@@ -638,9 +609,7 @@ Configure at: **Site Administration → Users → Privacy and policies**
 - [ ] Verify backups working
 - [ ] Document any customizations
 
----
-
-## 📝 License
+## License
 
 This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 
@@ -648,12 +617,10 @@ This program is distributed in the hope that it will be useful, but WITHOUT ANY 
 
 You should have received a copy of the GNU General Public License along with this program. If not, see <https://www.gnu.org/licenses/>.
 
----
-
-## 👥 Credits
+## Credits
 
 **Developed by:** [Your Name/Organization]  
-**Copyright:** © 2025  
+**Copyright:** 2025  
 **Version:** 1.0.0-alpha  
 **Moodle Version:** 4.0+
 
@@ -663,16 +630,12 @@ You should have received a copy of the GNU General Public License along with thi
 - **Chart.js** - Analytics visualization
 - **Moodle** - Learning management platform
 
----
+## Related Repositories
 
-## 🔗 Related Repositories
-
-- **NLP Service:** https://github.com/cong-minhh/classengage-nlp-service  
+- **NLP Service:** https://github.com/cong-minhh/classengage-nlp-service
   Node.js service for AI-powered question generation
 
----
-
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Please follow these guidelines:
 
@@ -689,18 +652,14 @@ Contributions are welcome! Please follow these guidelines:
 - Write unit tests for new features
 - Update documentation as needed
 
----
-
-## 📞 Support
+## Support
 
 - **Documentation:** This README
 - **Moodle Forums:** https://moodle.org/forums/
 - **Issue Tracker:** GitHub Issues
 - **Email:** your.email@example.com
 
----
-
-## 🗺️ Roadmap
+## Roadmap
 
 ### Version 1.1 (Planned)
 
@@ -718,9 +677,7 @@ Contributions are welcome! Please follow these guidelines:
 - [ ] AI-powered personalized learning paths
 - [ ] Integration with external LTI tools
 
----
-
-## ⭐ Acknowledgments
+## Acknowledgments
 
 Special thanks to:
 - The Moodle community
@@ -729,5 +686,5 @@ Special thanks to:
 
 ---
 
-**Made with ❤️ for educators and students worldwide**
+**Made for educators and students worldwide**
 
