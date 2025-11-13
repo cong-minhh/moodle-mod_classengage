@@ -175,6 +175,10 @@ class submit_clicker_response extends external_api {
 
         $responseid = $DB->insert_record('classengage_responses', $response);
 
+        // Invalidate analytics cache
+        $analytics = new \mod_classengage\analytics_engine($classengage->id, $context);
+        $analytics->invalidate_cache($params['sessionid']);
+
         // Log clicker ID if provided
         if (!empty($params['clickerid'])) {
             self::log_clicker_usage($params['userid'], $params['clickerid'], $context->id);

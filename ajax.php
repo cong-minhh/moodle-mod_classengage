@@ -214,8 +214,13 @@ function submit_answer($sessionid, $questionid, $answer, $classengageid) {
     
     $DB->insert_record('classengage_responses', $response);
     
+    // Invalidate analytics cache
+    $cm = get_coursemodule_from_instance('classengage', $classengageid);
+    $context = context_module::instance($cm->id);
+    $analytics = new \mod_classengage\analytics_engine($classengageid, $context);
+    $analytics->invalidate_cache($sessionid);
+    
     // Trigger event
-    $context = context_module::instance(get_coursemodule_from_instance('classengage', $classengageid)->id);
     $event = \mod_classengage\event\question_answered::create(array(
         'objectid' => $questionid,
         'context' => $context,

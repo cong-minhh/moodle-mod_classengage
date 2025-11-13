@@ -129,6 +129,9 @@ class submit_bulk_responses extends external_api {
         $results = array();
         $processed = 0;
         $failed = 0;
+        
+        // Initialize analytics engine for cache invalidation
+        $analytics = new \mod_classengage\analytics_engine($classengage->id, $context);
 
         foreach ($params['responses'] as $resp) {
             try {
@@ -235,6 +238,11 @@ class submit_bulk_responses extends external_api {
                 );
                 $failed++;
             }
+        }
+        
+        // Invalidate analytics cache after bulk processing
+        if ($processed > 0) {
+            $analytics->invalidate_cache($params['sessionid']);
         }
 
         return array(
