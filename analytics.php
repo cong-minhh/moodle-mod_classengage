@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Analytics dashboard page
+ * Analytics dashboard page with two-tab interface
  *
  * @package    mod_classengage
  * @copyright  2025 Your Name
@@ -25,8 +25,21 @@
 require(__DIR__.'/../../config.php');
 require_once(__DIR__.'/lib.php');
 
-$id = required_param('id', PARAM_INT); // Course module ID
-$sessionid = optional_param('sessionid', 0, PARAM_INT);
+use mod_classengage\engagement_calculator;
+use mod_classengage\comprehension_analyzer;
+use mod_classengage\teaching_recommender;
+use mod_classengage\analytics_engine;
+use mod_classengage\output\analytics_renderer;
+use mod_classengage\chart_data_transformer;
+
+$id = required_param('id', PARAM_INT); // Course module ID.
+$sessionid = optional_param('sessionid', 0, PARAM_INT); // Session ID.
+$tab = optional_param('tab', 'simple', PARAM_ALPHA); // Tab: simple or advanced.
+
+// Validate tab parameter.
+if (!in_array($tab, ['simple', 'advanced'])) {
+    $tab = 'simple';
+}
 
 $cm = get_coursemodule_from_id('classengage', $id, 0, false, MUST_EXIST);
 $course = $DB->get_record('course', array('id' => $cm->course), '*', MUST_EXIST);
@@ -36,37 +49,33 @@ require_login($course, true, $cm);
 $context = context_module::instance($cm->id);
 require_capability('mod/classengage:viewanalytics', $context);
 
-$PAGE->set_url('/mod/classengage/analytics.php', array('id' => $cm->id));
+$PAGE->set_url('/mod/classengage/analytics.php', array('id' => $cm->id, 'sessionid' => $sessionid, 'tab' => $tab));
 $PAGE->set_title(format_string($classengage->name));
 $PAGE->set_heading(format_string($course->fullname));
 $PAGE->set_context($context);
 
-// Include Chart.js
-$PAGE->requires->js(new moodle_url('https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js'), true);
+// Include Chart.js from CDN (only for advanced tab).
+// TODO: Bundle Chart.js locally via npm for better performance and privacy.
+if ($tab === 'advanced') {
+    $PAGE->requires->js(new moodle_url('https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js'), true);
+}
 
 echo $OUTPUT->header();
 
 echo $OUTPUT->heading(format_string($classengage->name));
 
-// Tab navigation
-$tabs = array();
-$tabs[] = new tabobject('slides', new moodle_url('/mod/classengage/slides.php', array('id' => $cm->id)), 
-                       get_string('uploadslides', 'mod_classengage'));
-$tabs[] = new tabobject('questions', new moodle_url('/mod/classengage/questions.php', array('id' => $cm->id)), 
-                       get_string('managequestions', 'mod_classengage'));
-$tabs[] = new tabobject('sessions', new moodle_url('/mod/classengage/sessions.php', array('id' => $cm->id)), 
-                       get_string('managesessions', 'mod_classengage'));
-$tabs[] = new tabobject('analytics', new moodle_url('/mod/classengage/analytics.php', array('id' => $cm->id)), 
-                       get_string('analytics', 'mod_classengage'));
-
-print_tabs(array($tabs), 'analytics');
+// Render standard tab navigation.
+classengage_render_tabs($cm->id, 'analytics');
 
 echo html_writer::tag('h3', get_string('analyticspage', 'mod_classengage'));
 
-// Session selector
+// Session selector (limit to last 50 sessions for performance).
 $sessions = $DB->get_records_menu('classengage_sessions', 
     array('classengageid' => $classengage->id, 'status' => 'completed'), 
-    'timecreated DESC', 'id,name');
+    'timecreated DESC', 
+    'id,name',
+    0,
+    50);
 
 if (empty($sessions)) {
     echo html_writer::div(get_string('nocompletedsessions', 'mod_classengage'), 'alert alert-info');
@@ -78,188 +87,122 @@ if (!$sessionid || !isset($sessions[$sessionid])) {
     $sessionid = key($sessions);
 }
 
-// Session selector form
+// Session selector form.
 echo html_writer::start_div('mb-3');
 echo html_writer::label(get_string('selectsession', 'mod_classengage'), 'sessionselect');
 echo ' ';
-$url = new moodle_url('/mod/classengage/analytics.php', array('id' => $cm->id));
+$url = new moodle_url('/mod/classengage/analytics.php', array('id' => $cm->id, 'tab' => $tab));
 echo html_writer::select($sessions, 'sessionid', $sessionid, null, array(
     'id' => 'sessionselect',
-    'onchange' => "window.location='{$url->out(false)}&sessionid=' + this.value;"
+    'aria-label' => get_string('selectsession', 'mod_classengage'),
+    'data-baseurl' => $url->out(false)
 ));
 echo html_writer::end_div();
 
+// Add JavaScript for session selector (XSS-safe).
+$PAGE->requires->js_amd_inline("
+require(['jquery'], function($) {
+    $('#sessionselect').on('change', function() {
+        var baseurl = $(this).data('baseurl');
+        window.location = baseurl + '&sessionid=' + encodeURIComponent(this.value);
+    });
+});
+");
+
+// Validate session exists and belongs to this activity.
 $session = $DB->get_record('classengage_sessions', array('id' => $sessionid), '*', MUST_EXIST);
 
-// Overall statistics
-echo html_writer::tag('h4', get_string('overallperformance', 'mod_classengage'));
+// Initialize last updated timestamp variable.
+$lastupdatedtime = null;
 
-$sql = "SELECT COUNT(DISTINCT userid) as participants,
-               COUNT(*) as totalresponses,
-               SUM(iscorrect) as correctresponses,
-               AVG(responsetime) as avgresponsetime
-          FROM {classengage_responses}
-         WHERE sessionid = :sessionid";
-
-$stats = $DB->get_record_sql($sql, array('sessionid' => $sessionid));
-
-echo html_writer::start_div('row mb-4');
-
-// Participants card
-echo html_writer::start_div('col-md-3');
-echo html_writer::start_div('card');
-echo html_writer::div(
-    html_writer::tag('h5', get_string('participants', 'mod_classengage'), array('class' => 'card-title')) .
-    html_writer::tag('p', $stats->participants, array('class' => 'display-4')),
-    'card-body text-center'
-);
-echo html_writer::end_div();
-echo html_writer::end_div();
-
-// Average score card
-$avgscore = $stats->totalresponses > 0 ? round(($stats->correctresponses / $stats->totalresponses) * 100, 1) : 0;
-echo html_writer::start_div('col-md-3');
-echo html_writer::start_div('card');
-echo html_writer::div(
-    html_writer::tag('h5', get_string('averagescore', 'mod_classengage'), array('class' => 'card-title')) .
-    html_writer::tag('p', $avgscore . '%', array('class' => 'display-4')),
-    'card-body text-center'
-);
-echo html_writer::end_div();
-echo html_writer::end_div();
-
-// Total responses card
-echo html_writer::start_div('col-md-3');
-echo html_writer::start_div('card');
-echo html_writer::div(
-    html_writer::tag('h5', get_string('totalresponses', 'mod_classengage'), array('class' => 'card-title')) .
-    html_writer::tag('p', $stats->totalresponses, array('class' => 'display-4')),
-    'card-body text-center'
-);
-echo html_writer::end_div();
-echo html_writer::end_div();
-
-// Average response time card
-$avgtime = $stats->avgresponsetime ? round($stats->avgresponsetime, 1) : 0;
-echo html_writer::start_div('col-md-3');
-echo html_writer::start_div('card');
-echo html_writer::div(
-    html_writer::tag('h5', get_string('responsetime', 'mod_classengage'), array('class' => 'card-title')) .
-    html_writer::tag('p', $avgtime . 's', array('class' => 'display-4')),
-    'card-body text-center'
-);
-echo html_writer::end_div();
-echo html_writer::end_div();
-
-echo html_writer::end_div(); // End row
-
-// Question breakdown
-echo html_writer::tag('h4', get_string('questionbreakdown', 'mod_classengage'), array('class' => 'mt-4'));
-
-$sql = "SELECT q.id, q.questiontext, sq.questionorder,
-               COUNT(r.id) as responses,
-               SUM(r.iscorrect) as correct
-          FROM {classengage_questions} q
-          JOIN {classengage_session_questions} sq ON sq.questionid = q.id
-          LEFT JOIN {classengage_responses} r ON r.questionid = q.id AND r.sessionid = sq.sessionid
-         WHERE sq.sessionid = :sessionid
-      GROUP BY q.id, q.questiontext, sq.questionorder
-      ORDER BY sq.questionorder";
-
-$questions = $DB->get_records_sql($sql, array('sessionid' => $sessionid));
-
-if ($questions) {
-    // Prepare data for chart
-    $questionlabels = array();
-    $correctdata = array();
-    $incorrectdata = array();
+// Calculate analytics data with error handling.
+try {
+    // Instantiate engagement calculator.
+    $engagementcalculator = new engagement_calculator($sessionid, $course->id);
+    $engagement = $engagementcalculator->calculate_engagement_level();
+    $activitycounts = $engagementcalculator->get_activity_counts();
+    $responsiveness = $engagementcalculator->get_responsiveness_indicator();
     
-    foreach ($questions as $q) {
-        $questionlabels[] = 'Q' . $q->questionorder;
-        $correctdata[] = $q->correct;
-        $incorrectdata[] = $q->responses - $q->correct;
+    // Get the cached timestamp from engagement data.
+    if (isset($engagement->cached_at)) {
+        $lastupdatedtime = $engagement->cached_at;
     }
     
-    echo html_writer::tag('canvas', '', array('id' => 'questionChart', 'style' => 'max-height: 400px;'));
-    
-    echo html_writer::script("
-        var ctx = document.getElementById('questionChart').getContext('2d');
-        var chart = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: " . json_encode($questionlabels) . ",
-                datasets: [{
-                    label: 'Correct',
-                    data: " . json_encode($correctdata) . ",
-                    backgroundColor: 'rgba(75, 192, 192, 0.8)'
-                }, {
-                    label: 'Incorrect',
-                    data: " . json_encode($incorrectdata) . ",
-                    backgroundColor: 'rgba(255, 99, 132, 0.8)'
-                }]
-            },
-            options: {
-                responsive: true,
-                scales: {
-                    x: {
-                        stacked: true
-                    },
-                    y: {
-                        stacked: true,
-                        beginAtZero: true
-                    }
-                }
-            }
-        });
-    ");
-}
-
-// Student performance table
-echo html_writer::tag('h4', get_string('studentperformance', 'mod_classengage'), array('class' => 'mt-4'));
-
-$sql = "SELECT u.id, u.firstname, u.lastname,
-               COUNT(r.id) as totalresponses,
-               SUM(r.iscorrect) as correctresponses,
-               AVG(r.responsetime) as avgresponsetime
-          FROM {user} u
-          JOIN {classengage_responses} r ON r.userid = u.id
-         WHERE r.sessionid = :sessionid
-      GROUP BY u.id, u.firstname, u.lastname
-      ORDER BY correctresponses DESC, avgresponsetime ASC";
-
-$students = $DB->get_records_sql($sql, array('sessionid' => $sessionid));
-
-if ($students) {
-    $table = new html_table();
-    $table->head = array(
-        get_string('studentname', 'mod_classengage'),
-        get_string('totalresponses', 'mod_classengage'),
-        get_string('correctresponses', 'mod_classengage'),
-        get_string('score', 'mod_classengage'),
-        get_string('responsetime', 'mod_classengage')
-    );
-    $table->attributes['class'] = 'generaltable';
-    
-    foreach ($students as $student) {
-        $percentage = $student->totalresponses > 0 ? 
-            round(($student->correctresponses / $student->totalresponses) * 100, 1) : 0;
-        
-        $table->data[] = array(
-            fullname($student),
-            $student->totalresponses,
-            $student->correctresponses,
-            $percentage . '%',
-            round($student->avgresponsetime, 1) . 's'
+    // Display last updated timestamp if available.
+    if ($lastupdatedtime !== null) {
+        $timeago = userdate($lastupdatedtime, get_string('strftimedatetimeshort', 'langconfig'));
+        echo html_writer::div(
+            get_string('lastupdated', 'mod_classengage', $timeago),
+            'text-muted small mb-3'
         );
     }
-    
-    echo html_writer::table($table);
+
+    // Instantiate comprehension analyzer.
+    $comprehensionanalyzer = new comprehension_analyzer($sessionid);
+    $comprehension = $comprehensionanalyzer->get_comprehension_summary();
+    $conceptdifficulty = $comprehensionanalyzer->get_concept_difficulty();
+    $responsetrends = $comprehensionanalyzer->get_response_trends();
+
+    // Instantiate teaching recommender.
+    $teachingrecommender = new teaching_recommender($sessionid, $engagement, $comprehension);
+    $recommendations = $teachingrecommender->generate_recommendations();
+
+    // Instantiate analytics engine for timeline and distribution.
+    $analyticsengine = new analytics_engine($classengage->id, $context);
+    $engagementtimeline = $analyticsengine->get_engagement_timeline($sessionid);
+    $participationdistribution = $analyticsengine->get_participation_distribution($sessionid, $course->id);
+} catch (Exception $e) {
+    debugging('Analytics calculation failed: ' . $e->getMessage(), DEBUG_DEVELOPER);
+    \core\notification::error(get_string('error:analyticsfailed', 'mod_classengage'));
+    echo $OUTPUT->footer();
+    exit;
 }
 
-// Export button
+// Instantiate analytics renderer.
+$renderer = $PAGE->get_renderer('mod_classengage', 'analytics');
+
+// Render tab navigation at top.
+echo $renderer->render_tab_navigation($tab);
+
+// Start tab content container.
+echo html_writer::start_div('tab-content');
+
+// Render Simple Analysis tab content.
+$simpledata = new stdClass();
+$simpledata->engagement = $engagement;
+$simpledata->comprehension = $comprehension;
+$simpledata->activity_counts = $activitycounts;
+$simpledata->responsiveness = $responsiveness;
+
+echo $renderer->render_simple_analysis($simpledata);
+
+// Render Advanced Analysis tab content.
+$advanceddata = new stdClass();
+$advanceddata->concept_difficulty = $conceptdifficulty;
+$advanceddata->response_trends = $responsetrends;
+$advanceddata->recommendations = $recommendations;
+$advanceddata->participation_distribution = $participationdistribution;
+
+echo $renderer->render_advanced_analysis($advanceddata);
+
+// End tab content container.
+echo html_writer::end_div();
+
+// Prepare chart data for JavaScript using transformer.
+$chartdata = chart_data_transformer::transform_all_chart_data(
+    $engagementtimeline,
+    $conceptdifficulty,
+    $participationdistribution
+);
+
+// Load AMD modules using $PAGE->requires->js_call_amd().
+$PAGE->requires->js_call_amd('mod_classengage/analytics_charts', 'init', [json_encode($chartdata)]);
+$PAGE->requires->js_call_amd('mod_classengage/analytics_tabs', 'init', [$cm->id, $sessionid]);
+
+// Export button.
 echo html_writer::start_div('mt-3');
 $exporturl = new moodle_url('/mod/classengage/export.php', array('id' => $cm->id, 'sessionid' => $sessionid));
-echo html_writer::link($exporturl, get_string('exportcsv', 'mod_classengage'), 
+echo html_writer::link($exporturl, get_string('exportanalytics', 'mod_classengage'), 
     array('class' => 'btn btn-secondary'));
 echo html_writer::end_div();
 

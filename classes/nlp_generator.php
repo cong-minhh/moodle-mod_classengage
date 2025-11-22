@@ -56,10 +56,10 @@ class nlp_generator {
             $numquestions = get_config('mod_classengage', 'defaultquestions') ?: 10;
         }
         
-        // Ensure endpoint ends with /generate-from-files
+        // Ensure endpoint ends with /api/generate-from-files
         $endpoint = rtrim($nlpendpoint, '/');
-        if (!preg_match('/\/generate-from-files$/', $endpoint)) {
-            $endpoint = preg_replace('/\/generate$/', '', $endpoint) . '/generate-from-files';
+        if (!preg_match('/\/api\/generate-from-files$/', $endpoint)) {
+            $endpoint = preg_replace('/\/(api\/)?generate(-from-files)?$/', '', $endpoint) . '/api/generate-from-files';
         }
         
         // Create temporary file from stored_file

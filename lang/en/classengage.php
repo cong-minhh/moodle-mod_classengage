@@ -152,6 +152,7 @@ $string['totalresponses'] = 'Total Responses';
 $string['correctresponses'] = 'Correct Responses';
 $string['incorrectresponses'] = 'Incorrect Responses';
 $string['exportcsv'] = 'Export to CSV';
+$string['lastupdated'] = 'Last updated: {$a}';
 
 // Settings
 $string['settings:nlpendpoint'] = 'NLP Service Endpoint';
@@ -198,6 +199,38 @@ $string['sessionnotstarted'] = 'The quiz session has not started yet. Please wai
 $string['noresponses'] = 'No responses recorded';
 $string['correctanswers'] = 'Correct Answers';
 $string['percentage'] = 'Percentage';
+
+// Advanced Analysis strings
+$string['advancedanalysis'] = 'Advanced Analysis';
+$string['conceptdifficulty'] = 'Concept Difficulty';
+$string['engagementtimeline'] = 'Engagement Timeline';
+$string['responsetrends'] = 'Common Response Trends';
+$string['teachingrecommendations'] = 'Teaching Recommendations';
+$string['participationdistribution'] = 'Participation Distribution';
+$string['difficultylevel'] = 'Difficulty Level';
+$string['correctnessrate'] = 'Correctness Rate';
+$string['easy'] = 'Easy';
+$string['moderate'] = 'Moderate';
+$string['difficult'] = 'Difficult';
+$string['noconceptdata'] = 'No concept difficulty data available yet';
+$string['notrendsdata'] = 'No response trends data available yet';
+$string['norecommendations'] = 'No recommendations at this time';
+$string['noparticipationdata'] = 'No participation data available yet';
+$string['commonwronganswer'] = 'Common Wrong Answer';
+$string['misconception'] = 'Misconception';
+$string['priority'] = 'Priority';
+$string['category'] = 'Category';
+$string['recommendation'] = 'Recommendation';
+$string['evidence'] = 'Evidence';
+$string['highparticipation'] = 'High (5+ responses)';
+$string['moderateparticipation'] = 'Moderate (2-4 responses)';
+$string['lowparticipation'] = 'Low (1 response)';
+$string['noparticipation'] = 'None (0 responses)';
+$string['studentcount'] = 'Student Count';
+$string['timeinterval'] = 'Time Interval';
+$string['responsecount'] = 'Response Count';
+$string['peak'] = 'Peak';
+$string['dip'] = 'Dip';
 $string['multichoice'] = 'Multiple Choice';
 $string['questiontype'] = 'Question Type';
 $string['easy'] = 'Easy';
@@ -220,6 +253,10 @@ $string['error:questionnotfound'] = 'Question not found';
 $string['error:cannotextracttext'] = 'Cannot extract text from slide file';
 $string['error:nlpservicefailed'] = 'NLP service request failed';
 $string['error:invalidresponse'] = 'Invalid response data';
+$string['error:analyticsfailed'] = 'Failed to calculate analytics data. Please try again later.';
+$string['errorprocessingslide'] = 'Error processing slide upload';
+$string['nofileuploaded'] = 'No file was uploaded';
+$string['invalidfiletype'] = 'Invalid file type: {$a}. Only PDF, PPT, PPTX, DOC, and DOCX files are allowed';
 
 // Clicker Integration
 $string['clickerdevice'] = 'Clicker device';
@@ -248,3 +285,185 @@ $string['privacy:metadata:classengage_clicker_devices:clickerid'] = 'The unique 
 $string['privacy:metadata:classengage_clicker_devices:timecreated'] = 'When the clicker was registered';
 $string['privacy:metadata:classengage_clicker_devices:lastused'] = 'When the clicker was last used';
 
+// Control panel strings
+$string['responsedistribution'] = 'Response Distribution';
+$string['overallresponserate'] = 'Overall Response Rate';
+$string['responsedistributionchart'] = 'Response Distribution Chart';
+$string['answer'] = 'Answer';
+$string['distribution'] = 'Distribution';
+$string['count'] = 'Count';
+$string['quizsessions'] = 'Quiz Sessions';
+$string['uploadslidesdesc'] = 'Upload lecture slides in PDF or PowerPoint format for automatic question generation';
+$string['managequestionsdesc'] = 'Review, approve, edit, and manage quiz questions';
+$string['analyticsdesc'] = 'View post-session analytics and student performance reports';
+$string['comingsoon'] = 'This feature is coming soon';
+
+// Additional error strings
+$string['error:noquestionfound'] = 'No question found for current session state';
+$string['error:cannotloadquestion'] = 'Cannot load current question';
+$string['error:connectionissues'] = 'Connection issues detected. Retrying...';
+$string['invalidaction'] = 'Invalid action: {$a}';
+$string['notimplemented'] = 'This feature is not yet implemented';
+$string['invalidsession'] = 'Invalid session - session does not belong to this activity';
+$string['sessioncompleted'] = 'This session has been completed';
+$string['sessionpaused'] = 'This session is currently paused';
+$string['backtosessions'] = 'Back to Sessions';
+
+// Analytics enhancement - Filter toolbar
+$string['filtertoolbar'] = 'Filter Options';
+$string['namesearch'] = 'Search by name';
+$string['minscore'] = 'Minimum score (%)';
+$string['maxscore'] = 'Maximum score (%)';
+$string['minresponsetime'] = 'Min response time (s)';
+$string['maxresponsetime'] = 'Max response time (s)';
+$string['topperformersonly'] = 'Show only top 10 performers';
+$string['filterbyquestion'] = 'Filter by question';
+$string['applyfilters'] = 'Apply Filters';
+$string['clearfilters'] = 'Clear Filters';
+
+// Analytics enhancement - Pagination
+$string['showing'] = 'Showing {$a->start} to {$a->end} of {$a->total}';
+$string['perpage'] = 'Per page';
+$string['previous'] = 'Previous';
+$string['next'] = 'Next';
+
+// Analytics enhancement - Summary cards
+$string['accuracytrend'] = 'Accuracy Trend';
+$string['responsespeed'] = 'Response Speed';
+$string['higheststreak'] = 'Highest Streak';
+$string['stddev'] = 'Std Dev';
+$string['improvement'] = 'Improvement';
+
+// Analytics enhancement - Insights
+$string['insights'] = 'Insights';
+$string['atriskstudents'] = 'At-Risk Students';
+$string['missingparticipants'] = 'Missing Participants';
+$string['performancebadges'] = 'Performance Badges';
+$string['mostimproved'] = 'Most Improved';
+$string['fastestresponder'] = 'Fastest Responder';
+$string['mostconsistent'] = 'Most Consistent';
+$string['anomalies'] = 'Anomalies';
+$string['suspiciousspeed'] = 'Suspicious Speed';
+$string['perfectfast'] = 'Perfect Score with Fast Time';
+
+// Analytics enhancement - Question insights
+$string['questioninsights'] = 'Question Insights';
+$string['highestperforming'] = 'Highest Performing Question';
+$string['lowestperforming'] = 'Lowest Performing Question';
+$string['difficultquestions'] = 'Difficult Questions';
+$string['easyquestions'] = 'Easy Questions';
+
+// Analytics enhancement - Charts
+$string['leaderboardchart'] = 'Top Students Leaderboard';
+$string['scoredistribution'] = 'Score Distribution';
+$string['engagementtimeline'] = 'Engagement Timeline';
+$string['questiondifficulty'] = 'Question Difficulty';
+
+// Analytics enhancement - Table
+$string['rank'] = 'Rank';
+$string['sortby'] = 'Sort by {$a}';
+$string['ascending'] = 'Ascending';
+$string['descending'] = 'Descending';
+
+// Analytics enhancement - Accessibility
+$string['chartalternative'] = 'Chart showing {$a}';
+$string['filterform'] = 'Student performance filter form';
+
+// Analytics enhancement - Anomaly details
+$string['anomaly_suspicious_speed'] = 'Average response time of {$a->avgtime}s across {$a->count} responses (< 1 second threshold)';
+$string['anomaly_perfect_fast'] = 'Perfect score (100%) with average response time of {$a->avgtime}s across {$a->count} responses';
+
+// Analytics enhancement - Additional strings
+$string['question'] = 'Question';
+$string['page'] = 'Page';
+$string['pagination'] = 'Pagination';
+$string['topperformer'] = 'Top Performer';
+$string['atriskstudent'] = 'At-Risk Student';
+$string['nostudentdata'] = 'No student data available for this session';
+$string['noatriskstudents'] = 'No at-risk students identified';
+$string['nomissingparticipants'] = 'All enrolled students have participated';
+$string['lowscore'] = 'Low score';
+$string['slowresponse'] = 'Slow response time';
+$string['visualizations'] = 'Visualizations';
+
+// Analytics enhancement - Two-tab interface
+$string['simpleanalysis'] = 'Simple Analysis';
+$string['advancedanalysis'] = 'Advanced Analysis';
+
+// Simple Analysis - Engagement
+$string['engagementlevel'] = 'Overall Engagement Level';
+$string['engagementhigh'] = 'High engagement - {$a}% of students participated';
+$string['engagementmoderate'] = 'Moderate engagement - {$a}% of students participated';
+$string['engagementlow'] = 'Low engagement - {$a}% of students participated';
+
+// Simple Analysis - Comprehension
+$string['comprehensionsummary'] = 'Lesson Comprehension';
+$string['comprehensionstrong'] = 'Most students understood the core concepts';
+$string['comprehensionpartial'] = 'Partial understanding with some areas of confusion';
+$string['comprehensionweak'] = 'Significant confusion detected - review recommended';
+$string['confusedtopics'] = 'Topics needing attention: {$a}';
+
+// Simple Analysis - Activity Counts
+$string['activitycounts'] = 'Activity Participation';
+$string['questionsanswered'] = 'Questions Answered';
+$string['pollsubmissions'] = 'Poll Submissions';
+$string['reactions'] = 'Reactions/Clicks';
+
+// Simple Analysis - Responsiveness
+$string['responsiveness'] = 'Class Responsiveness';
+$string['responsivenessquick'] = 'Class responded quickly today';
+$string['responsivenessnormal'] = 'Normal interaction pace';
+$string['responsivenessslow'] = 'Interaction pace was slower than usual';
+$string['consistentengagement'] = 'Consistent engagement throughout';
+$string['fluctuatingengagement'] = 'Attention levels fluctuated during session';
+
+// Advanced Analysis - Concept Difficulty
+$string['conceptdifficulty'] = 'Concept Difficulty Insights';
+$string['difficultconcepts'] = 'Challenging Topics';
+$string['wellunderstoodconcepts'] = 'Well-Understood Topics';
+$string['concepteasy'] = 'Easy';
+$string['conceptmoderate'] = 'Moderate';
+$string['conceptdifficult'] = 'Difficult';
+
+// Advanced Analysis - Timeline
+$string['timelinepeak'] = 'Peak engagement';
+$string['timelinedip'] = 'Attention dip';
+
+// Advanced Analysis - Response Trends
+$string['responsetrends'] = 'Common Response Patterns';
+$string['commonwronganswer'] = '{$a}% selected incorrect answer {$b}';
+$string['misconception'] = 'Common misconception detected';
+
+// Advanced Analysis - Recommendations
+$string['teachingrecommendations'] = 'Teaching Recommendations';
+$string['recommendationpacing'] = 'Consider pacing more slowly during introduction segments';
+$string['recommendationengagement'] = 'Interactive activities significantly boosted engagement';
+$string['recommendationexamples'] = 'Topic "{$a}" needs reinforcement - consider additional examples';
+$string['recommendationprompts'] = 'Some quiet periods suggest students may benefit from structured prompts';
+
+// Advanced Analysis - Participation Distribution
+$string['participationdistribution'] = 'Participation Distribution';
+$string['participationhigh'] = 'High (5+ responses)';
+$string['participationmoderate'] = 'Moderate (2-4 responses)';
+$string['participationlow'] = 'Low (1 response)';
+$string['participationnone'] = 'No participation';
+$string['broadparticipation'] = 'Most students engaged at least once';
+$string['quietperiodsuggestion'] = 'Some quiet periods suggest students may benefit from structured prompts';
+
+// Export
+$string['exportanalytics'] = 'Export Analytics';
+$string['engagementpercentage'] = 'Engagement Percentage';
+$string['responsivenesspace'] = 'Responsiveness Pace';
+$string['avgresponsetime'] = 'Average Response Time';
+
+// Empty states
+$string['noresponsesyet'] = 'No student responses yet';
+$string['nosessionselected'] = 'Please select a session to view analytics';
+$string['sessionnotcompleted'] = 'Session must be completed to view analytics';
+
+// Accessibility
+$string['tabpanel'] = 'Analytics tab panel';
+
+// Additional analytics strings
+$string['participationdetails'] = '{$a->participants} of {$a->total} students participated';
+$string['responsivenessdetails'] = 'Average: {$a->avg}s, Median: {$a->median}s';

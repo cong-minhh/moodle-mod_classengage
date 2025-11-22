@@ -27,6 +27,7 @@ define('AJAX_SCRIPT', true);
 require(__DIR__.'/../../config.php');
 require_once(__DIR__.'/lib.php');
 require_once(__DIR__.'/classes/session_manager.php');
+require_once(__DIR__.'/classes/analytics_engine.php');
 
 $action = required_param('action', PARAM_ALPHA);
 $sessionid = required_param('sessionid', PARAM_INT);
@@ -239,7 +240,7 @@ function submit_answer($sessionid, $questionid, $answer, $classengageid) {
 }
 
 /**
- * Get session statistics
+ * Get session statistics with detailed response distribution
  *
  * @param int $sessionid
  * @return array
@@ -248,40 +249,41 @@ function get_session_stats($sessionid) {
     global $DB;
     
     $session = $DB->get_record('classengage_sessions', array('id' => $sessionid), '*', MUST_EXIST);
+    $classengage = $DB->get_record('classengage', array('id' => $session->classengageid), '*', MUST_EXIST);
+    $cm = get_coursemodule_from_instance('classengage', $classengage->id);
+    $context = context_module::instance($cm->id);
     
-    // Count participants
+    // Use analytics engine for cached stats
+    $analytics = new \mod_classengage\analytics_engine($classengage->id, $context);
+    $currentstats = $analytics->get_current_question_stats($sessionid);
+    
+    // Count total participants (all users who have submitted at least one response)
     $sql = "SELECT COUNT(DISTINCT userid) FROM {classengage_responses} WHERE sessionid = ?";
     $participants = $DB->count_records_sql($sql, array($sessionid));
     
-    // Get current question stats
-    $currentquestion = $session->currentquestion + 1;
+    // Count responses for current question
+    $responses = $currentstats['total'];
     
-    if ($currentquestion > 0) {
-        $sql = "SELECT q.id, q.questiontext,
-                       COUNT(r.id) as responses,
-                       SUM(r.iscorrect) as correct
-                  FROM {classengage_questions} q
-                  JOIN {classengage_session_questions} sq ON sq.questionid = q.id
-                  LEFT JOIN {classengage_responses} r ON r.questionid = q.id AND r.sessionid = sq.sessionid
-                 WHERE sq.sessionid = :sessionid
-                   AND sq.questionorder = :questionorder
-              GROUP BY q.id, q.questiontext";
-        
-        $stats = $DB->get_record_sql($sql, array(
-            'sessionid' => $sessionid,
-            'questionorder' => $currentquestion
-        ));
-    } else {
-        $stats = null;
-    }
+    // Build distribution data
+    $distribution = array(
+        'A' => $currentstats['A'],
+        'B' => $currentstats['B'],
+        'C' => $currentstats['C'],
+        'D' => $currentstats['D'],
+        'total' => $currentstats['total'],
+        'correctanswer' => isset($currentstats['correctanswer']) ? $currentstats['correctanswer'] : ''
+    );
     
     return array(
         'success' => true,
-        'participants' => $participants,
-        'currentquestion' => $currentquestion,
-        'totalquestions' => $session->numquestions,
-        'status' => $session->status,
-        'stats' => $stats
+        'data' => array(
+            'participants' => $participants,
+            'responses' => $responses,
+            'currentquestion' => $session->currentquestion,
+            'totalquestions' => $session->numquestions,
+            'status' => $session->status,
+            'distribution' => $distribution
+        )
     );
 }
 

@@ -6,7 +6,7 @@ This document summarizes the implementation of classroom clicker hardware integr
 
 **Implementation Date:** November 3, 2025  
 **Version:** v1.1.0-alpha  
-**Plugin Version:** 2025110301
+**Plugin Version:** 2025110304
 
 ---
 

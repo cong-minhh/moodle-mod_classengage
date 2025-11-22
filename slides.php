@@ -137,18 +137,8 @@ echo $OUTPUT->header();
 
 echo $OUTPUT->heading(format_string($classengage->name));
 
-// Tab navigation
-$tabs = array();
-$tabs[] = new tabobject('slides', new moodle_url('/mod/classengage/slides.php', array('id' => $cm->id)), 
-                       get_string('uploadslides', 'mod_classengage'));
-$tabs[] = new tabobject('questions', new moodle_url('/mod/classengage/questions.php', array('id' => $cm->id)), 
-                       get_string('managequestions', 'mod_classengage'));
-$tabs[] = new tabobject('sessions', new moodle_url('/mod/classengage/sessions.php', array('id' => $cm->id)), 
-                       get_string('managesessions', 'mod_classengage'));
-$tabs[] = new tabobject('analytics', new moodle_url('/mod/classengage/analytics.php', array('id' => $cm->id)), 
-                       get_string('analytics', 'mod_classengage'));
-
-print_tabs(array($tabs), 'slides');
+// Tab navigation using shared function.
+classengage_render_tabs($cm->id, 'slides');
 
 echo html_writer::tag('h3', get_string('uploadnewslides', 'mod_classengage'));
 $mform->display();

@@ -1,0 +1,1257 @@
+/**
+ * Custom styles for mod_classengage
+ *
+ * @package    mod_classengage
+ * @copyright  2025 Your Name
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
+/* ============================================================================
+   CSS CUSTOM PROPERTIES (VARIABLES)
+   ============================================================================ */
+
+.mod-classengage {
+    /* Brand colors */
+    --classengage-success: #28a745;
+    --classengage-danger: #dc3545;
+    --classengage-warning: #ffc107;
+    --classengage-info: #17a2b8;
+    --classengage-secondary: #6c757d;
+
+    /* Opacity levels */
+    --classengage-opacity-light: 0.1;
+    --classengage-opacity-medium: 0.15;
+    --classengage-opacity-hover: 0.05;
+    --classengage-opacity-disabled: 0.3;
+
+    /* Spacing scale */
+    --classengage-spacing-xs: 0.25rem;
+    --classengage-spacing-sm: 0.5rem;
+    --classengage-spacing-md: 1rem;
+    --classengage-spacing-lg: 1.5rem;
+    --classengage-spacing-xl: 2rem;
+
+    /* Shadows */
+    --classengage-shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
+    --classengage-shadow-md: 0 4px 8px rgba(0, 0, 0, 0.15);
+    --classengage-shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.15);
+
+    /* Transitions */
+    --classengage-transition-fast: 0.2s ease;
+    --classengage-transition-normal: 0.3s ease;
+
+    /* Z-index scale */
+    --classengage-z-sticky: 100;
+    --classengage-z-modal: 1000;
+}
+
+/* ============================================================================
+   CONTROL PANEL COMPONENTS
+   ============================================================================ */
+
+/* Control panel cards */
+.mod-classengage .card {
+    box-shadow: var(--classengage-shadow-sm);
+    transition: box-shadow var(--classengage-transition-normal);
+}
+
+.mod-classengage .card:hover {
+    box-shadow: var(--classengage-shadow-md);
+}
+
+/* Progress bars */
+.mod-classengage .progress {
+    background-color: #e9ecef;
+}
+
+.mod-classengage .progress-bar {
+    transition: width var(--classengage-transition-normal);
+}
+
+/* Response distribution table */
+.mod-classengage .table-hover tbody tr:hover {
+    background-color: rgba(0, 0, 0, 0.03);
+}
+
+/* Correct answer highlighting */
+.mod-classengage .table-success {
+    background-color: rgba(40, 167, 69, var(--classengage-opacity-light));
+}
+
+/* Status badges */
+.mod-classengage .badge-success {
+    background-color: var(--classengage-success);
+}
+
+.mod-classengage .badge-secondary {
+    background-color: var(--classengage-secondary);
+}
+
+/* Button spacing */
+.mod-classengage .btn-lg {
+    padding: 0.75rem var(--classengage-spacing-lg);
+    font-size: 1.1rem;
+}
+
+.mod-classengage .mr-2 {
+    margin-right: var(--classengage-spacing-sm);
+}
+
+/* Card headers */
+.mod-classengage .card-header {
+    font-weight: 600;
+}
+
+/* Real-time update indicator */
+.mod-classengage .live-indicator {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    background-color: var(--classengage-success);
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+    /* Use transform for better performance */
+    will-change: transform, opacity;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(1.5);
+        opacity: 0.5;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .mod-classengage .col-md-3,
+    .mod-classengage .col-md-6 {
+        margin-bottom: var(--classengage-spacing-md);
+    }
+}
+
+/* ============================================================================
+   ANALYTICS ENHANCEMENT COMPONENTS
+   ============================================================================ */
+
+/* Sticky filter toolbar */
+.mod-classengage .analytics-filter-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: var(--classengage-z-sticky);
+    background-color: #fff;
+    padding: var(--classengage-spacing-md);
+    margin-bottom: var(--classengage-spacing-lg);
+    border-bottom: 2px solid #dee2e6;
+    box-shadow: var(--classengage-shadow-sm);
+}
+
+/* ============================================================================
+   TWO-TAB ANALYTICS INTERFACE
+   ============================================================================ */
+
+/* Tab Navigation Styles */
+.mod-classengage .analytics-tab-navigation {
+    display: flex;
+    border-bottom: 2px solid #dee2e6;
+    margin-bottom: var(--classengage-spacing-lg);
+    background-color: #fff;
+}
+
+.mod-classengage .analytics-tab {
+    /* Positioning */
+    position: relative;
+
+    /* Display & Box Model */
+    flex: 1;
+    padding: var(--classengage-spacing-md) var(--classengage-spacing-lg);
+    border: none;
+    border-bottom: 3px solid transparent;
+    background-color: transparent;
+
+    /* Typography */
+    text-align: center;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #495057;
+
+    /* Misc */
+    cursor: pointer;
+    transition:
+        background-color var(--classengage-transition-fast),
+        color var(--classengage-transition-fast),
+        border-color var(--classengage-transition-fast);
+}
+
+.mod-classengage .analytics-tab:hover {
+    background-color: rgba(0, 123, 255, 0.05);
+    color: #007bff;
+}
+
+.mod-classengage .analytics-tab.active {
+    color: #007bff;
+    border-bottom-color: #007bff;
+    background-color: rgba(0, 123, 255, 0.05);
+}
+
+.mod-classengage .analytics-tab:focus {
+    outline: 2px solid #007bff;
+    outline-offset: -2px;
+    z-index: 1;
+}
+
+/* Tab Content Areas */
+.mod-classengage .analytics-tab-content {
+    display: none;
+}
+
+.mod-classengage .analytics-tab-content.active {
+    display: block;
+    animation: fadeIn var(--classengage-transition-fast);
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Engagement Level Color Coding */
+.mod-classengage .engagement-level-high {
+    color: #28a745;
+    font-weight: 700;
+}
+
+.mod-classengage .engagement-level-moderate {
+    color: #ffc107;
+    font-weight: 700;
+}
+
+.mod-classengage .engagement-level-low {
+    color: #dc3545;
+    font-weight: 700;
+}
+
+.mod-classengage .engagement-indicator {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--classengage-spacing-sm) var(--classengage-spacing-md);
+    border-radius: 0.25rem;
+    font-size: 1.25rem;
+    font-weight: 700;
+}
+
+.mod-classengage .engagement-indicator.high {
+    background-color: rgba(40, 167, 69, 0.15);
+    color: #28a745;
+    border: 2px solid #28a745;
+}
+
+.mod-classengage .engagement-indicator.moderate {
+    background-color: rgba(255, 193, 7, 0.15);
+    color: #856404;
+    border: 2px solid #ffc107;
+}
+
+.mod-classengage .engagement-indicator.low {
+    background-color: rgba(220, 53, 69, 0.15);
+    color: #dc3545;
+    border: 2px solid #dc3545;
+}
+
+/* Comprehension Level Color Coding */
+.mod-classengage .comprehension-level-strong {
+    color: #28a745;
+    font-weight: 700;
+}
+
+.mod-classengage .comprehension-level-partial {
+    color: #ffc107;
+    font-weight: 700;
+}
+
+.mod-classengage .comprehension-level-weak {
+    color: #dc3545;
+    font-weight: 700;
+}
+
+.mod-classengage .comprehension-indicator {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--classengage-spacing-sm) var(--classengage-spacing-md);
+    border-radius: 0.25rem;
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+
+.mod-classengage .comprehension-indicator.strong {
+    background-color: rgba(40, 167, 69, 0.15);
+    color: #28a745;
+    border: 2px solid #28a745;
+}
+
+.mod-classengage .comprehension-indicator.partial {
+    background-color: rgba(255, 193, 7, 0.15);
+    color: #856404;
+    border: 2px solid #ffc107;
+}
+
+.mod-classengage .comprehension-indicator.weak {
+    background-color: rgba(220, 53, 69, 0.15);
+    color: #dc3545;
+    border: 2px solid #dc3545;
+}
+
+/* Concept Difficulty Color Coding for Bar Chart */
+.mod-classengage .concept-difficulty-easy {
+    background-color: #28a745;
+}
+
+.mod-classengage .concept-difficulty-moderate {
+    background-color: #ffc107;
+}
+
+.mod-classengage .concept-difficulty-difficult {
+    background-color: #dc3545;
+}
+
+.mod-classengage .concept-difficulty-table {
+    width: 100%;
+    margin-bottom: var(--classengage-spacing-lg);
+}
+
+.mod-classengage .concept-difficulty-table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    padding: var(--classengage-spacing-md);
+    border-bottom: 2px solid #dee2e6;
+}
+
+.mod-classengage .concept-difficulty-table td {
+    padding: var(--classengage-spacing-md);
+    border-bottom: 1px solid #dee2e6;
+}
+
+.mod-classengage .concept-difficulty-table tr:hover {
+    background-color: rgba(0, 0, 0, 0.02);
+}
+
+.mod-classengage .difficulty-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 0.25rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-align: center;
+}
+
+.mod-classengage .difficulty-badge.easy {
+    background-color: rgba(40, 167, 69, 0.15);
+    color: #28a745;
+}
+
+.mod-classengage .difficulty-badge.moderate {
+    background-color: rgba(255, 193, 7, 0.15);
+    color: #856404;
+}
+
+.mod-classengage .difficulty-badge.difficult {
+    background-color: rgba(220, 53, 69, 0.15);
+    color: #dc3545;
+}
+
+/* Peak/Dip Highlighting Styles for Timeline */
+.mod-classengage .timeline-peak {
+    background-color: rgba(40, 167, 69, 0.2);
+    border: 2px solid #28a745;
+}
+
+.mod-classengage .timeline-dip {
+    background-color: rgba(220, 53, 69, 0.2);
+    border: 2px solid #dc3545;
+}
+
+.mod-classengage .timeline-marker {
+    position: relative;
+}
+
+.mod-classengage .timeline-marker.peak::after {
+    content: "▲";
+    position: absolute;
+    top: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #28a745;
+    font-size: 1.2rem;
+}
+
+.mod-classengage .timeline-marker.dip::after {
+    content: "▼";
+    position: absolute;
+    bottom: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #dc3545;
+    font-size: 1.2rem;
+}
+
+/* Recommendation Card Styles */
+.mod-classengage .recommendation-card {
+    background-color: #fff;
+    border-left: 4px solid #007bff;
+    border-radius: 0.25rem;
+    padding: var(--classengage-spacing-md);
+    margin-bottom: var(--classengage-spacing-md);
+    box-shadow: var(--classengage-shadow-sm);
+    transition:
+        box-shadow var(--classengage-transition-fast),
+        transform var(--classengage-transition-fast);
+}
+
+.mod-classengage .recommendation-card:hover {
+    box-shadow: var(--classengage-shadow-md);
+    transform: translateX(4px);
+}
+
+.mod-classengage .recommendation-card.priority-1 {
+    border-left-color: #dc3545;
+    background-color: rgba(220, 53, 69, 0.03);
+}
+
+.mod-classengage .recommendation-card.priority-2 {
+    border-left-color: #fd7e14;
+    background-color: rgba(253, 126, 20, 0.03);
+}
+
+.mod-classengage .recommendation-card.priority-3 {
+    border-left-color: #28a745;
+    background-color: rgba(40, 167, 69, 0.03);
+}
+
+.mod-classengage .recommendation-card.priority-4 {
+    border-left-color: #ffc107;
+    background-color: rgba(255, 193, 7, 0.03);
+}
+
+.mod-classengage .recommendation-card.priority-5,
+.mod-classengage .recommendation-card.priority-6 {
+    border-left-color: #17a2b8;
+    background-color: rgba(23, 162, 184, 0.03);
+}
+
+.mod-classengage .recommendation-icon {
+    font-size: 1.5rem;
+    margin-right: var(--classengage-spacing-md);
+    vertical-align: middle;
+}
+
+.mod-classengage .recommendation-text {
+    font-size: 1rem;
+    line-height: 1.5;
+    color: #495057;
+}
+
+.mod-classengage .recommendation-priority {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    margin-left: var(--classengage-spacing-sm);
+}
+
+.mod-classengage .recommendation-priority.high {
+    background-color: #dc3545;
+    color: #fff;
+}
+
+.mod-classengage .recommendation-priority.medium {
+    background-color: #ffc107;
+    color: #212529;
+}
+
+.mod-classengage .recommendation-priority.low {
+    background-color: #17a2b8;
+    color: #fff;
+}
+
+/* Analytics Cards */
+.mod-classengage .analytics-card {
+    background-color: #fff;
+    border-radius: 0.5rem;
+    padding: var(--classengage-spacing-lg);
+    margin-bottom: var(--classengage-spacing-lg);
+    box-shadow: var(--classengage-shadow-sm);
+    transition: box-shadow var(--classengage-transition-fast);
+}
+
+.mod-classengage .analytics-card:hover {
+    box-shadow: var(--classengage-shadow-md);
+}
+
+.mod-classengage .analytics-card-header {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: var(--classengage-spacing-md);
+    color: #212529;
+    border-bottom: 2px solid #dee2e6;
+    padding-bottom: var(--classengage-spacing-sm);
+}
+
+.mod-classengage .analytics-card-body {
+    font-size: 1rem;
+    line-height: 1.6;
+    color: #495057;
+}
+
+.mod-classengage .analytics-metric {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--classengage-spacing-sm) 0;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.mod-classengage .analytics-metric:last-child {
+    border-bottom: none;
+}
+
+.mod-classengage .analytics-metric-label {
+    font-weight: 600;
+    color: #495057;
+}
+
+.mod-classengage .analytics-metric-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #007bff;
+}
+
+/* Responsive Styles for Mobile Devices */
+@media (max-width: 768px) {
+    .mod-classengage .analytics-tab-navigation {
+        flex-direction: column;
+    }
+
+    .mod-classengage .analytics-tab {
+        border-bottom: 1px solid #dee2e6;
+        border-left: 3px solid transparent;
+    }
+
+    .mod-classengage .analytics-tab.active {
+        border-bottom-color: #dee2e6;
+        border-left-color: #007bff;
+    }
+
+    .mod-classengage .analytics-card {
+        padding: var(--classengage-spacing-md);
+    }
+
+    .mod-classengage .analytics-card-header {
+        font-size: 1.1rem;
+    }
+
+    .mod-classengage .analytics-metric {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--classengage-spacing-xs);
+    }
+
+    .mod-classengage .analytics-metric-value {
+        font-size: 1.25rem;
+    }
+
+    .mod-classengage .recommendation-card {
+        padding: var(--classengage-spacing-sm);
+    }
+
+    .mod-classengage .recommendation-icon {
+        display: block;
+        margin-bottom: var(--classengage-spacing-sm);
+    }
+
+    .mod-classengage .chart-container {
+        height: 300px;
+    }
+
+    .mod-classengage .concept-difficulty-table {
+        font-size: 0.875rem;
+    }
+
+    .mod-classengage .concept-difficulty-table th,
+    .mod-classengage .concept-difficulty-table td {
+        padding: var(--classengage-spacing-sm);
+    }
+}
+
+@media (max-width: 576px) {
+    .mod-classengage .analytics-tab {
+        padding: var(--classengage-spacing-sm);
+        font-size: 0.9rem;
+    }
+
+    .mod-classengage .engagement-indicator,
+    .mod-classengage .comprehension-indicator {
+        font-size: 1rem;
+        padding: var(--classengage-spacing-xs) var(--classengage-spacing-sm);
+    }
+
+    .mod-classengage .chart-container {
+        height: 250px;
+    }
+}
+
+/* Student performance highlighting */
+.mod-classengage .table-top-performer {
+    background-color: rgba(40, 167, 69, var(--classengage-opacity-light));
+}
+
+.mod-classengage .table-top-performer:hover {
+    background-color: rgba(40, 167, 69, var(--classengage-opacity-medium));
+}
+
+.mod-classengage .table-at-risk {
+    background-color: rgba(220, 53, 69, var(--classengage-opacity-light));
+}
+
+.mod-classengage .table-at-risk:hover {
+    background-color: rgba(220, 53, 69, var(--classengage-opacity-medium));
+}
+
+/* Table row hover effects */
+.mod-classengage .analytics-table tbody tr {
+    transition: background-color var(--classengage-transition-fast);
+    cursor: pointer;
+}
+
+.mod-classengage .analytics-table tbody tr:hover {
+    background-color: rgba(0, 0, 0, var(--classengage-opacity-hover));
+}
+
+/* Sort indicator styles */
+.mod-classengage .sortable-column {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+    padding-right: var(--classengage-spacing-lg);
+}
+
+.mod-classengage .sortable-column:hover {
+    background-color: rgba(0, 0, 0, var(--classengage-opacity-hover));
+}
+
+.mod-classengage .sort-indicator {
+    position: absolute;
+    right: var(--classengage-spacing-sm);
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.75rem;
+    color: var(--classengage-secondary);
+}
+
+.mod-classengage .sort-indicator.sort-asc::after {
+    content: "▲";
+}
+
+.mod-classengage .sort-indicator.sort-desc::after {
+    content: "▼";
+}
+
+.mod-classengage .sort-indicator.sort-none::after {
+    content: "⇅";
+    opacity: var(--classengage-opacity-disabled);
+}
+
+/* Performance badge styles */
+.mod-classengage .performance-badge {
+    display: inline-block;
+    padding: var(--classengage-spacing-sm) var(--classengage-spacing-md);
+    margin: var(--classengage-spacing-sm);
+    border-radius: var(--classengage-spacing-sm);
+    font-weight: 600;
+    text-align: center;
+    box-shadow: var(--classengage-shadow-sm);
+    color: #fff;
+}
+
+.mod-classengage .badge-most-improved {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.mod-classengage .badge-fastest-responder {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.mod-classengage .badge-most-consistent {
+    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+}
+
+/* Anomaly alert styles */
+.mod-classengage .anomaly-alert {
+    padding: 0.75rem var(--classengage-spacing-md);
+    margin-bottom: var(--classengage-spacing-sm);
+    border-left: 4px solid;
+    border-radius: var(--classengage-spacing-xs);
+    background-color: #fff;
+}
+
+.mod-classengage .anomaly-alert.severity-low {
+    border-left-color: var(--classengage-warning);
+    background-color: rgba(255, 193, 7, var(--classengage-opacity-light));
+}
+
+.mod-classengage .anomaly-alert.severity-medium {
+    border-left-color: #fd7e14;
+    background-color: rgba(253, 126, 20, var(--classengage-opacity-light));
+}
+
+.mod-classengage .anomaly-alert.severity-high {
+    border-left-color: var(--classengage-danger);
+    background-color: rgba(220, 53, 69, var(--classengage-opacity-light));
+}
+
+.mod-classengage .anomaly-icon {
+    font-size: 1.25rem;
+    margin-right: var(--classengage-spacing-sm);
+}
+
+/* Insights panel styling */
+.mod-classengage .insights-panel {
+    background-color: #f8f9fa;
+    border-radius: var(--classengage-spacing-sm);
+    padding: var(--classengage-spacing-lg);
+    margin-bottom: var(--classengage-spacing-lg);
+}
+
+.mod-classengage .insight-section {
+    margin-bottom: var(--classengage-spacing-md);
+}
+
+.mod-classengage .insight-section:last-child {
+    margin-bottom: 0;
+}
+
+/* Chart container styling */
+.mod-classengage .chart-container {
+    position: relative;
+    height: 400px;
+    margin-bottom: var(--classengage-spacing-xl);
+}
+
+.mod-classengage .chart-wrapper {
+    background-color: #fff;
+    border-radius: var(--classengage-spacing-sm);
+    padding: var(--classengage-spacing-lg);
+    box-shadow: var(--classengage-shadow-sm);
+}
+
+/* ============================================================================
+   RTL (RIGHT-TO-LEFT) SUPPORT
+   ============================================================================ */
+
+[dir="rtl"] .mod-classengage .sort-indicator {
+    right: auto;
+    left: var(--classengage-spacing-sm);
+}
+
+[dir="rtl"] .mod-classengage .sortable-column {
+    padding-right: 0.75rem;
+    padding-left: var(--classengage-spacing-lg);
+}
+
+[dir="rtl"] .mod-classengage .anomaly-icon {
+    margin-right: 0;
+    margin-left: var(--classengage-spacing-sm);
+}
+
+[dir="rtl"] .mod-classengage .anomaly-alert {
+    border-left: none;
+    border-right: 4px solid;
+}
+
+[dir="rtl"] .mod-classengage .anomaly-alert.severity-low {
+    border-right-color: var(--classengage-warning);
+}
+
+[dir="rtl"] .mod-classengage .anomaly-alert.severity-medium {
+    border-right-color: #fd7e14;
+}
+
+[dir="rtl"] .mod-classengage .anomaly-alert.severity-high {
+    border-right-color: var(--classengage-danger);
+}
+
+/* RTL Support for Two-Tab Analytics Interface */
+[dir="rtl"] .mod-classengage .recommendation-card {
+    border-left: none;
+    border-right: 4px solid #007bff;
+}
+
+[dir="rtl"] .mod-classengage .recommendation-card:hover {
+    transform: translateX(-4px);
+}
+
+[dir="rtl"] .mod-classengage .recommendation-card.priority-1 {
+    border-right-color: #dc3545;
+}
+
+[dir="rtl"] .mod-classengage .recommendation-card.priority-2 {
+    border-right-color: #fd7e14;
+}
+
+[dir="rtl"] .mod-classengage .recommendation-card.priority-3 {
+    border-right-color: #28a745;
+}
+
+[dir="rtl"] .mod-classengage .recommendation-card.priority-4 {
+    border-right-color: #ffc107;
+}
+
+[dir="rtl"] .mod-classengage .recommendation-card.priority-5,
+[dir="rtl"] .mod-classengage .recommendation-card.priority-6 {
+    border-right-color: #17a2b8;
+}
+
+[dir="rtl"] .mod-classengage .recommendation-icon {
+    margin-right: 0;
+    margin-left: var(--classengage-spacing-md);
+}
+
+[dir="rtl"] .mod-classengage .recommendation-priority {
+    margin-left: 0;
+    margin-right: var(--classengage-spacing-sm);
+}
+
+[dir="rtl"] .mod-classengage .analytics-tab {
+    border-left: 3px solid transparent;
+    border-bottom: none;
+}
+
+[dir="rtl"] .mod-classengage .analytics-tab.active {
+    border-left-color: #007bff;
+}
+
+@media (max-width: 768px) {
+    [dir="rtl"] .mod-classengage .analytics-tab {
+        border-right: 3px solid transparent;
+        border-left: none;
+    }
+
+    [dir="rtl"] .mod-classengage .analytics-tab.active {
+        border-right-color: #007bff;
+        border-left-color: transparent;
+    }
+}
+
+/* Filter form styling */
+.mod-classengage .filter-form .form-group {
+    margin-bottom: var(--classengage-spacing-md);
+}
+
+.mod-classengage .filter-form label {
+    font-weight: 600;
+    margin-bottom: var(--classengage-spacing-xs);
+}
+
+.mod-classengage .filter-form input[type="text"],
+.mod-classengage .filter-form input[type="number"],
+.mod-classengage .filter-form select {
+    width: 100%;
+    padding: var(--classengage-spacing-sm);
+    border: 1px solid #ced4da;
+    border-radius: var(--classengage-spacing-xs);
+}
+
+.mod-classengage .filter-form input[type="checkbox"] {
+    margin-right: var(--classengage-spacing-sm);
+}
+
+[dir="rtl"] .mod-classengage .filter-form input[type="checkbox"] {
+    margin-right: 0;
+    margin-left: var(--classengage-spacing-sm);
+}
+
+/* Pagination styling */
+.mod-classengage .analytics-pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: var(--classengage-spacing-lg);
+    gap: var(--classengage-spacing-sm);
+}
+
+.mod-classengage .pagination-info {
+    margin: 0 var(--classengage-spacing-md);
+    font-weight: 600;
+    color: var(--classengage-secondary);
+}
+
+/* Summary card enhancements */
+.mod-classengage .summary-card {
+    border-radius: 0.5rem;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.mod-classengage .summary-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.mod-classengage .trend-indicator {
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.mod-classengage .trend-positive {
+    color: #28a745;
+}
+
+.mod-classengage .trend-negative {
+    color: #dc3545;
+}
+
+.mod-classengage .trend-neutral {
+    color: #6c757d;
+}
+
+/* Accessibility improvements */
+.mod-classengage .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Focus styles for keyboard navigation */
+.mod-classengage .sortable-column:focus,
+.mod-classengage .filter-form input:focus,
+.mod-classengage .filter-form select:focus,
+.mod-classengage .analytics-pagination button:focus {
+    outline: 2px solid #007bff;
+    outline-offset: 2px;
+}
+
+/* WCAG AA Color Contrast Compliance */
+/* Ensuring all text meets minimum 4.5:1 contrast ratio for normal text */
+/* and 3:1 for large text (18pt+ or 14pt+ bold) */
+
+.mod-classengage .engagement-indicator.moderate {
+    /* Enhanced contrast for yellow on light background */
+    color: #856404;
+    background-color: rgba(255, 193, 7, 0.2);
+}
+
+.mod-classengage .comprehension-indicator.moderate {
+    /* Enhanced contrast for yellow on light background */
+    color: #856404;
+    background-color: rgba(255, 193, 7, 0.2);
+}
+
+.mod-classengage .difficulty-badge.moderate {
+    /* Enhanced contrast for yellow badge */
+    color: #856404;
+    background-color: rgba(255, 193, 7, 0.2);
+}
+
+.mod-classengage .recommendation-priority.medium {
+    /* Enhanced contrast for medium priority badge */
+    background-color: #ffc107;
+    color: #212529;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .mod-classengage .analytics-tab {
+        border-width: 2px;
+    }
+
+    .mod-classengage .analytics-tab.active {
+        border-bottom-width: 4px;
+    }
+
+    .mod-classengage .engagement-indicator,
+    .mod-classengage .comprehension-indicator {
+        border-width: 3px;
+    }
+
+    .mod-classengage .recommendation-card {
+        border-left-width: 6px;
+    }
+
+    [dir="rtl"] .mod-classengage .recommendation-card {
+        border-right-width: 6px;
+    }
+}
+
+/* Reduced motion support for accessibility */
+@media (prefers-reduced-motion: reduce) {
+    .mod-classengage .analytics-tab,
+    .mod-classengage .analytics-card,
+    .mod-classengage .recommendation-card,
+    .mod-classengage .analytics-tab-content {
+        transition: none;
+        animation: none;
+    }
+
+    .mod-classengage .live-indicator {
+        animation: none;
+    }
+
+    .mod-classengage .recommendation-card:hover {
+        transform: none;
+    }
+
+    .mod-classengage .summary-card:hover {
+        transform: none;
+    }
+}
+
+/* Print styles for analytics reports */
+@media print {
+    .mod-classengage .analytics-tab-navigation {
+        display: none;
+    }
+
+    .mod-classengage .analytics-tab-content {
+        /* stylelint-disable-next-line declaration-no-important */
+        display: block !important;
+    }
+
+    .mod-classengage .analytics-card {
+        page-break-inside: avoid;
+        box-shadow: none;
+        border: 1px solid #dee2e6;
+    }
+
+    .mod-classengage .recommendation-card {
+        page-break-inside: avoid;
+        box-shadow: none;
+    }
+
+    .mod-classengage .chart-container {
+        page-break-inside: avoid;
+    }
+}
+
+/* Loading state */
+.mod-classengage .analytics-loading {
+    text-align: center;
+    padding: 3rem;
+    color: #6c757d;
+}
+
+.mod-classengage .analytics-loading::after {
+    content: "...";
+    animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+    0%,
+    20% {
+        content: ".";
+    }
+    40% {
+        content: "..";
+    }
+    60%,
+    100% {
+        content: "...";
+    }
+}
+
+/* Empty State Styles */
+.mod-classengage .analytics-empty-state {
+    text-align: center;
+    padding: var(--classengage-spacing-xl);
+    color: #6c757d;
+}
+
+.mod-classengage .analytics-empty-state-icon {
+    font-size: 3rem;
+    margin-bottom: var(--classengage-spacing-md);
+    opacity: 0.5;
+}
+
+.mod-classengage .analytics-empty-state-message {
+    font-size: 1.1rem;
+    margin-bottom: var(--classengage-spacing-sm);
+}
+
+/* Session Selector Styles */
+.mod-classengage .session-selector {
+    margin-bottom: var(--classengage-spacing-lg);
+    padding: var(--classengage-spacing-md);
+    background-color: #f8f9fa;
+    border-radius: 0.25rem;
+}
+
+.mod-classengage .session-selector label {
+    font-weight: 600;
+    margin-right: var(--classengage-spacing-sm);
+}
+
+[dir="rtl"] .mod-classengage .session-selector label {
+    margin-right: 0;
+    margin-left: var(--classengage-spacing-sm);
+}
+
+.mod-classengage .session-selector select {
+    padding: var(--classengage-spacing-sm) var(--classengage-spacing-md);
+    border: 1px solid #ced4da;
+    border-radius: 0.25rem;
+    font-size: 1rem;
+}
+
+/* Export Button Styles */
+.mod-classengage .export-button {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--classengage-spacing-sm) var(--classengage-spacing-md);
+    background-color: #28a745;
+    color: #fff;
+    border: none;
+    border-radius: 0.25rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color var(--classengage-transition-fast);
+}
+
+.mod-classengage .export-button:hover {
+    background-color: #218838;
+}
+
+.mod-classengage .export-button:focus {
+    outline: 2px solid #28a745;
+    outline-offset: 2px;
+}
+
+.mod-classengage .export-button-icon {
+    margin-right: var(--classengage-spacing-sm);
+}
+
+[dir="rtl"] .mod-classengage .export-button-icon {
+    margin-right: 0;
+    margin-left: var(--classengage-spacing-sm);
+}
+
+/* Last Updated Timestamp */
+.mod-classengage .analytics-timestamp {
+    font-size: 0.875rem;
+    color: #6c757d;
+    text-align: right;
+    margin-bottom: var(--classengage-spacing-md);
+    font-style: italic;
+}
+
+[dir="rtl"] .mod-classengage .analytics-timestamp {
+    text-align: left;
+}
+
+/* Confused Topics List */
+.mod-classengage .confused-topics-list {
+    list-style: none;
+    padding: 0;
+    margin: var(--classengage-spacing-md) 0;
+}
+
+.mod-classengage .confused-topics-list li {
+    padding: var(--classengage-spacing-sm);
+    margin-bottom: var(--classengage-spacing-xs);
+    background-color: rgba(220, 53, 69, 0.1);
+    border-left: 3px solid #dc3545;
+    border-radius: 0.25rem;
+}
+
+[dir="rtl"] .mod-classengage .confused-topics-list li {
+    border-left: none;
+    border-right: 3px solid #dc3545;
+}
+
+/* Activity Count Icons */
+.mod-classengage .activity-icon {
+    font-size: 1.5rem;
+    margin-right: var(--classengage-spacing-sm);
+    color: #007bff;
+}
+
+[dir="rtl"] .mod-classengage .activity-icon {
+    margin-right: 0;
+    margin-left: var(--classengage-spacing-sm);
+}
+
+/* Responsiveness Pace Indicator */
+.mod-classengage .pace-indicator {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--classengage-spacing-xs) var(--classengage-spacing-sm);
+    border-radius: 0.25rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.mod-classengage .pace-indicator.quick {
+    background-color: rgba(40, 167, 69, 0.15);
+    color: #28a745;
+}
+
+.mod-classengage .pace-indicator.normal {
+    background-color: rgba(23, 162, 184, 0.15);
+    color: #17a2b8;
+}
+
+.mod-classengage .pace-indicator.slow {
+    background-color: rgba(255, 193, 7, 0.15);
+    color: #856404;
+}
+
+/* Grid Layout for Simple Analysis Cards */
+.mod-classengage .analytics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: var(--classengage-spacing-lg);
+    margin-bottom: var(--classengage-spacing-lg);
+}
+
+@media (max-width: 768px) {
+    .mod-classengage .analytics-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Tooltip Styles for Chart Hover */
+.mod-classengage .chart-tooltip {
+    background-color: rgba(0, 0, 0, 0.8);
+    color: #fff;
+    padding: var(--classengage-spacing-sm);
+    border-radius: 0.25rem;
+    font-size: 0.875rem;
+    pointer-events: none;
+}
+
+/* No Data Message */
+.mod-classengage .no-data-message {
+    text-align: center;
+    padding: var(--classengage-spacing-xl);
+    background-color: #f8f9fa;
+    border-radius: 0.25rem;
+    color: #6c757d;
+    font-style: italic;
+}

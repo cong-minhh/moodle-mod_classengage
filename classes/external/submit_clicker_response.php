@@ -40,6 +40,9 @@ require_once($CFG->libdir . '/externallib.php');
  */
 class submit_clicker_response extends external_api {
 
+    /** @var array Valid answer options */
+    const VALID_ANSWERS = ['A', 'B', 'C', 'D'];
+
     /**
      * Returns description of method parameters
      *
@@ -50,9 +53,9 @@ class submit_clicker_response extends external_api {
             array(
                 'sessionid' => new external_value(PARAM_INT, 'Session ID'),
                 'userid' => new external_value(PARAM_INT, 'User ID (student who pressed the button)'),
-                'clickerid' => new external_value(PARAM_TEXT, 'Clicker device ID (optional)', VALUE_OPTIONAL, ''),
+                'clickerid' => new external_value(PARAM_TEXT, 'Clicker device ID (optional)', VALUE_DEFAULT, ''),
                 'answer' => new external_value(PARAM_TEXT, 'Answer selected (A/B/C/D)'),
-                'timestamp' => new external_value(PARAM_INT, 'Timestamp when button was pressed', VALUE_OPTIONAL, 0),
+                'timestamp' => new external_value(PARAM_INT, 'Timestamp when button was pressed', VALUE_DEFAULT, 0),
             )
         );
     }
@@ -138,7 +141,7 @@ class submit_clicker_response extends external_api {
 
         // Validate answer
         $answer = strtoupper(trim($params['answer']));
-        if (!in_array($answer, array('A', 'B', 'C', 'D'))) {
+        if (!in_array($answer, self::VALID_ANSWERS)) {
             return array(
                 'success' => false,
                 'message' => 'Invalid answer format. Must be A, B, C, or D',
@@ -151,15 +154,11 @@ class submit_clicker_response extends external_api {
         $iscorrect = ($answer === strtoupper($currentquestion->correctanswer));
 
         // Calculate response time
-        $responsetime = 0;
-        if ($params['timestamp'] > 0 && $session->questionstarttime > 0) {
-            $responsetime = $params['timestamp'] - $session->questionstarttime;
-        } else {
-            $responsetime = time() - $session->questionstarttime;
-        }
-
-        // Ensure response time is positive and reasonable
-        $responsetime = max(0, min($responsetime, $session->timelimit));
+        $responsetime = self::calculate_response_time(
+            $params['timestamp'],
+            $session->questionstarttime,
+            $session->timelimit
+        );
 
         // Save response
         $response = new \stdClass();
@@ -224,6 +223,25 @@ class submit_clicker_response extends external_api {
                 'responseid' => new external_value(PARAM_INT, 'ID of the created response record', VALUE_OPTIONAL),
             )
         );
+    }
+
+    /**
+     * Calculate response time with validation
+     *
+     * @param int $timestamp Submitted timestamp (0 if not provided)
+     * @param int $questionstarttime When question was displayed
+     * @param int $timelimit Maximum allowed time
+     * @return int Response time in seconds, bounded by 0 and timelimit
+     */
+    private static function calculate_response_time($timestamp, $questionstarttime, $timelimit) {
+        if ($timestamp > 0 && $questionstarttime > 0) {
+            $responsetime = $timestamp - $questionstarttime;
+        } else {
+            $responsetime = time() - $questionstarttime;
+        }
+
+        // Ensure response time is positive and within time limit
+        return max(0, min($responsetime, $timelimit));
     }
 
     /**

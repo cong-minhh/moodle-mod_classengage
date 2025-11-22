@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Instructor control panel for managing live quiz sessions
+ * Instructor control panel for managing live quiz sessions with real-time updates
  *
  * @package    mod_classengage
  * @copyright  2025 Your Name
@@ -24,162 +24,177 @@
 
 require(__DIR__.'/../../config.php');
 require_once(__DIR__.'/lib.php');
-require_once(__DIR__.'/classes/session_manager.php');
 
-$id = required_param('id', PARAM_INT); // Course module ID
+use mod_classengage\session_manager;
+use mod_classengage\analytics_engine;
+use mod_classengage\control_panel_actions;
+use mod_classengage\output\control_panel_renderer;
+use mod_classengage\constants;
+
+// ============================================================================
+// PARAMETER VALIDATION AND SETUP
+// ============================================================================
+
+$id = required_param('id', PARAM_INT); // Course module ID.
 $sessionid = required_param('sessionid', PARAM_INT);
 $action = optional_param('action', '', PARAM_ALPHA);
 
+// Validate database records.
 $cm = get_coursemodule_from_id('classengage', $id, 0, false, MUST_EXIST);
 $course = $DB->get_record('course', array('id' => $cm->course), '*', MUST_EXIST);
 $classengage = $DB->get_record('classengage', array('id' => $cm->instance), '*', MUST_EXIST);
 $session = $DB->get_record('classengage_sessions', array('id' => $sessionid), '*', MUST_EXIST);
 
+// Verify session belongs to this activity.
+if ($session->classengageid != $classengage->id) {
+    throw new moodle_exception('invalidsession', 'mod_classengage');
+}
+
+// Security checks.
 require_login($course, true, $cm);
 $context = context_module::instance($cm->id);
 require_capability('mod/classengage:startquiz', $context);
 
+// Page setup.
 $PAGE->set_url('/mod/classengage/controlpanel.php', array('id' => $cm->id, 'sessionid' => $sessionid));
 $PAGE->set_title(format_string($classengage->name));
 $PAGE->set_heading(format_string($course->fullname));
 $PAGE->set_context($context);
+$PAGE->set_pagelayout('incourse');
 
-$sessionmanager = new \mod_classengage\session_manager($classengage->id, $context);
+// ============================================================================
+// INITIALIZE COMPONENTS
+// ============================================================================
 
-// Handle actions
-if ($action === 'next' && confirm_sesskey()) {
-    $sessionmanager->next_question($sessionid);
-    redirect($PAGE->url);
+$sessionmanager = new session_manager($classengage->id, $context);
+$analyticsengine = new analytics_engine($classengage->id, $context);
+$actionhandler = new control_panel_actions($sessionmanager, $context);
+$renderer = new control_panel_renderer();
+
+// ============================================================================
+// HANDLE ACTIONS
+// ============================================================================
+
+if (!empty($action)) {
+    try {
+        $actionhandler->execute($action, $sessionid);
+        
+        // Redirect based on action.
+        if ($action === constants::ACTION_STOP) {
+            redirect(new moodle_url('/mod/classengage/sessions.php', array('id' => $cm->id)),
+                get_string('sessionstopped', 'mod_classengage'),
+                null,
+                \core\output\notification::NOTIFY_SUCCESS);
+        } else {
+            redirect($PAGE->url);
+        }
+    } catch (Exception $e) {
+        // Display error and continue to page.
+        \core\notification::error($e->getMessage());
+    }
 }
 
-if ($action === 'stop' && confirm_sesskey()) {
-    $sessionmanager->stop_session($sessionid);
-    redirect(new moodle_url('/mod/classengage/sessions.php', array('id' => $cm->id)));
+// ============================================================================
+// PAGE RESOURCES AND INITIALIZATION
+// ============================================================================
+
+// Get polling interval from settings.
+$pollinginterval = get_config('mod_classengage', 'pollinginterval');
+if (empty($pollinginterval)) {
+    $pollinginterval = constants::DEFAULT_POLLING_INTERVAL;
 }
 
-// Auto-refresh page
-$PAGE->requires->js_init_code("
-    setInterval(function() {
-        location.reload();
-    }, 5000);
-");
+// Initialize real-time updates with AMD module.
+$PAGE->requires->js_call_amd('mod_classengage/controlpanel', 'init', array($sessionid, $pollinginterval));
+
+// Load Chart.js only if session is active (performance optimization).
+if ($session->status === constants::SESSION_STATUS_ACTIVE) {
+    // TODO: Bundle Chart.js locally instead of using CDN for better performance and CSP compliance.
+    $PAGE->requires->js(new moodle_url('https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js'), true);
+}
+
+// Add custom CSS for better styling.
+$PAGE->requires->css('/mod/classengage/styles.css');
+
+// ============================================================================
+// OUTPUT STARTS HERE
+// ============================================================================
 
 echo $OUTPUT->header();
 
-echo $OUTPUT->heading(format_string($session->name));
+// Page heading.
+echo $OUTPUT->heading(format_string($classengage->name));
 
-echo html_writer::tag('h4', get_string('controlpanel', 'mod_classengage'));
+// Standard tab navigation.
+classengage_render_tabs($cm->id);
 
-// Session status
-echo html_writer::start_div('row mb-4');
+// Control panel subheading.
+$subheading = format_string($session->name) . ' - ' . get_string('controlpanel', 'mod_classengage');
+echo html_writer::tag('h4', $subheading, array('class' => 'mb-3'));
 
-echo html_writer::start_div('col-md-4');
-echo html_writer::start_div('card');
-echo html_writer::div(
-    html_writer::tag('h5', get_string('currentquestion', 'mod_classengage', 
-        array('current' => $session->currentquestion + 1, 'total' => $session->numquestions)), 
-        array('class' => 'card-title')) .
-    html_writer::tag('p', 'Status: ' . ucfirst($session->status), array('class' => 'h3')),
-    'card-body'
-);
-echo html_writer::end_div();
-echo html_writer::end_div();
+// ============================================================================
+// SESSION STATUS CARDS
+// Displays real-time session metrics: question progress, status, participants
+// ============================================================================
 
-// Participant count
-$sql = "SELECT COUNT(DISTINCT userid) FROM {classengage_responses} WHERE sessionid = ?";
-$participantcount = $DB->count_records_sql($sql, array($sessionid));
+// Get participant count from analytics engine (uses caching).
+$sessionstats = $analyticsengine->get_session_summary($sessionid);
+$participantcount = isset($sessionstats->total_participants) ? $sessionstats->total_participants : 0;
 
-echo html_writer::start_div('col-md-4');
-echo html_writer::start_div('card');
-echo html_writer::div(
-    html_writer::tag('h5', get_string('participants', 'mod_classengage'), array('class' => 'card-title')) .
-    html_writer::tag('p', $participantcount, array('class' => 'display-4')),
-    'card-body text-center'
-);
-echo html_writer::end_div();
-echo html_writer::end_div();
+// Render status cards using renderer.
+echo $renderer->render_status_cards($session, $participantcount);
 
-echo html_writer::end_div();
+// ============================================================================
+// ACTIVE SESSION DISPLAY
+// Shows current question, live response statistics, and control buttons
+// ============================================================================
 
-// Current question display
-if ($session->status === 'active') {
-    $currentq = $sessionmanager->get_current_question($sessionid);
-    
-    if ($currentq) {
-        echo html_writer::tag('h5', get_string('currentquestiontext', 'mod_classengage'));
-        echo html_writer::div(
-            html_writer::tag('p', format_text($currentq->questiontext), array('class' => 'lead')),
-            'card card-body mb-3'
-        );
+if ($session->status === constants::SESSION_STATUS_ACTIVE) {
+    try {
+        $currentq = $sessionmanager->get_current_question($sessionid);
         
-        // Response statistics
-        $sql = "SELECT answer, COUNT(*) as count
-                  FROM {classengage_responses}
-                 WHERE sessionid = :sessionid AND questionid = :questionid
-              GROUP BY answer";
-        
-        $responses = $DB->get_records_sql($sql, array(
-            'sessionid' => $sessionid,
-            'questionid' => $currentq->id
-        ));
-        
-        echo html_writer::tag('h5', get_string('liveresponses', 'mod_classengage'));
-        
-        $table = new html_table();
-        $table->head = array('Answer', 'Count', 'Percentage');
-        $table->attributes['class'] = 'generaltable';
-        
-        $total = array_sum(array_column((array)$responses, 'count'));
-        
-        foreach (array('A', 'B', 'C', 'D') as $option) {
-            $count = 0;
-            foreach ($responses as $r) {
-                if (strtoupper($r->answer) === $option) {
-                    $count = $r->count;
-                    break;
-                }
-            }
+        if ($currentq) {
+            // Display current question text.
+            echo $renderer->render_question_display($currentq);
             
-            $percentage = $total > 0 ? round(($count / $total) * 100, 1) : 0;
-            $iscorrect = (strtoupper($currentq->correctanswer) === $option);
+            // Display response distribution (table and chart).
+            echo $renderer->render_response_distribution($currentq);
             
-            $row = array(
-                ($iscorrect ? '✓ ' : '') . $option,
-                $count,
-                $percentage . '%'
+            // Display overall response rate progress bar.
+            echo $renderer->render_response_rate_progress();
+            
+            // Display control buttons.
+            echo $renderer->render_control_buttons($session, $cm->id, $sessionid);
+        } else {
+            echo $OUTPUT->notification(
+                get_string('error:noquestionfound', 'mod_classengage'),
+                \core\output\notification::NOTIFY_ERROR
             );
-            
-            if ($iscorrect) {
-                $table->rowclasses[] = 'table-success';
-            } else {
-                $table->rowclasses[] = '';
-            }
-            
-            $table->data[] = $row;
         }
-        
-        echo html_writer::table($table);
+    } catch (Exception $e) {
+        echo $OUTPUT->notification(
+            get_string('error:cannotloadquestion', 'mod_classengage') . ': ' . $e->getMessage(),
+            \core\output\notification::NOTIFY_ERROR
+        );
     }
-    
-    // Control buttons
-    echo html_writer::start_div('mt-4');
-    
-    if ($session->currentquestion + 1 < $session->numquestions) {
-        $nexturl = new moodle_url('/mod/classengage/controlpanel.php', 
-            array('id' => $cm->id, 'sessionid' => $sessionid, 'action' => 'next', 'sesskey' => sesskey()));
-        echo html_writer::link($nexturl, get_string('nextquestion', 'mod_classengage'), 
-            array('class' => 'btn btn-primary btn-lg mr-2'));
-    }
-    
-    $stopurl = new moodle_url('/mod/classengage/controlpanel.php',
-        array('id' => $cm->id, 'sessionid' => $sessionid, 'action' => 'stop', 'sesskey' => sesskey()));
-    echo html_writer::link($stopurl, get_string('stopsession', 'mod_classengage'),
-        array('class' => 'btn btn-danger btn-lg'));
-    
-    echo html_writer::end_div();
-    
 } else {
-    echo html_writer->div(get_string('sessionnotactive', 'mod_classengage'), 'alert alert-warning');
+    // Session is not active - show appropriate message.
+    $statusmessage = get_string('sessionnotactive', 'mod_classengage');
+    if ($session->status === constants::SESSION_STATUS_COMPLETED) {
+        $statusmessage = get_string('sessioncompleted', 'mod_classengage');
+    } else if ($session->status === constants::SESSION_STATUS_PAUSED) {
+        $statusmessage = get_string('sessionpaused', 'mod_classengage');
+    }
+    
+    echo html_writer::div($statusmessage, 'alert alert-warning');
+    
+    // Provide link back to sessions page.
+    $sessionsurl = new moodle_url('/mod/classengage/sessions.php', array('id' => $cm->id));
+    echo html_writer::div(
+        html_writer::link($sessionsurl, get_string('backtosessions', 'mod_classengage'), 
+            array('class' => 'btn btn-secondary')),
+        'text-center mt-3'
+    );
 }
 
 echo $OUTPUT->footer();

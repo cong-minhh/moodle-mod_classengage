@@ -235,3 +235,39 @@ function classengage_reset_userdata($data) {
     return array();
 }
 
+/**
+ * Render standard ClassEngage tab navigation
+ *
+ * This function generates consistent tab navigation across all ClassEngage pages.
+ * Tabs include: Upload Slides, Manage Questions, Quiz Sessions, and Analytics.
+ *
+ * @param int $cmid Course module ID
+ * @param string|null $activetab Active tab identifier ('slides', 'questions', 'sessions', 'analytics') or null for none
+ * @return void Outputs HTML directly
+ */
+function classengage_render_tabs($cmid, $activetab = null) {
+    $tabs = array();
+    $tabs[] = new tabobject(
+        'slides',
+        new moodle_url('/mod/classengage/slides.php', array('id' => $cmid)),
+        get_string('uploadslides', 'mod_classengage')
+    );
+    $tabs[] = new tabobject(
+        'questions',
+        new moodle_url('/mod/classengage/questions.php', array('id' => $cmid)),
+        get_string('managequestions', 'mod_classengage')
+    );
+    $tabs[] = new tabobject(
+        'sessions',
+        new moodle_url('/mod/classengage/sessions.php', array('id' => $cmid)),
+        get_string('managesessions', 'mod_classengage')
+    );
+    $tabs[] = new tabobject(
+        'analytics',
+        new moodle_url('/mod/classengage/analytics.php', array('id' => $cmid)),
+        get_string('analytics', 'mod_classengage')
+    );
+
+    print_tabs(array($tabs), $activetab);
+}
+

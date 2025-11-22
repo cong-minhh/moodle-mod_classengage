@@ -29,8 +29,7 @@
         <FIELD NAME="filepath" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" COMMENT="Path to stored file"/>
         <FIELD NAME="filesize" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="File size in bytes"/>
         <FIELD NAME="mimetype" TYPE="char" LENGTH="100" NOTNULL="true" SEQUENCE="false" COMMENT="MIME type of file"/>
-        <FIELD NAME="extractedtext" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Extracted text content from slides"/>
-        <FIELD NAME="status" TYPE="char" LENGTH="50" NOTNULL="true" DEFAULT="uploaded" SEQUENCE="false" COMMENT="Processing status: uploaded, processing, completed, error"/>
+        <FIELD NAME="status" TYPE="char" LENGTH="50" NOTNULL="true" DEFAULT="uploaded" SEQUENCE="false" COMMENT="Processing status: uploaded, completed, error"/>
         <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="User who uploaded the slide"/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
