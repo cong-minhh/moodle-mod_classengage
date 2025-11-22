@@ -163,11 +163,33 @@ define(['core/chartjs', 'core/str'],
     };
 
     /**
-     * Initialize all charts with provided data
-     *
-     * @param {Object} chartData Chart data object containing timeline, difficulty, and distribution data
+     * Initialize all charts by reading data from data attribute
      */
-    const init = function(chartData) {
+    const init = function() {
+        // Get chart data from data attribute
+        const dataElement = document.getElementById('analytics-chart-data');
+        if (!dataElement) {
+            // eslint-disable-next-line no-console
+            console.warn('Chart data element not found');
+            return;
+        }
+
+        const chartDataJson = dataElement.getAttribute('data-chartdata');
+        if (!chartDataJson) {
+            // eslint-disable-next-line no-console
+            console.warn('Chart data attribute is empty');
+            return;
+        }
+
+        let chartData;
+        try {
+            chartData = JSON.parse(chartDataJson);
+        } catch (e) {
+            // eslint-disable-next-line no-console
+            console.error('Failed to parse chart data:', e);
+            return;
+        }
+
         // Validate input
         if (!chartData || typeof chartData !== 'object') {
             // eslint-disable-next-line no-console

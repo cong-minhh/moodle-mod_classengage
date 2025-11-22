@@ -195,8 +195,15 @@ $chartdata = chart_data_transformer::transform_all_chart_data(
     $participationdistribution
 );
 
+// Pass chart data via data attribute (better for large datasets).
+echo html_writer::div('', '', [
+    'id' => 'analytics-chart-data',
+    'data-chartdata' => json_encode($chartdata),
+    'style' => 'display:none;'
+]);
+
 // Load AMD modules using $PAGE->requires->js_call_amd().
-$PAGE->requires->js_call_amd('mod_classengage/analytics_charts', 'init', [json_encode($chartdata)]);
+$PAGE->requires->js_call_amd('mod_classengage/analytics_charts', 'init', []);
 $PAGE->requires->js_call_amd('mod_classengage/analytics_tabs', 'init', [$cm->id, $sessionid]);
 
 // Export button.

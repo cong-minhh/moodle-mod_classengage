@@ -37,70 +37,36 @@ class chart_data_transformer {
      * Transform engagement timeline data for Chart.js
      *
      * @param array $timeline Timeline data from analytics engine
-     * @return \stdClass Chart.js compatible data object
+     * @return array Timeline data (passed through as-is for JavaScript processing)
      */
     public static function transform_timeline_data($timeline) {
-        $data = new \stdClass();
-        $data->labels = array_map(function($t) { 
-            return $t['label']; 
-        }, $timeline);
-        $data->data = array_map(function($t) { 
-            return $t['count']; 
-        }, $timeline);
-        $data->peaks = array_map(function($t) { 
-            return isset($t['is_peak']) && $t['is_peak']; 
-        }, $timeline);
-        $data->dips = array_map(function($t) { 
-            return isset($t['is_dip']) && $t['is_dip']; 
-        }, $timeline);
-        
-        return $data;
+        // JavaScript expects array of objects with label, count, is_peak, is_dip
+        // Just return as-is since analytics_engine already provides correct structure
+        return $timeline;
     }
     
     /**
      * Transform concept difficulty data for Chart.js
      *
      * @param array $conceptdifficulty Concept difficulty data from comprehension analyzer
-     * @return \stdClass Chart.js compatible data object
+     * @return array Difficulty data (passed through as-is for JavaScript processing)
      */
     public static function transform_difficulty_data($conceptdifficulty) {
-        $data = new \stdClass();
-        $data->labels = array_map(function($c) { 
-            return 'Q' . $c->question_order; 
-        }, $conceptdifficulty);
-        $data->data = array_map(function($c) { 
-            return $c->correctness_rate; 
-        }, $conceptdifficulty);
-        $data->colors = array_map(function($c) {
-            return chart_colors::get_difficulty_color($c->difficulty_level);
-        }, $conceptdifficulty);
-        
-        return $data;
+        // JavaScript expects array of objects with question_text and correctness_rate
+        // Just return as-is since comprehension_analyzer already provides correct structure
+        return $conceptdifficulty;
     }
     
     /**
      * Transform participation distribution data for Chart.js
      *
-     * @param array $distribution Participation distribution data
-     * @return \stdClass Chart.js compatible data object
+     * @param object $distribution Participation distribution data
+     * @return object Distribution data (passed through as-is for JavaScript processing)
      */
     public static function transform_distribution_data($distribution) {
-        $data = new \stdClass();
-        $data->labels = [
-            get_string('participationhigh', 'mod_classengage'),
-            get_string('participationmoderate', 'mod_classengage'),
-            get_string('participationlow', 'mod_classengage'),
-            get_string('participationnone', 'mod_classengage')
-        ];
-        $data->data = [
-            $distribution->high ?? 0,
-            $distribution->moderate ?? 0,
-            $distribution->low ?? 0,
-            $distribution->none ?? 0
-        ];
-        $data->colors = chart_colors::get_participation_colors();
-        
-        return $data;
+        // JavaScript expects object with high, moderate, low, none properties
+        // Just return as-is since analytics_engine already provides correct structure
+        return $distribution;
     }
     
     /**

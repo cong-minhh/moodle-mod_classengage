@@ -1080,8 +1080,9 @@ class analytics_renderer extends plugin_renderer_base {
             'aria-labelledby' => 'advanced-tab'
         ]);
         
-        // Concept difficulty section.
+        // Concept difficulty section with chart.
         if (!empty($data->concept_difficulty)) {
+            $output .= $this->render_concept_difficulty_chart_container();
             $output .= $this->render_concept_difficulty_table($data->concept_difficulty);
         }
         
@@ -1182,6 +1183,34 @@ class analytics_renderer extends plugin_renderer_base {
         }
         
         $output .= html_writer::table($table);
+        $output .= html_writer::end_div();
+        $output .= html_writer::end_div();
+        
+        return $output;
+    }
+    
+    /**
+     * Render concept difficulty chart container for Chart.js
+     *
+     * @return string HTML output
+     */
+    public function render_concept_difficulty_chart_container() {
+        $output = html_writer::start_div(self::CLASS_CARD . ' ' . self::CLASS_MARGIN_BOTTOM_4);
+        $output .= html_writer::start_div(self::CLASS_CARD_HEADER);
+        $output .= html_writer::tag('h5', get_string('conceptdifficultychart', 'mod_classengage'), ['class' => 'mb-0']);
+        $output .= html_writer::end_div();
+        $output .= html_writer::start_div(self::CLASS_CARD_BODY);
+        
+        $output .= html_writer::start_div('', [
+            'style' => 'height: 400px; position: relative;'
+        ]);
+        $output .= html_writer::tag('canvas', '', [
+            'id' => 'concept-difficulty-chart',
+            'role' => 'img',
+            'aria-label' => get_string('conceptdifficulty', 'mod_classengage')
+        ]);
+        $output .= html_writer::end_div();
+        
         $output .= html_writer::end_div();
         $output .= html_writer::end_div();
         

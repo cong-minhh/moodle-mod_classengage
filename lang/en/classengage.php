@@ -419,6 +419,7 @@ $string['fluctuatingengagement'] = 'Attention levels fluctuated during session';
 
 // Advanced Analysis - Concept Difficulty
 $string['conceptdifficulty'] = 'Concept Difficulty Insights';
+$string['conceptdifficultychart'] = 'Concept Difficulty Chart';
 $string['difficultconcepts'] = 'Challenging Topics';
 $string['wellunderstoodconcepts'] = 'Well-Understood Topics';
 $string['concepteasy'] = 'Easy';

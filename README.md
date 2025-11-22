@@ -890,10 +890,10 @@ COLORS = {
 **Public API:**
 
 ```javascript
-// Initialize all charts
-AnalyticsCharts.init(chartData);
+// Initialize all charts (reads data from #analytics-chart-data element)
+AnalyticsCharts.init();
 
-// Initialize individual charts
+// Initialize individual charts with explicit data
 AnalyticsCharts.initEngagementTimeline(timelineData);
 AnalyticsCharts.initConceptDifficulty(difficultyData);
 AnalyticsCharts.initParticipationDistribution(distributionData);
@@ -911,8 +911,11 @@ AnalyticsCharts.destroyCharts();
   - Keyboard-accessible tooltips
   - WCAG AA color contrast compliance
 - **Internationalization**: All labels loaded via Moodle's string API
-- **Error Handling**: Graceful degradation if canvas elements not found
-- **Performance**: Chart instances cached and reusable
+- **Error Handling**: Graceful degradation if canvas elements or data not found
+- **Performance**: 
+  - Chart instances cached and reusable
+  - Data passed via data attribute for better handling of large datasets
+  - Avoids AMD parameter size limitations
 - **Tooltips**: Contextual information with custom callbacks
 - **Automatic Cleanup**: Destroys existing charts before recreating
 
@@ -954,45 +957,66 @@ AnalyticsCharts.destroyCharts();
 
 ```php
 // In analytics.php
+use mod_classengage\chart_data_transformer;
+
 $PAGE->requires->js(new moodle_url('https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js'), true);
 
-// Prepare timeline data
+// Get analytics data from engines
 $engagementtimeline = $analyticsengine->get_engagement_timeline($sessionid, 10);
-$timelinedata = array_map(function($interval) {
-    return [
-        'label' => $interval['label'],
-        'count' => $interval['count'],
-        'is_peak' => $interval['is_peak'],
-        'is_dip' => $interval['is_dip']
-    ];
-}, $engagementtimeline);
+$conceptdifficulty = $comprehensionanalyzer->get_concept_difficulty();
+$participationdistribution = $analyticsengine->get_participation_distribution($sessionid, $courseid);
 
-// Prepare difficulty data
-$questionbreakdown = $analyticsengine->get_question_breakdown($sessionid);
-$difficultydata = array_map(function($q) {
-    return [
-        'question_text' => $q->question_text,
-        'correctness_rate' => $q->success_rate
-    ];
-}, $questionbreakdown);
+// Transform data for Chart.js (pass-through transformation)
+$chartdata = chart_data_transformer::transform_all_chart_data(
+    $engagementtimeline,
+    $conceptdifficulty,
+    $participationdistribution
+);
 
-// Prepare distribution data
-$distribution = $analyticsengine->get_participation_distribution($sessionid, $courseid);
+// Pass chart data via data attribute (better for large datasets)
+echo html_writer::div('', '', [
+    'id' => 'analytics-chart-data',
+    'data-chartdata' => json_encode($chartdata),
+    'style' => 'display:none;'
+]);
 
-// Combine and encode
-$chartdata = [
-    'timeline' => $timelinedata,
-    'difficulty' => $difficultydata,
-    'distribution' => $distribution
-];
-
-// Initialize charts
-$PAGE->requires->js_call_amd('mod_classengage/analytics_charts', 'init', [json_encode($chartdata)]);
+// Initialize charts (reads data from data attribute)
+$PAGE->requires->js_call_amd('mod_classengage/analytics_charts', 'init', []);
 ```
+
+**Chart Data Transformer:**
+
+The `chart_data_transformer` class provides a centralized interface for preparing analytics data for Chart.js visualization. Currently, it acts as a pass-through since the data sources (analytics_engine, comprehension_analyzer) already provide data in the correct structure.
+
+```php
+use mod_classengage\chart_data_transformer;
+
+// Transform all chart data at once
+$chartdata = chart_data_transformer::transform_all_chart_data(
+    $engagementtimeline,      // From analytics_engine->get_engagement_timeline()
+    $conceptdifficulty,       // From comprehension_analyzer->get_concept_difficulty()
+    $participationdistribution // From analytics_engine->get_participation_distribution()
+);
+
+// Or transform individual datasets
+$timelinedata = chart_data_transformer::transform_timeline_data($engagementtimeline);
+$difficultydata = chart_data_transformer::transform_difficulty_data($conceptdifficulty);
+$distributiondata = chart_data_transformer::transform_distribution_data($participationdistribution);
+```
+
+**Methods:**
+
+- `transform_all_chart_data($timeline, $difficulty, $distribution)` - Combines all chart data into a single object
+- `transform_timeline_data($timeline)` - Passes through timeline data (array of objects with label, count, is_peak, is_dip)
+- `transform_difficulty_data($difficulty)` - Passes through difficulty data (array of objects with question_text, correctness_rate)
+- `transform_distribution_data($distribution)` - Passes through distribution data (object with high, moderate, low, none properties)
+
+**Note:** The transformer currently acts as a pass-through layer, returning data as-is. This design allows for future transformation logic without changing the calling code in analytics.php.
 
 **Requirements:**
 - Chart.js 3.9.1+ must be loaded before module initialization
 - Canvas elements must exist in DOM with correct IDs
+- Hidden div with ID `analytics-chart-data` containing chart data in `data-chartdata` attribute
 - Moodle's core/chartjs AMD module wrapper
 - Moodle's core/str AMD module for language strings
 
