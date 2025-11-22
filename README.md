@@ -830,6 +830,7 @@ require(['mod_classengage/analytics_charts'], function(AnalyticsCharts) {
 
 2. **Concept Difficulty** (Horizontal Bar Chart)
    - Shows correctness rate per question/concept
+   - Rendered in Advanced Analysis tab before the concept difficulty table
    - Color-coded by difficulty:
      - Green (>70%): Easy/well-understood
      - Yellow (50-70%): Moderate difficulty
@@ -837,6 +838,7 @@ require(['mod_classengage/analytics_charts'], function(AnalyticsCharts) {
    - Tooltips show full question text and exact correctness percentage
    - Canvas ID: `concept-difficulty-chart`
    - Long question texts truncated to 40 characters with ellipsis
+   - Rendered via `render_concept_difficulty_chart_container()` method
 
 3. **Participation Distribution** (Doughnut Chart)
    - Shows student participation spread across categories
@@ -1171,12 +1173,21 @@ analytics_renderer::PACE_COLORS = [
 **Two-Tab Interface:**
 - `render_tab_navigation($activetab = 'simple')` - Renders Bootstrap tab navigation for Simple and Advanced analysis
 - `render_simple_analysis($data)` - Renders Simple Analysis tab content with engagement, comprehension, activity counts, and responsiveness cards
+- `render_advanced_analysis($data)` - Renders Advanced Analysis tab content with concept difficulty chart, concept difficulty table, engagement timeline, response trends, teaching recommendations, and participation distribution
 
 **Simple Analysis Cards:**
 - `render_engagement_card($engagement)` - Renders engagement level card with percentage, level indicator (high/moderate/low), and participation details
 - `render_comprehension_card($comprehension)` - Renders comprehension summary card with level indicator and confused topics list
 - `render_activity_counts($counts)` - Renders activity counts card showing questions answered, poll submissions, and reactions
 - `render_responsiveness($responsiveness)` - Renders responsiveness indicator card with pace icon (↑/→/↓), average/median times, and variance message. Uses class constants for consistent styling and icon mapping.
+
+**Advanced Analysis Components:**
+- `render_concept_difficulty_chart_container()` - Renders Chart.js canvas container for horizontal bar chart visualization of concept difficulty (canvas ID: `concept-difficulty-chart`)
+- `render_concept_difficulty_table($concepts)` - Renders table showing questions ordered by difficulty with correctness rates and color-coded difficulty levels
+- `render_engagement_timeline_container()` - Renders Chart.js canvas container for line chart showing response activity over time (canvas ID: `engagement-timeline-chart`)
+- `render_response_trends($trends)` - Renders common wrong answer patterns and misconceptions
+- `render_recommendations($recommendations)` - Renders prioritized teaching recommendations (max 5)
+- `render_participation_distribution($distribution)` - Renders doughnut chart showing participation spread across categories (canvas ID: `participation-distribution-chart`)
 
 **Data Structure Requirements:**
 
