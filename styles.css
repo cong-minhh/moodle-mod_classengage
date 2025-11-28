@@ -374,33 +374,6 @@
     display: none;
 }
 
-.mod-classengage .analytics-tab-content.active {
-    display: block;
-    animation: fadeIn var(--classengage-transition-fast);
-}
-
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(10px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-/* Engagement Level Color Coding */
-.mod-classengage .engagement-level-high {
-    color: #28a745;
-    font-weight: 700;
-}
-
-.mod-classengage .engagement-level-moderate {
-    color: #ffc107;
-    font-weight: 700;
-}
 
 .mod-classengage .engagement-level-low {
     color: #dc3545;
@@ -788,20 +761,6 @@
 
 .mod-classengage .table-at-risk {
     background-color: rgba(220, 53, 69, var(--classengage-opacity-light));
-}
-
-.mod-classengage .table-at-risk:hover {
-    background-color: rgba(220, 53, 69, var(--classengage-opacity-medium));
-}
-
-/* Table row hover effects */
-.mod-classengage .analytics-table tbody tr {
-    transition: background-color var(--classengage-transition-fast);
-    cursor: pointer;
-}
-
-.mod-classengage .analytics-table tbody tr:hover {
-    background-color: rgba(0, 0, 0, var(--classengage-opacity-hover));
 }
 
 /* Sort indicator styles */
@@ -1422,3 +1381,56 @@
     color: #6c757d;
     font-style: italic;
 }
+
+/* Clickable Header Styles */
+.mod-classengage .clickable-header {
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.2s ease;
+}
+
+.mod-classengage .clickable-header:hover {
+    background-color: rgba(0, 0, 0, 0.03) !important;
+}
+
+.mod-classengage .collapse-icon {
+    transition: transform 0.3s ease;
+}
+
+.mod-classengage .clickable-header[aria-expanded="true"] .collapse-icon {
+    transform: rotate(180deg);
+}
+/* ============================================================================
+   SLIDES MANAGEMENT
+   ============================================================================ */
+
+.mod-classengage .classengage-slide-card {
+    transition: transform var(--classengage-transition-fast), box-shadow var(--classengage-transition-normal);
+    border: none;
+}
+
+.mod-classengage .classengage-slide-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--classengage-shadow-md) !important;
+}
+
+.mod-classengage .slide-checkbox {
+    transform: scale(1.2);
+    cursor: pointer;
+}
+
+.mod-classengage .classengage-slide-card .card-title {
+    font-weight: 600;
+    font-size: 1.1rem;
+    color: #343a40;
+}
+
+.mod-classengage .classengage-slide-card .fa {
+    opacity: 0.8;
+}
+
+.mod-classengage .classengage-slide-card .badge {
+    font-size: 0.75rem;
+    padding: 0.4em 0.6em;
+}
+

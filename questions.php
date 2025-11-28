@@ -181,29 +181,62 @@ function render_question_table($questions, $cm) {
 
 // Manual Questions Section
 if (!empty($manual_questions)) {
+    $manual_count = count($manual_questions);
+    $collapseid = 'collapse-manual';
     echo html_writer::start_div('card mb-4');
-    echo html_writer::start_div('card-header bg-white');
-    echo html_writer::tag('h4', get_string('manualquestions', 'mod_classengage'), array('class' => 'm-0'));
+    echo html_writer::start_div('card-header bg-white d-flex justify-content-between align-items-center clickable-header', array(
+        'data-toggle' => 'collapse',
+        'data-target' => '#' . $collapseid,
+        'aria-expanded' => 'true',
+        'aria-controls' => $collapseid,
+        'role' => 'button'
+    ));
+    echo html_writer::tag('div', 
+        html_writer::tag('h4', get_string('manualquestions', 'mod_classengage'), array('class' => 'm-0 d-inline-block mr-2')) .
+        html_writer::span($manual_count, 'badge badge-primary question-count-badge'),
+        array('class' => 'd-flex align-items-center')
+    );
+    echo html_writer::tag('span', $OUTPUT->pix_icon('t/expanded', get_string('collapse')), array('class' => 'collapse-icon'));
     echo html_writer::end_div();
+    echo html_writer::start_div('collapse show', array('id' => $collapseid));
     echo html_writer::start_div('card-body p-0');
     echo render_question_table($manual_questions, $cm);
     echo html_writer::end_div();
-    echo html_writer::end_div();
+    echo html_writer::end_div(); // collapse
+    echo html_writer::end_div(); // card
 }
 
 // Generated Questions Section
 if (!empty($generated_questions_by_slide)) {
     echo html_writer::tag('h3', get_string('generatedquestions', 'mod_classengage'), array('class' => 'mt-4 mb-3'));
     
+    $i = 0;
     foreach ($generated_questions_by_slide as $slide_title => $slide_questions) {
+        $i++;
+        $slide_count = count($slide_questions);
+        $collapseid = 'collapse-generated-' . $i;
+        
         echo html_writer::start_div('card mb-4');
-        echo html_writer::start_div('card-header bg-light');
-        echo html_writer::tag('h5', get_string('slide', 'mod_classengage') . ': ' . $slide_title, array('class' => 'm-0'));
+        echo html_writer::start_div('card-header bg-light d-flex justify-content-between align-items-center clickable-header', array(
+            'data-toggle' => 'collapse',
+            'data-target' => '#' . $collapseid,
+            'aria-expanded' => 'true',
+            'aria-controls' => $collapseid,
+            'role' => 'button'
+        ));
+        echo html_writer::tag('div', 
+            html_writer::tag('h5', get_string('slide', 'mod_classengage') . ': ' . $slide_title, array('class' => 'm-0 d-inline-block mr-2')) .
+            html_writer::span($slide_count, 'badge badge-info question-count-badge'),
+            array('class' => 'd-flex align-items-center')
+        );
+        echo html_writer::tag('span', $OUTPUT->pix_icon('t/expanded', get_string('collapse')), array('class' => 'collapse-icon'));
         echo html_writer::end_div();
+        echo html_writer::start_div('collapse show', array('id' => $collapseid));
         echo html_writer::start_div('card-body p-0');
         echo render_question_table($slide_questions, $cm);
         echo html_writer::end_div();
-        echo html_writer::end_div();
+        echo html_writer::end_div(); // collapse
+        echo html_writer::end_div(); // card
     }
 }
 

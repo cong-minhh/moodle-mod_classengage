@@ -245,7 +245,7 @@ function render_session_table($sessions, $cm, $type) {
     
     $bulkoptions = array('delete' => get_string('delete'));
     if ($type === 'active') {
-        $bulkoptions['stop'] = get_string('stop');
+        $bulkoptions['stop'] = get_string('stop', 'mod_classengage');
     }
     
     $o .= html_writer::select($bulkoptions, 'bulkaction', '', array('' => get_string('choose', 'moodle')), array('class' => 'custom-select w-auto mr-2'));
