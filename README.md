@@ -1,16 +1,35 @@
 # In-class Learning Engagement
 
-A Moodle activity module designed to enhance in-class student engagement through real-time interactive quizzes, automatic question generation from lecture slides, and comprehensive analytics.
+Transform your lectures into interactive learning experiences with the In-class Learning Engagement Moodle plugin. This module empowers educators to foster real-time participation, assess student understanding instantly, and gain deep insights into learning progress.
 
-## Features
+## Why Choose ClassEngage?
 
-- **Slide Management**: Upload and manage lecture slides (PDF, PPT, PPTX).
-- **Automatic Question Generation**: Utilizes NLP to automatically generate quiz questions from uploaded slide content.
-- **Real-time Quiz Sessions**: Conduct live, interactive quiz sessions with students.
-- **Clicker Integration**: Supports physical clicker devices via a REST API.
-- **Analytics Dashboard**:
-  - **Simple Analysis**: Real-time engagement metrics, participation rates, and comprehension checks.
-  - **Advanced Analysis**: Concept difficulty tracking, response trends, and teaching recommendations.
+- **Boost Student Participation**: Break the silence in your classroom with interactive live quizzes that encourage every student to participate.
+- **Save Time with AI**: Automatically generate relevant quiz questions directly from your lecture slides using advanced NLP technology.
+- **Data-Driven Teaching**: Move beyond simple scores with advanced analytics that reveal *how* students are learning, not just *what* they know.
+- **Hybrid Ready**: Seamlessly support both remote students (via web) and in-person students (via physical clickers) in the same session.
+
+## Key Features
+
+### 🧠 AI-Powered Question Generation
+Upload your lecture slides (PDF, PPT, PPTX) and let the system do the work. Our NLP engine analyzes your content and automatically generates multiple-choice questions, saving you hours of preparation time. You retain full control to review, edit, and approve every question.
+
+### 📊 Real-Time Engagement
+Run live, synchronous quiz sessions that keep students focused and engaged.
+- **Instant Feedback**: Students see immediate results, reinforcing learning concepts on the spot.
+- **Live Leaderboards**: Optional gamification elements to increase motivation.
+- **Dynamic Pacing**: Control the flow of questions to match your lecture speed.
+
+### 📈 Deep Learning Analytics
+Gain actionable insights with our comprehensive analytics dashboard:
+- **Concept Difficulty Analysis**: Identify which topics students find most challenging.
+- **At-Risk Student Detection**: Early warning system for students who may be falling behind.
+- **Response Trends**: Visualize class performance over time to spot engagement dips.
+- **Teaching Recommendations**: Receive automated suggestions on areas that may need re-teaching based on class performance.
+
+### Flexible Participation
+- **Web Interface**: Students can participate using any device with a browser (laptop, tablet, phone).
+- **Clicker Integration**: Native support for physical clicker devices via our REST API, perfect for environments with limited connectivity or strict device policies.
 
 ## Installation
 
@@ -19,14 +38,12 @@ A Moodle activity module designed to enhance in-class student engagement through
 3. Go to **Site administration > Notifications** to trigger the database update.
 4. Configure the plugin settings (NLP endpoint, API keys) in **Site administration > Plugins > Activity modules > In-class Learning Engagement**.
 
-## Usage
+## Usage Workflow
 
-1. **Add Activity**: Add "In-class Learning Engagement" to a course.
-2. **Upload Slides**: Instructor uploads lecture slides.
-3. **Generate Questions**: The system generates questions from the slides. Instructors can review, edit, and approve them.
-4. **Start Session**: Instructor starts a live session.
-5. **Student Participation**: Students join the session and answer questions in real-time.
-6. **View Analytics**: Review detailed reports on student performance and engagement after the session.
+1. **Upload**: Instructor uploads lecture slides to the activity.
+2. **Generate**: System generates questions; Instructor reviews and approves them.
+3. **Engage**: Instructor starts a live session; Students join and answer questions.
+4. **Analyze**: Instructor reviews the analytics dashboard to adjust future teaching strategies.
 
 ## License
 
