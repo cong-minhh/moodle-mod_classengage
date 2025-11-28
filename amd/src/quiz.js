@@ -18,7 +18,7 @@
  *
  * @module     mod_classengage/quiz
  * @package
- * @copyright  2025 Your Name
+ * @copyright  2025 Danielle
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 

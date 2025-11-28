@@ -18,7 +18,7 @@
  * Analytics dashboard page with two-tab interface
  *
  * @package    mod_classengage
- * @copyright  2025 Your Name
+ * @copyright  2025 Danielle
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -67,18 +67,21 @@ echo $OUTPUT->heading(format_string($classengage->name));
 // Render standard tab navigation.
 classengage_render_tabs($cm->id, 'analytics');
 
+echo html_writer::start_div('mod-classengage');
+
 echo html_writer::tag('h3', get_string('analyticspage', 'mod_classengage'));
 
 // Session selector (limit to last 50 sessions for performance).
-$sessions = $DB->get_records_menu('classengage_sessions', 
-    array('classengageid' => $classengage->id, 'status' => 'completed'), 
-    'timecreated DESC', 
+$sessions = $DB->get_records_menu('classengage_sessions',
+    array('classengageid' => $classengage->id, 'status' => 'completed'),
+    'timecreated DESC',
     'id,name',
     0,
     50);
 
 if (empty($sessions)) {
     echo html_writer::div(get_string('nocompletedsessions', 'mod_classengage'), 'alert alert-info');
+    echo html_writer::end_div(); // End mod-classengage.
     echo $OUTPUT->footer();
     exit;
 }
@@ -122,12 +125,12 @@ try {
     $engagement = $engagementcalculator->calculate_engagement_level();
     $activitycounts = $engagementcalculator->get_activity_counts();
     $responsiveness = $engagementcalculator->get_responsiveness_indicator();
-    
+
     // Get the cached timestamp from engagement data.
     if (isset($engagement->cached_at)) {
         $lastupdatedtime = $engagement->cached_at;
     }
-    
+
     // Display last updated timestamp if available.
     if ($lastupdatedtime !== null) {
         $timeago = userdate($lastupdatedtime, get_string('strftimedatetimeshort', 'langconfig'));
@@ -154,6 +157,7 @@ try {
 } catch (Exception $e) {
     debugging('Analytics calculation failed: ' . $e->getMessage(), DEBUG_DEVELOPER);
     \core\notification::error(get_string('error:analyticsfailed', 'mod_classengage'));
+    echo html_writer::end_div(); // End mod-classengage.
     echo $OUTPUT->footer();
     exit;
 }
@@ -209,9 +213,11 @@ $PAGE->requires->js_call_amd('mod_classengage/analytics_tabs', 'init', [$cm->id,
 // Export button.
 echo html_writer::start_div('mt-3');
 $exporturl = new moodle_url('/mod/classengage/export.php', array('id' => $cm->id, 'sessionid' => $sessionid));
-echo html_writer::link($exporturl, get_string('exportanalytics', 'mod_classengage'), 
+echo html_writer::link($exporturl, get_string('exportanalytics', 'mod_classengage'),
     array('class' => 'btn btn-secondary'));
 echo html_writer::end_div();
+
+echo html_writer::end_div(); // End mod-classengage.
 
 echo $OUTPUT->footer();
 

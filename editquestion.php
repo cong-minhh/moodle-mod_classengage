@@ -18,7 +18,7 @@
  * Edit question page
  *
  * @package    mod_classengage
- * @copyright  2025 Your Name
+ * @copyright  2025 Danielle
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -78,7 +78,11 @@ echo $OUTPUT->header();
 
 echo $OUTPUT->heading($questionid ? get_string('editquestion', 'mod_classengage') : get_string('addquestion', 'mod_classengage'));
 
+echo html_writer::start_div('card');
+echo html_writer::start_div('card-body');
 $mform->display();
+echo html_writer::end_div();
+echo html_writer::end_div();
 
 echo $OUTPUT->footer();
 

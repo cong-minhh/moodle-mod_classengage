@@ -18,7 +18,7 @@
  * Slide upload and management page
  *
  * @package    mod_classengage
- * @copyright  2025 Your Name
+ * @copyright  2025 Danielle
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 

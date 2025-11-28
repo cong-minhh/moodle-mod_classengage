@@ -1915,7 +1915,7 @@ You should have received a copy of the GNU General Public License along with thi
 
 ## Credits
 
-**Developed by:** [Your Name/Organization]  
+**Developed by:** [Danielle/Organization]  
 **Copyright:** 2025  
 **Version:** 1.1.0-alpha (2025110308)  
 **Moodle Version:** 4.0+

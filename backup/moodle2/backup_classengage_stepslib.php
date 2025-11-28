@@ -18,7 +18,7 @@
  * Define all the backup steps that will be used by the backup_classengage_activity_task
  *
  * @package    mod_classengage
- * @copyright  2025 Your Name
+ * @copyright  2025 Danielle
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 

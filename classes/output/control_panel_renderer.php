@@ -18,7 +18,7 @@
  * Control panel renderer
  *
  * @package    mod_classengage
- * @copyright  2025 Your Name
+ * @copyright  2025 Danielle
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -48,10 +48,10 @@ class control_panel_renderer {
         // Question progress card.
         $output .= $this->render_status_card(
             get_string('currentquestion', 'mod_classengage', [
-                'current' => $session->currentquestion,
+                'current' => $session->currentquestion + 1,
                 'total' => $session->numquestions
             ]),
-            $session->currentquestion . ' / ' . $session->numquestions,
+            html_writer::tag('span', ($session->currentquestion + 1) . ' / ' . $session->numquestions, ['id' => 'question-progress']),
             'primary'
         );
         
@@ -74,6 +74,14 @@ class control_panel_renderer {
             'success'
         );
         
+        // Time card.
+        $timecontent = html_writer::tag('span', '--:--', ['id' => 'time-display']);
+        $output .= $this->render_status_card(
+            get_string('time', 'mod_classengage'),
+            $timecontent,
+            'danger'
+        );
+
         // Response rate card.
         $responserate = html_writer::tag('span', '0%', ['id' => 'response-rate']);
         $output .= $this->render_status_card(
@@ -96,14 +104,14 @@ class control_panel_renderer {
      * @return string HTML output
      */
     private function render_status_card($title, $content, $bordercolor) {
-        $output = html_writer::start_div('col-md-3');
-        $output .= html_writer::start_div('card border-' . $bordercolor);
-        $output .= html_writer::start_div('card-body text-center');
-        $output .= html_writer::tag('h6', $title, ['class' => 'card-title text-muted']);
-        $output .= html_writer::tag('h2', $content, ['class' => 'mb-0']);
+        $output = html_writer::start_div('col-md mb-3');
+        $output .= html_writer::start_div('card border-' . $bordercolor . ' h-100');
+        $output .= html_writer::start_div('card-body text-center d-flex flex-column justify-content-center px-2');
+        $output .= html_writer::tag('div', $title, ['class' => 'status-card-title mb-2 text-truncate']);
+        $output .= html_writer::tag('div', $content, ['class' => 'status-card-value']);
         $output .= html_writer::end_div(); // card-body.
         $output .= html_writer::end_div(); // card.
-        $output .= html_writer::end_div(); // col-md-3.
+        $output .= html_writer::end_div(); // col-md.
         
         return $output;
     }
@@ -177,11 +185,11 @@ class control_panel_renderer {
      * @return string HTML output
      */
     private function render_distribution_table($question) {
-        $output = html_writer::start_div('card');
-        $output .= html_writer::start_div('card-header');
-        $output .= html_writer::tag('h5', get_string('liveresponses', 'mod_classengage'), ['class' => 'mb-0']);
+        $output = html_writer::start_div('card h-100 border-0 shadow-sm');
+        $output .= html_writer::start_div('card-header bg-white border-bottom-0 pt-4 pb-2');
+        $output .= html_writer::tag('h5', get_string('liveresponses', 'mod_classengage'), ['class' => 'mb-0 text-dark font-weight-bold']);
         $output .= html_writer::tag('small', 
-            html_writer::tag('span', '0 / 0', ['id' => 'response-count']), 
+            html_writer::tag('span', '0 / 0', ['id' => 'response-count', 'class' => 'badge badge-pill badge-light border']), 
             ['class' => 'text-muted ml-2']
         );
         $output .= html_writer::end_div();
@@ -191,10 +199,10 @@ class control_panel_renderer {
         $output .= html_writer::start_tag('table', ['class' => 'table table-hover mb-0']);
         $output .= html_writer::start_tag('thead');
         $output .= html_writer::start_tag('tr');
-        $output .= html_writer::tag('th', 'Answer', ['style' => 'width: 15%']);
-        $output .= html_writer::tag('th', 'Distribution', ['style' => 'width: 55%']);
-        $output .= html_writer::tag('th', 'Count', ['class' => 'text-center', 'style' => 'width: 15%']);
-        $output .= html_writer::tag('th', '%', ['class' => 'text-center', 'style' => 'width: 15%']);
+        $output .= html_writer::tag('th', 'Answer', ['style' => 'width: 15%', 'class' => 'border-top-0']);
+        $output .= html_writer::tag('th', 'Distribution', ['style' => 'width: 55%', 'class' => 'border-top-0']);
+        $output .= html_writer::tag('th', 'Count', ['class' => 'text-center border-top-0', 'style' => 'width: 15%']);
+        $output .= html_writer::tag('th', '%', ['class' => 'text-center border-top-0', 'style' => 'width: 15%']);
         $output .= html_writer::end_tag('tr');
         $output .= html_writer::end_tag('thead');
         $output .= html_writer::start_tag('tbody');
@@ -203,11 +211,11 @@ class control_panel_renderer {
             $iscorrect = (strtoupper($question->correctanswer) === $option);
             
             $output .= html_writer::start_tag('tr', ['id' => 'row-' . $option]);
-            $output .= html_writer::start_tag('td');
-            $output .= html_writer::tag('strong', ($iscorrect ? '✓ ' : '') . $option);
+            $output .= html_writer::start_tag('td', ['class' => 'align-middle']);
+            $output .= html_writer::tag('strong', ($iscorrect ? '✓ ' : '') . $option, ['class' => 'text-dark']);
             $output .= html_writer::end_tag('td');
-            $output .= html_writer::start_tag('td');
-            $output .= html_writer::start_div('progress', ['style' => 'height: 25px;']);
+            $output .= html_writer::start_tag('td', ['class' => 'align-middle']);
+            $output .= html_writer::start_div('progress', ['style' => 'height: 1.25rem;']);
             $output .= html_writer::div('', 'progress-bar bg-info', [
                 'id' => 'bar-' . $option,
                 'role' => 'progressbar',
@@ -218,10 +226,10 @@ class control_panel_renderer {
             ]);
             $output .= html_writer::end_div();
             $output .= html_writer::end_tag('td');
-            $output .= html_writer::tag('td', html_writer::tag('span', '0', ['id' => 'count-' . $option]), 
-                ['class' => 'text-center']);
-            $output .= html_writer::tag('td', html_writer::tag('span', '0%', ['id' => 'percent-' . $option]), 
-                ['class' => 'text-center']);
+            $output .= html_writer::tag('td', html_writer::tag('span', '0', ['id' => 'count-' . $option, 'class' => 'font-weight-bold']), 
+                ['class' => 'text-center align-middle']);
+            $output .= html_writer::tag('td', html_writer::tag('span', '0%', ['id' => 'percent-' . $option, 'class' => 'text-muted']), 
+                ['class' => 'text-center align-middle']);
             $output .= html_writer::end_tag('tr');
         }
         
@@ -260,11 +268,11 @@ class control_panel_renderer {
      * @return string HTML output
      */
     public function render_response_rate_progress() {
-        $output = html_writer::start_div('card mb-4');
+        $output = html_writer::start_div('card mb-4 shadow-sm');
         $output .= html_writer::start_div('card-body');
-        $output .= html_writer::tag('h6', 'Overall Response Rate', ['class' => 'mb-2']);
-        $output .= html_writer::start_div('progress', ['style' => 'height: 30px;']);
-        $output .= html_writer::div('0%', 'progress-bar progress-bar-striped progress-bar-animated', [
+        $output .= html_writer::tag('h6', 'Overall Response Rate', ['class' => 'card-title text-muted mb-3']);
+        $output .= html_writer::start_div('progress', ['style' => 'height: 1.5rem;']);
+        $output .= html_writer::div('0%', 'progress-bar progress-bar-striped progress-bar-animated bg-success', [
             'id' => 'response-progress',
             'role' => 'progressbar',
             'style' => 'width: 0%',

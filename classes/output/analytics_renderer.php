@@ -25,7 +25,7 @@
  * - Insights panels for at-risk students and missing participants
  *
  * @package    mod_classengage
- * @copyright  2025 Your Name
+ * @copyright  2025 Danielle
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -128,6 +128,8 @@ class analytics_renderer extends plugin_renderer_base {
         return self::COMPREHENSION_COLORS[$level] ?? self::COLOR_SECONDARY;
     }
     
+
+
     /**
      * Render a standard card with header and body
      *
@@ -140,12 +142,12 @@ class analytics_renderer extends plugin_renderer_base {
     protected function render_card($title, $content, $bordercolor, $headerclass = '') {
         $parts = [];
         
-        $parts[] = html_writer::start_div(self::CLASS_CARD . ' border-' . $bordercolor . ' ' . self::CLASS_MARGIN_BOTTOM_4);
+        $parts[] = html_writer::start_div(self::CLASS_CARD . ' border-' . $bordercolor . ' ' . self::CLASS_MARGIN_BOTTOM_4 . ' h-100');
         $parts[] = html_writer::start_div(self::CLASS_CARD_HEADER . ' bg-' . $bordercolor . ' ' . 
             self::CLASS_TEXT_WHITE . ' ' . $headerclass);
         $parts[] = html_writer::tag('h5', $title, ['class' => 'mb-0']);
         $parts[] = html_writer::end_div();
-        $parts[] = html_writer::start_div(self::CLASS_CARD_BODY);
+        $parts[] = html_writer::start_div(self::CLASS_CARD_BODY . ' d-flex flex-column');
         $parts[] = $content;
         $parts[] = html_writer::end_div();
         $parts[] = html_writer::end_div();
@@ -887,21 +889,29 @@ class analytics_renderer extends plugin_renderer_base {
         
         $output .= html_writer::start_div('row');
         
-        // Left column: Engagement and Activity Counts.
+        // 1. Engagement Card.
         $output .= html_writer::start_div('col-md-6');
         $output .= $this->render_engagement_card($data->engagement);
+        $output .= html_writer::end_div();
+        
+        // 2. Comprehension Card.
+        $output .= html_writer::start_div('col-md-6');
+        $output .= $this->render_comprehension_card($data->comprehension);
+        $output .= html_writer::end_div();
+        
+        // 3. Activity Counts.
+        $output .= html_writer::start_div('col-md-6');
         $output .= $this->render_activity_counts($data->activity_counts);
         $output .= html_writer::end_div();
         
-        // Right column: Comprehension and Responsiveness.
+        // 4. Responsiveness.
         $output .= html_writer::start_div('col-md-6');
-        $output .= $this->render_comprehension_card($data->comprehension);
         $output .= $this->render_responsiveness($data->responsiveness);
         $output .= html_writer::end_div();
         
-        $output .= html_writer::end_div();
+        $output .= html_writer::end_div(); // End row.
         
-        $output .= html_writer::end_div();
+        $output .= html_writer::end_div(); // End tab-pane.
         
         return $output;
     }
@@ -1384,7 +1394,7 @@ class analytics_renderer extends plugin_renderer_base {
         $output .= html_writer::end_div();
         $output .= html_writer::start_div(self::CLASS_CARD_BODY);
         
-        $output .= html_writer::start_div('row');
+        $output .= html_writer::start_div('row align-items-center');
         
         // Left column: Chart.
         $output .= html_writer::start_div('col-md-6');

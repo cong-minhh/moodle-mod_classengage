@@ -18,7 +18,7 @@
  * Quiz session management page
  *
  * @package    mod_classengage
- * @copyright  2025 Your Name
+ * @copyright  2025 Danielle
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -30,6 +30,7 @@ require_once(__DIR__.'/classes/session_manager.php');
 $id = required_param('id', PARAM_INT); // Course module ID
 $action = optional_param('action', '', PARAM_ALPHA);
 $sessionid = optional_param('sessionid', 0, PARAM_INT);
+$confirm = optional_param('confirm', 0, PARAM_BOOL);
 
 $cm = get_coursemodule_from_id('classengage', $id, 0, false, MUST_EXIST);
 $course = $DB->get_record('course', array('id' => $cm->course), '*', MUST_EXIST);
@@ -73,9 +74,41 @@ if ($action === 'stop' && $sessionid && confirm_sesskey()) {
     redirect($PAGE->url, get_string('sessionstopped', 'mod_classengage'), null, \core\output\notification::NOTIFY_SUCCESS);
 }
 
+if ($action === 'delete' && $sessionid && confirm_sesskey()) {
+    if (!$confirm) {
+        $continueurl = new moodle_url($PAGE->url, array('action' => 'delete', 'sessionid' => $sessionid, 'confirm' => 1, 'sesskey' => sesskey()));
+        $cancelurl = $PAGE->url;
+        echo $OUTPUT->header();
+        echo $OUTPUT->confirm(get_string('deleteconfirm', 'mod_classengage'), $continueurl, $cancelurl);
+        echo $OUTPUT->footer();
+        exit;
+    }
+    
+    $sessionmanager->delete_session($sessionid);
+    redirect($PAGE->url, get_string('sessiondeleted', 'mod_classengage'), null, \core\output\notification::NOTIFY_SUCCESS);
+}
+
 if ($action === 'nextquestion' && $sessionid && confirm_sesskey()) {
     $sessionmanager->next_question($sessionid);
     redirect(new moodle_url('/mod/classengage/controlpanel.php', array('id' => $cm->id, 'sessionid' => $sessionid)));
+}
+
+// Handle Bulk Actions
+if ($data = data_submitted() && confirm_sesskey()) {
+    $bulkaction = optional_param('bulkaction', '', PARAM_ALPHA);
+    $selectedsessions = optional_param_array('sessionids', array(), PARAM_INT);
+    
+    if (!empty($selectedsessions) && !empty($bulkaction)) {
+        if ($bulkaction === 'delete') {
+            $sessionmanager->delete_sessions($selectedsessions);
+            redirect($PAGE->url, get_string('sessionsdeleted', 'mod_classengage'), null, \core\output\notification::NOTIFY_SUCCESS);
+        } else if ($bulkaction === 'stop') {
+            foreach ($selectedsessions as $sid) {
+                $sessionmanager->stop_session($sid);
+            }
+            redirect($PAGE->url, get_string('sessionsstopped', 'mod_classengage'), null, \core\output\notification::NOTIFY_SUCCESS);
+        }
+    }
 }
 
 // Create session form
@@ -110,125 +143,131 @@ $tabs[] = new tabobject('analytics', new moodle_url('/mod/classengage/analytics.
 
 print_tabs(array($tabs), 'sessions');
 
-echo html_writer::tag('h3', get_string('createnewsession', 'mod_classengage'));
+// Add JavaScript for "Select All" functionality
+$PAGE->requires->js_init_code("
+    document.addEventListener('DOMContentLoaded', function() {
+        var selectAllToggles = document.querySelectorAll('.select-all-toggle');
+        selectAllToggles.forEach(function(toggle) {
+            toggle.addEventListener('change', function() {
+                var targetClass = this.getAttribute('data-target');
+                var checkboxes = document.querySelectorAll('.' + targetClass);
+                checkboxes.forEach(function(checkbox) {
+                    checkbox.checked = toggle.checked;
+                });
+            });
+        });
+    });
+");
+
+echo html_writer::tag('h3', get_string('createnewsession', 'mod_classengage'), array('class' => 'mt-4 mb-3'));
 $mform->display();
 
-echo html_writer::tag('h3', get_string('activesessions', 'mod_classengage'), array('class' => 'mt-4'));
-
-// List active sessions
-$sessions = $DB->get_records('classengage_sessions', 
-    array('classengageid' => $classengage->id, 'status' => 'active'), 'timecreated DESC');
-
-if ($sessions) {
-    $table = new html_table();
-    $table->head = array(
-        get_string('sessionname', 'mod_classengage'),
-        get_string('numberofquestions', 'mod_classengage'),
-        get_string('participants', 'mod_classengage'),
-        get_string('actions', 'mod_classengage')
-    );
-    $table->attributes['class'] = 'generaltable';
+// Helper function to render session table
+function render_session_table($sessions, $cm, $type) {
+    global $OUTPUT;
     
-    foreach ($sessions as $session) {
-        $controlurl = new moodle_url('/mod/classengage/controlpanel.php', 
-            array('id' => $cm->id, 'sessionid' => $session->id));
-        $stopurl = new moodle_url('/mod/classengage/sessions.php', 
-            array('id' => $cm->id, 'action' => 'stop', 'sessionid' => $session->id, 'sesskey' => sesskey()));
-        
-        $controllink = html_writer::link($controlurl, get_string('controlpanel', 'mod_classengage'), 
-            array('class' => 'btn btn-sm btn-primary'));
-        $stoplink = html_writer::link($stopurl, get_string('stopsession', 'mod_classengage'), 
-            array('class' => 'btn btn-sm btn-danger'));
-        
-        // Count participants
-        $sql = "SELECT COUNT(DISTINCT userid) FROM {classengage_responses} WHERE sessionid = ?";
-        $participantcount = $DB->count_records_sql($sql, array($session->id));
-        
-        $table->data[] = array(
-            format_string($session->name),
-            $session->numquestions,
-            $participantcount,
-            $controllink . ' ' . $stoplink
-        );
+    if (!$sessions) {
+        return html_writer::div(get_string('no' . $type . 'sessions', 'mod_classengage'), 'alert alert-info mt-3');
     }
     
-    echo html_writer::table($table);
-} else {
-    echo html_writer::div(get_string('noactivesessions', 'mod_classengage'), 'alert alert-info');
+    $formurl = new moodle_url('/mod/classengage/sessions.php', array('id' => $cm->id));
+    $o = html_writer::start_tag('form', array('action' => $formurl, 'method' => 'post'));
+    $o .= html_writer::input_hidden_params($formurl);
+    $o .= html_writer::empty_tag('input', array('type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()));
+    
+    $table = new html_table();
+    $table->attributes['class'] = 'generaltable table table-hover';
+    
+    $head = array(
+        html_writer::checkbox('selectall', 1, false, '', array('class' => 'select-all-toggle', 'data-target' => 'session-checkbox-' . $type)),
+        get_string('sessionname', 'mod_classengage'),
+        get_string('numberofquestions', 'mod_classengage'),
+    );
+    
+    if ($type === 'active' || $type === 'completed') {
+        $head[] = get_string('participants', 'mod_classengage');
+    }
+    
+    if ($type === 'completed') {
+        $head[] = get_string('completeddate', 'mod_classengage');
+    }
+    
+    $head[] = get_string('actions', 'mod_classengage');
+    
+    $table->head = $head;
+    
+    foreach ($sessions as $session) {
+        $checkbox = html_writer::checkbox('sessionids[]', $session->id, false, '', array('class' => 'session-checkbox-' . $type));
+        
+        $row = array($checkbox, format_string($session->name), $session->numquestions);
+        
+        if ($type === 'active' || $type === 'completed') {
+            global $DB;
+            $sql = "SELECT COUNT(DISTINCT userid) FROM {classengage_responses} WHERE sessionid = ?";
+            $participantcount = $DB->count_records_sql($sql, array($session->id));
+            $row[] = $participantcount;
+        }
+        
+        if ($type === 'completed') {
+            $row[] = userdate($session->timecompleted);
+        }
+        
+        // Actions
+        $actions = array();
+        
+        if ($type === 'active') {
+            $controlurl = new moodle_url('/mod/classengage/controlpanel.php', array('id' => $cm->id, 'sessionid' => $session->id));
+            $actions[] = html_writer::link($controlurl, get_string('controlpanel', 'mod_classengage'), array('class' => 'btn btn-sm btn-primary mr-1'));
+            
+            $stopurl = new moodle_url('/mod/classengage/sessions.php', array('id' => $cm->id, 'action' => 'stop', 'sessionid' => $session->id, 'sesskey' => sesskey()));
+            $actions[] = html_writer::link($stopurl, get_string('stopsession', 'mod_classengage'), array('class' => 'btn btn-sm btn-warning mr-1'));
+        } else if ($type === 'ready') {
+            $starturl = new moodle_url('/mod/classengage/sessions.php', array('id' => $cm->id, 'action' => 'start', 'sessionid' => $session->id, 'sesskey' => sesskey()));
+            $actions[] = html_writer::link($starturl, get_string('startsession', 'mod_classengage'), array('class' => 'btn btn-sm btn-success mr-1'));
+        } else if ($type === 'completed') {
+            $viewurl = new moodle_url('/mod/classengage/sessionresults.php', array('id' => $cm->id, 'sessionid' => $session->id));
+            $actions[] = html_writer::link($viewurl, get_string('viewresults', 'mod_classengage'), array('class' => 'btn btn-sm btn-info mr-1'));
+        }
+        
+        $deleteurl = new moodle_url('/mod/classengage/sessions.php', array('id' => $cm->id, 'action' => 'delete', 'sessionid' => $session->id, 'sesskey' => sesskey()));
+        $actions[] = html_writer::link($deleteurl, $OUTPUT->pix_icon('t/delete', get_string('delete')), array('class' => 'btn btn-sm btn-link text-danger', 'title' => get_string('delete')));
+        
+        $row[] = implode(' ', $actions);
+        
+        $table->data[] = $row;
+    }
+    
+    $o .= html_writer::table($table);
+    
+    // Bulk actions
+    $o .= html_writer::start_div('d-flex align-items-center mt-2 mb-4');
+    $o .= html_writer::tag('span', get_string('withselected', 'mod_classengage') . ': ', array('class' => 'mr-2'));
+    
+    $bulkoptions = array('delete' => get_string('delete'));
+    if ($type === 'active') {
+        $bulkoptions['stop'] = get_string('stop');
+    }
+    
+    $o .= html_writer::select($bulkoptions, 'bulkaction', '', array('' => get_string('choose', 'moodle')), array('class' => 'custom-select w-auto mr-2'));
+    $o .= html_writer::empty_tag('input', array('type' => 'submit', 'value' => get_string('go'), 'class' => 'btn btn-secondary'));
+    $o .= html_writer::end_div();
+    
+    $o .= html_writer::end_tag('form');
+    
+    return $o;
 }
+
+echo html_writer::tag('h3', get_string('activesessions', 'mod_classengage'), array('class' => 'mt-5'));
+$sessions = $DB->get_records('classengage_sessions', array('classengageid' => $classengage->id, 'status' => 'active'), 'timecreated DESC');
+echo render_session_table($sessions, $cm, 'active');
 
 echo html_writer::tag('h3', get_string('readysessions', 'mod_classengage'), array('class' => 'mt-4'));
-
-// List ready sessions
-$sessions = $DB->get_records('classengage_sessions', 
-    array('classengageid' => $classengage->id, 'status' => 'ready'), 'timecreated DESC');
-
-if ($sessions) {
-    $table = new html_table();
-    $table->head = array(
-        get_string('sessionname', 'mod_classengage'),
-        get_string('numberofquestions', 'mod_classengage'),
-        get_string('actions', 'mod_classengage')
-    );
-    $table->attributes['class'] = 'generaltable';
-    
-    foreach ($sessions as $session) {
-        $starturl = new moodle_url('/mod/classengage/sessions.php', 
-            array('id' => $cm->id, 'action' => 'start', 'sessionid' => $session->id, 'sesskey' => sesskey()));
-        
-        $startlink = html_writer::link($starturl, get_string('startsession', 'mod_classengage'), 
-            array('class' => 'btn btn-sm btn-success'));
-        
-        $table->data[] = array(
-            format_string($session->name),
-            $session->numquestions,
-            $startlink
-        );
-    }
-    
-    echo html_writer::table($table);
-} else {
-    echo html_writer::div(get_string('noreadysessions', 'mod_classengage'), 'alert alert-secondary');
-}
+$sessions = $DB->get_records('classengage_sessions', array('classengageid' => $classengage->id, 'status' => 'ready'), 'timecreated DESC');
+echo render_session_table($sessions, $cm, 'ready');
 
 echo html_writer::tag('h3', get_string('completedsessions', 'mod_classengage'), array('class' => 'mt-4'));
-
-// List completed sessions
-$sessions = $DB->get_records('classengage_sessions', 
-    array('classengageid' => $classengage->id, 'status' => 'completed'), 'timecreated DESC', '*', 0, 10);
-
-if ($sessions) {
-    $table = new html_table();
-    $table->head = array(
-        get_string('sessionname', 'mod_classengage'),
-        get_string('participants', 'mod_classengage'),
-        get_string('completeddate', 'mod_classengage'),
-        get_string('actions', 'mod_classengage')
-    );
-    $table->attributes['class'] = 'generaltable';
-    
-    foreach ($sessions as $session) {
-        $viewurl = new moodle_url('/mod/classengage/sessionresults.php', 
-            array('id' => $cm->id, 'sessionid' => $session->id));
-        
-        $viewlink = html_writer::link($viewurl, get_string('viewresults', 'mod_classengage'), 
-            array('class' => 'btn btn-sm btn-info'));
-        
-        $sql = "SELECT COUNT(DISTINCT userid) FROM {classengage_responses} WHERE sessionid = ?";
-        $participantcount = $DB->count_records_sql($sql, array($session->id));
-        
-        $table->data[] = array(
-            format_string($session->name),
-            $participantcount,
-            userdate($session->timecompleted),
-            $viewlink
-        );
-    }
-    
-    echo html_writer::table($table);
-} else {
-    echo html_writer::div(get_string('nocompletedsessions', 'mod_classengage'), 'alert alert-secondary');
-}
+$sessions = $DB->get_records('classengage_sessions', array('classengageid' => $classengage->id, 'status' => 'completed'), 'timecreated DESC', '*', 0, 20);
+echo render_session_table($sessions, $cm, 'completed');
 
 echo $OUTPUT->footer();
 

@@ -18,7 +18,7 @@
  * Analytics engine for response aggregation and statistics
  *
  * @package    mod_classengage
- * @copyright  2025 Your Name
+ * @copyright  2025 Danielle
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -205,7 +205,7 @@ class analytics_engine {
         $averagescore = $avgscore && $avgscore->avg_score !== null ? round((float)$avgscore->avg_score, 2) : 0;
         
         // Get completion rate (users who answered all questions)
-        $sql = "SELECT COUNT(DISTINCT userid) as count
+        $sql = "SELECT userid
                   FROM {classengage_responses}
                  WHERE sessionid = :sessionid
               GROUP BY userid
@@ -1174,7 +1174,7 @@ class analytics_engine {
         
         // Get all enrolled students in the course
         $context = \context_course::instance($courseid);
-        $enrolledusers = get_enrolled_users($context, 'mod/classengage:submit');
+        $enrolledusers = get_enrolled_users($context, 'mod/classengage:takequiz', 0, 'u.id');
         $totalenrolled = count($enrolledusers);
         
         if ($totalenrolled == 0) {
@@ -1219,6 +1219,7 @@ class analytics_engine {
         }
         
         // Count students who didn't respond
+        // Reuse enrolled users fetched earlier
         $enrolleduserids = array_keys($enrolledusers);
         $nonrespondeduserids = array_diff($enrolleduserids, $respondeduserids);
         $distribution->none = count($nonrespondeduserids);
@@ -1328,10 +1329,9 @@ class analytics_engine {
             }
         }
         
-        // Get all enrolled students in the course
+        // Get all enrolled students in the course (optimized - count only)
         $context = \context_course::instance($courseid);
-        $enrolledusers = get_enrolled_users($context, 'mod/classengage:submit');
-        $totalenrolled = count($enrolledusers);
+        $totalenrolled = count_enrolled_users($context, 'mod/classengage:takequiz');
         
         if ($totalenrolled == 0) {
             return 0.0;

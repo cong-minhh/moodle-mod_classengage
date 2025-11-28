@@ -18,7 +18,7 @@
  * AJAX handler for real-time quiz operations
  *
  * @package    mod_classengage
- * @copyright  2025 Your Name
+ * @copyright  2025 Danielle
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -264,6 +264,19 @@ function get_session_stats($sessionid) {
     // Count responses for current question
     $responses = $currentstats['total'];
     
+    // Calculate participation rate (participants / enrolled students)
+    $course = $DB->get_record('course', array('id' => $cm->course), '*', MUST_EXIST);
+    
+    // Use count_enrolled_users for better performance and reliability
+    $totalenrolled = count_enrolled_users($context, 'mod/classengage:takequiz');
+    
+    // Fallback if capability check is too restrictive or returns 0 in test env
+    if ($totalenrolled == 0) {
+        $totalenrolled = count_enrolled_users($context);
+    }
+    
+    $participationrate = $totalenrolled > 0 ? round(($responses / $totalenrolled) * 100, 1) : 0.0;
+    
     // Build distribution data
     $distribution = array(
         'A' => $currentstats['A'],
@@ -279,10 +292,14 @@ function get_session_stats($sessionid) {
         'data' => array(
             'participants' => $participants,
             'responses' => $responses,
+            'participationrate' => $participationrate,
             'currentquestion' => $session->currentquestion,
             'totalquestions' => $session->numquestions,
             'status' => $session->status,
-            'distribution' => $distribution
+            'distribution' => $distribution,
+            'timelimit' => (int)$session->timelimit,
+            'timeremaining' => max(0, $session->timelimit - (time() - $session->questionstarttime)),
+            'elapsed' => time() - $session->questionstarttime
         )
     );
 }

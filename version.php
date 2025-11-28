@@ -18,14 +18,14 @@
  * Version information for mod_classengage
  *
  * @package    mod_classengage
- * @copyright  2025 Your Name
+ * @copyright  2025 Danielle
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'mod_classengage';
-$plugin->version = 2025110309;  // YYYYMMDDXX format
+$plugin->version = 2025110310;  // YYYYMMDDXX format
 $plugin->requires = 2022041900; // Moodle 4.0 or later
 $plugin->maturity = MATURITY_ALPHA;
 $plugin->release = 'v1.1.0-alpha';

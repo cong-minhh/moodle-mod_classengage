@@ -3,7 +3,7 @@ REM Load testing suite for ClassEngage (Windows)
 REM Runs multiple load tests with increasing user counts
 
 REM Configuration
-SET SESSION_ID=1
+SET SESSION_ID=14
 SET COURSE_ID=2
 SET CLEANUP=--cleanup
 
@@ -27,7 +27,8 @@ echo ClassEngage Load Test Results - %date% %time% > %RESULTS_FILE%
 echo ========================================= >> %RESULTS_FILE%
 echo. >> %RESULTS_FILE%
 
-REM Run tests with different user counts
+REM Run tests with differen
+t user counts
 FOR %%u IN (10 25 50 75 100) DO (
     echo Testing with %%u concurrent users...
     echo ---------------------------------------- >> %RESULTS_FILE%

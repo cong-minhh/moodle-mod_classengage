@@ -2,7 +2,7 @@
  * Custom styles for mod_classengage
  *
  * @package    mod_classengage
- * @copyright  2025 Your Name
+ * @copyright  2025 Danielle
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -49,91 +49,253 @@
    CONTROL PANEL COMPONENTS
    ============================================================================ */
 
+/* Main Control Panel Container */
+/* Main Control Panel Container */
+.mod-classengage-controlpanel {
+    background-color: #f8f9fa;
+    padding: var(--classengage-spacing-lg);
+    border-radius: 0.5rem;
+}
+
 /* Control panel cards */
 .mod-classengage .card {
+    border: none;
     box-shadow: var(--classengage-shadow-sm);
-    transition: box-shadow var(--classengage-transition-normal);
+    transition: transform var(--classengage-transition-fast), box-shadow var(--classengage-transition-normal);
+    border-radius: 0.75rem;
+    overflow: hidden;
+    height: 100%;
 }
 
 .mod-classengage .card:hover {
+    transform: translateY(-2px);
     box-shadow: var(--classengage-shadow-md);
+}
+
+/* Card headers */
+.mod-classengage .card-header {
+    background-color: #fff;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+/* Status Cards Specifics */
+.mod-classengage .status-card-value {
+    font-size: 2.5rem;
+    font-weight: 900;
+    line-height: 1.1;
+    margin: var(--classengage-spacing-xs) 0;
+    color: #2c3e50;
+    text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.mod-classengage .status-card-title {
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #6c757d;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Highlight values based on card border color */
+.mod-classengage .card.border-primary .status-card-value {
+    color: #007bff;
+}
+
+.mod-classengage .card.border-success .status-card-value {
+    color: #28a745;
+}
+
+.mod-classengage .card.border-info .status-card-value {
+    color: #17a2b8;
+}
+
+.mod-classengage .card.border-warning .status-card-value {
+    color: #ffc107;
+}
+
+.mod-classengage .card.border-danger .status-card-value {
+    color: #dc3545;
+}
+
+/* Add subtle background to cards */
+.mod-classengage .card.border-primary {
+    background-color: rgba(0, 123, 255, 0.03);
+}
+
+.mod-classengage .card.border-success {
+    background-color: rgba(40, 167, 69, 0.03);
+}
+
+.mod-classengage .card.border-info {
+    background-color: rgba(23, 162, 184, 0.03);
+}
+
+.mod-classengage .card.border-warning {
+    background-color: rgba(255, 193, 7, 0.03);
+}
+
+.mod-classengage .card.border-danger {
+    background-color: rgba(220, 53, 69, 0.03);
+}
+
+/* Ensure cards have consistent height and spacing */
+.mod-classengage .col-md {
+    min-width: 140px;
+    /* Prevent too much shrinking */
 }
 
 /* Progress bars */
 .mod-classengage .progress {
     background-color: #e9ecef;
+    border-radius: 1rem;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+    height: 1.5rem;
 }
 
 .mod-classengage .progress-bar {
-    transition: width var(--classengage-transition-normal);
+    border-radius: 1rem;
+    transition: width 0.6s ease;
+    font-weight: 600;
+    font-size: 0.9rem;
 }
 
 /* Response distribution table */
+.mod-classengage .table-hover tbody tr {
+    transition: background-color 0.2s ease;
+}
+
 .mod-classengage .table-hover tbody tr:hover {
-    background-color: rgba(0, 0, 0, 0.03);
+    background-color: rgba(0, 123, 255, 0.05);
+}
+
+.mod-classengage .table th {
+    border-top: none;
+    text-transform: uppercase;
+    font-size: 0.8rem;
+    letter-spacing: 0.5px;
+    color: #6c757d;
+    font-weight: 700;
 }
 
 /* Correct answer highlighting */
 .mod-classengage .table-success {
-    background-color: rgba(40, 167, 69, var(--classengage-opacity-light));
+    background-color: rgba(40, 167, 69, 0.1) !important;
+}
+
+.mod-classengage .table-success td strong {
+    color: var(--classengage-success);
 }
 
 /* Status badges */
+.mod-classengage .badge {
+    padding: 0.5em 0.8em;
+    font-weight: 600;
+    border-radius: 0.25rem;
+    font-size: 0.9rem;
+}
+
 .mod-classengage .badge-success {
-    background-color: var(--classengage-success);
+    background-color: rgba(40, 167, 69, 0.15);
+    color: var(--classengage-success);
+}
+
+.mod-classengage .badge-warning {
+    background-color: rgba(255, 193, 7, 0.15);
+    color: #856404;
 }
 
 .mod-classengage .badge-secondary {
-    background-color: var(--classengage-secondary);
+    background-color: rgba(108, 117, 125, 0.15);
+    color: var(--classengage-secondary);
 }
 
-/* Button spacing */
+.mod-classengage .badge-info {
+    background-color: rgba(23, 162, 184, 0.15);
+    color: var(--classengage-info);
+}
+
+/* Button styling */
 .mod-classengage .btn-lg {
-    padding: 0.75rem var(--classengage-spacing-lg);
-    font-size: 1.1rem;
+    padding: 0.75rem 2rem;
+    font-weight: 600;
+    border-radius: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-size: 1rem;
+    box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08);
+    transition: all 0.15s ease;
+}
+
+.mod-classengage .btn-lg:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 7px 14px rgba(50, 50, 93, 0.1), 0 3px 6px rgba(0, 0, 0, 0.08);
+}
+
+.mod-classengage .btn-primary {
+    background: linear-gradient(135deg, #007bff 0%, #0062cc 100%);
+    border: none;
+}
+
+.mod-classengage .btn-danger {
+    background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+    border: none;
 }
 
 .mod-classengage .mr-2 {
-    margin-right: var(--classengage-spacing-sm);
-}
-
-/* Card headers */
-.mod-classengage .card-header {
-    font-weight: 600;
+    margin-right: var(--classengage-spacing-md) !important;
 }
 
 /* Real-time update indicator */
 .mod-classengage .live-indicator {
     display: inline-block;
-    width: 10px;
-    height: 10px;
+    width: 12px;
+    height: 12px;
     background-color: var(--classengage-success);
     border-radius: 50%;
+    box-shadow: 0 0 0 rgba(40, 167, 69, 0.4);
     animation: pulse 2s infinite;
-    /* Use transform for better performance */
-    will-change: transform, opacity;
+    margin-right: 8px;
+    vertical-align: middle;
 }
 
 @keyframes pulse {
     0% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7);
+    }
+
+    70% {
         transform: scale(1);
-        opacity: 1;
+        box-shadow: 0 0 0 10px rgba(40, 167, 69, 0);
     }
-    50% {
-        transform: scale(1.5);
-        opacity: 0.5;
-    }
+
     100% {
-        transform: scale(1);
-        opacity: 1;
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(40, 167, 69, 0);
     }
 }
 
 /* Responsive adjustments */
+@media (max-width: 992px) {
+    .mod-classengage .status-card-value {
+        font-size: 1.75rem;
+    }
+}
+
 @media (max-width: 768px) {
-    .mod-classengage .col-md-3,
+
+    .mod-classengage .col-md,
     .mod-classengage .col-md-6 {
         margin-bottom: var(--classengage-spacing-md);
+    }
+
+    .mod-classengage .status-card-value {
+        font-size: 2rem;
     }
 }
 
@@ -222,6 +384,7 @@
         opacity: 0;
         transform: translateY(10px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -1003,6 +1166,7 @@
 
 /* Reduced motion support for accessibility */
 @media (prefers-reduced-motion: reduce) {
+
     .mod-classengage .analytics-tab,
     .mod-classengage .analytics-card,
     .mod-classengage .recommendation-card,
@@ -1064,13 +1228,16 @@
 }
 
 @keyframes loading {
+
     0%,
     20% {
         content: ".";
     }
+
     40% {
         content: "..";
     }
+
     60%,
     100% {
         content: "...";

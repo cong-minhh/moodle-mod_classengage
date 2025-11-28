@@ -18,7 +18,7 @@
  * English strings for classengage
  *
  * @package    mod_classengage
- * @copyright  2025 Your Name
+ * @copyright  2025 Danielle
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -125,6 +125,11 @@ $string['nosessions'] = 'No sessions created yet.';
 $string['active'] = 'Active';
 $string['completed'] = 'Completed';
 $string['participants'] = 'Participants';
+$string['withselected'] = 'With selected';
+$string['sessiondeleted'] = 'Session deleted successfully';
+$string['sessionsdeleted'] = 'Selected sessions deleted successfully';
+$string['sessionsstopped'] = 'Selected sessions stopped successfully';
+$string['deleteconfirm'] = 'Are you sure you want to delete this session?';
 
 // Quiz page (student)
 $string['quizpage'] = 'Live Quiz';
@@ -190,6 +195,7 @@ $string['nocompletedsessions'] = 'No completed sessions yet.';
 $string['questionsgeneratedsuccess'] = '{$a} questions generated successfully';
 $string['questionapproved'] = 'Question approved successfully';
 $string['controlpanel'] = 'Control Panel';
+$string['time'] = 'Time';
 $string['currentquestiontext'] = 'Current Question';
 $string['liveresponses'] = 'Live Responses';
 $string['nextquestion'] = 'Next Question';
@@ -468,3 +474,14 @@ $string['tabpanel'] = 'Analytics tab panel';
 // Additional analytics strings
 $string['participationdetails'] = '{$a->participants} of {$a->total} students participated';
 $string['responsivenessdetails'] = 'Average: {$a->avg}s, Median: {$a->median}s';
+
+// Questions Page Improvements
+$string['manualquestions'] = 'Manual Questions';
+$string['delete_selected'] = 'Delete Selected';
+$string['approve_selected'] = 'Approve Selected';
+$string['questionsdeleted'] = 'Selected questions deleted successfully';
+$string['questionsapproved'] = 'Selected questions approved successfully';
+$string['noquestionsselected'] = 'No questions selected';
+$string['slide'] = 'Slide';
+$string['unknownslide'] = 'Orphaned / Unknown Source';
+$string['created'] = 'Created';

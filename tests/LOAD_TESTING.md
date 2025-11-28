@@ -108,6 +108,7 @@ php mod/classengage/tests/load_test_api.php -u 50 -s 1 -c 2 -v
 
 5. **Simulating responses** - Sends concurrent API requests
    - Uses curl_multi for true concurrency
+   - Only 50% of users submit responses (realistic participation rate)
    - 60% correct answers, 40% random (realistic simulation)
    - Each user gets unique clicker ID
 
@@ -121,6 +122,10 @@ php mod/classengage/tests/load_test_api.php -u 50 -s 1 -c 2 -v
    - Responses remain in database for analysis
 
 ### Performance Metrics
+
+The script outputs two key numbers:
+- **Total users created**: Number of test user accounts generated
+- **Actual requests sent**: Number of API calls made (typically 50% of users due to realistic participation simulation)
 
 **Success Rate**
 - Target: 100% for stable API
@@ -255,16 +260,25 @@ All parameters are sent in the POST body using `application/x-www-form-urlencode
 
 ### Testing Different Scenarios
 
+**Test with 100% participation:**
+Modify the script to have all users submit responses:
+```php
+// Line ~291 - Comment out or remove these lines:
+// if ($idx % 2 !== 0) {
+//     continue; // Skip this user
+// }
+```
+
 **Test with all correct answers:**
 Modify the script to always send correct answers:
 ```php
-// Line ~280
+// Line ~295
 $answer = $currentquestion->correctanswer;
 ```
 
 **Test with all incorrect answers:**
 ```php
-// Line ~280
+// Line ~295
 $wronganswers = array_diff($answers, array($currentquestion->correctanswer));
 $answer = $wronganswers[array_rand($wronganswers)];
 ```

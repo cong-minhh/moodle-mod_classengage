@@ -18,7 +18,7 @@
  * Question management page
  *
  * @package    mod_classengage
- * @copyright  2025 Your Name
+ * @copyright  2025 Danielle
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -43,7 +43,7 @@ $PAGE->set_title(format_string($classengage->name));
 $PAGE->set_heading(format_string($course->fullname));
 $PAGE->set_context($context);
 
-// Handle actions
+// Handle single actions
 if ($action === 'delete' && $questionid && confirm_sesskey()) {
     $DB->delete_records('classengage_questions', array('id' => $questionid, 'classengageid' => $classengage->id));
     redirect($PAGE->url, get_string('questiondeleted', 'mod_classengage'), null, \core\output\notification::NOTIFY_SUCCESS);
@@ -54,11 +54,26 @@ if ($action === 'approve' && $questionid && confirm_sesskey()) {
     redirect($PAGE->url, get_string('questionapproved', 'mod_classengage'), null, \core\output\notification::NOTIFY_SUCCESS);
 }
 
-// Handle edit form
-$editurl = new moodle_url('/mod/classengage/editquestion.php', array('id' => $cm->id));
+// Handle bulk actions
+if (($action === 'bulkdelete' || $action === 'bulkapprove') && confirm_sesskey()) {
+    $selectedquestions = optional_param_array('q', [], PARAM_INT);
+    
+    if (!empty($selectedquestions)) {
+        if ($action === 'bulkdelete') {
+            list($insql, $inparams) = $DB->get_in_or_equal($selectedquestions);
+            $DB->delete_records_select('classengage_questions', "id $insql AND classengageid = ?", array_merge($inparams, [$classengage->id]));
+            redirect($PAGE->url, get_string('questionsdeleted', 'mod_classengage'), null, \core\output\notification::NOTIFY_SUCCESS);
+        } elseif ($action === 'bulkapprove') {
+            list($insql, $inparams) = $DB->get_in_or_equal($selectedquestions);
+            $DB->set_field_select('classengage_questions', 'status', 'approved', "id $insql AND classengageid = ?", array_merge($inparams, [$classengage->id]));
+            redirect($PAGE->url, get_string('questionsapproved', 'mod_classengage'), null, \core\output\notification::NOTIFY_SUCCESS);
+        }
+    } else {
+        redirect($PAGE->url, get_string('noquestionsselected', 'mod_classengage'), null, \core\output\notification::NOTIFY_WARNING);
+    }
+}
 
 echo $OUTPUT->header();
-
 echo $OUTPUT->heading(format_string($classengage->name));
 
 // Tab navigation
@@ -76,23 +91,49 @@ print_tabs(array($tabs), 'questions');
 
 // Add question button
 $addurl = new moodle_url('/mod/classengage/editquestion.php', array('id' => $cm->id));
-echo html_writer::link($addurl, get_string('addquestion', 'mod_classengage'), 
-    array('class' => 'btn btn-primary mb-3'));
+echo html_writer::div(
+    html_writer::link($addurl, get_string('addquestion', 'mod_classengage'), array('class' => 'btn btn-primary')),
+    'mb-3'
+);
 
-echo html_writer::tag('h3', get_string('generatedquestions', 'mod_classengage'));
+// Fetch questions with slide info
+$sql = "SELECT q.*, s.title as slidetitle 
+        FROM {classengage_questions} q 
+        LEFT JOIN {classengage_slides} s ON q.slideid = s.id 
+        WHERE q.classengageid = ? 
+        ORDER BY q.timecreated DESC";
+$questions = $DB->get_records_sql($sql, array($classengage->id));
 
-// List questions
-$questions = $DB->get_records('classengage_questions', array('classengageid' => $classengage->id), 'timecreated DESC');
+$manual_questions = [];
+$generated_questions_by_slide = [];
 
-if ($questions) {
+foreach ($questions as $q) {
+    if (empty($q->slideid)) {
+        $manual_questions[] = $q;
+    } else {
+        $slidetitle = $q->slidetitle ? $q->slidetitle : get_string('unknownslide', 'mod_classengage');
+        $generated_questions_by_slide[$slidetitle][] = $q;
+    }
+}
+
+// Start Bulk Actions Form
+echo html_writer::start_tag('form', array('action' => $PAGE->url, 'method' => 'post', 'id' => 'questionsform'));
+echo html_writer::empty_tag('input', array('type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()));
+echo html_writer::empty_tag('input', array('type' => 'hidden', 'name' => 'action', 'value' => '', 'id' => 'bulkaction'));
+
+// Helper function to render question table
+function render_question_table($questions, $cm) {
+    global $OUTPUT;
     $table = new html_table();
     $table->head = array(
+        html_writer::checkbox('selectall', 1, false, '', array('class' => 'selectall-checkbox')),
         get_string('questiontext', 'mod_classengage'),
         get_string('difficulty', 'mod_classengage'),
         get_string('status', 'mod_classengage'),
+        get_string('created', 'mod_classengage'),
         get_string('actions', 'mod_classengage')
     );
-    $table->attributes['class'] = 'generaltable';
+    $table->attributes['class'] = 'generaltable table table-hover';
     
     foreach ($questions as $question) {
         $editurl = new moodle_url('/mod/classengage/editquestion.php', 
@@ -102,22 +143,19 @@ if ($questions) {
         $approveurl = new moodle_url('/mod/classengage/questions.php',
             array('id' => $cm->id, 'action' => 'approve', 'questionid' => $question->id, 'sesskey' => sesskey()));
         
-        $editlink = html_writer::link($editurl, get_string('edit', 'mod_classengage'), 
-            array('class' => 'btn btn-sm btn-secondary'));
-        $deletelink = html_writer::link($deleteurl, get_string('delete', 'mod_classengage'), 
-            array('class' => 'btn btn-sm btn-danger'));
-        
-        $actions = $editlink . ' ';
+        $actions = [];
+        $actions[] = html_writer::link($editurl, $OUTPUT->pix_icon('t/edit', get_string('edit')), 
+            array('class' => 'btn btn-sm btn-light', 'title' => get_string('edit')));
         
         if ($question->status !== 'approved') {
-            $approvelink = html_writer::link($approveurl, get_string('approve', 'mod_classengage'),
-                array('class' => 'btn btn-sm btn-success'));
-            $actions .= $approvelink . ' ';
+            $actions[] = html_writer::link($approveurl, $OUTPUT->pix_icon('t/check', get_string('approve')),
+                array('class' => 'btn btn-sm btn-success', 'title' => get_string('approve')));
         }
         
-        $actions .= $deletelink;
+        $actions[] = html_writer::link($deleteurl, $OUTPUT->pix_icon('t/delete', get_string('delete')), 
+            array('class' => 'btn btn-sm btn-danger', 'title' => get_string('delete')));
         
-        // Truncate question text if too long
+        // Truncate question text
         $questiontext = format_string($question->questiontext);
         if (strlen($questiontext) > 100) {
             $questiontext = substr($questiontext, 0, 100) . '...';
@@ -126,19 +164,80 @@ if ($questions) {
         $statusbadge = $question->status === 'approved' ? 
             '<span class="badge badge-success">'.get_string('approved', 'mod_classengage').'</span>' :
             '<span class="badge badge-warning">'.get_string('pending', 'mod_classengage').'</span>';
+            
+        $difficultybadge = '<span class="badge badge-secondary">' . ucfirst($question->difficulty) . '</span>';
         
         $table->data[] = array(
+            html_writer::checkbox('q[]', $question->id, false, '', array('class' => 'question-checkbox')),
             $questiontext,
-            ucfirst($question->difficulty),
+            $difficultybadge,
             $statusbadge,
-            $actions
+            userdate($question->timecreated),
+            implode(' ', $actions)
         );
     }
-    
-    echo html_writer::table($table);
-} else {
-    echo html_writer::div(get_string('noquestions', 'mod_classengage'), 'alert alert-info');
+    return html_writer::table($table);
 }
 
-echo $OUTPUT->footer();
+// Manual Questions Section
+if (!empty($manual_questions)) {
+    echo html_writer::start_div('card mb-4');
+    echo html_writer::start_div('card-header bg-white');
+    echo html_writer::tag('h4', get_string('manualquestions', 'mod_classengage'), array('class' => 'm-0'));
+    echo html_writer::end_div();
+    echo html_writer::start_div('card-body p-0');
+    echo render_question_table($manual_questions, $cm);
+    echo html_writer::end_div();
+    echo html_writer::end_div();
+}
 
+// Generated Questions Section
+if (!empty($generated_questions_by_slide)) {
+    echo html_writer::tag('h3', get_string('generatedquestions', 'mod_classengage'), array('class' => 'mt-4 mb-3'));
+    
+    foreach ($generated_questions_by_slide as $slide_title => $slide_questions) {
+        echo html_writer::start_div('card mb-4');
+        echo html_writer::start_div('card-header bg-light');
+        echo html_writer::tag('h5', get_string('slide', 'mod_classengage') . ': ' . $slide_title, array('class' => 'm-0'));
+        echo html_writer::end_div();
+        echo html_writer::start_div('card-body p-0');
+        echo render_question_table($slide_questions, $cm);
+        echo html_writer::end_div();
+        echo html_writer::end_div();
+    }
+}
+
+if (empty($manual_questions) && empty($generated_questions_by_slide)) {
+    echo html_writer::div(get_string('noquestions', 'mod_classengage'), 'alert alert-info');
+} else {
+    // Bulk Action Buttons
+    echo html_writer::start_div('d-flex gap-2 mt-3 mb-5');
+    echo html_writer::tag('button', get_string('delete_selected', 'mod_classengage'), array(
+        'type' => 'button', 
+        'class' => 'btn btn-danger',
+        'onclick' => "document.getElementById('bulkaction').value='bulkdelete'; document.getElementById('questionsform').submit();"
+    ));
+    echo html_writer::tag('button', get_string('approve_selected', 'mod_classengage'), array(
+        'type' => 'button', 
+        'class' => 'btn btn-success ml-2',
+        'onclick' => "document.getElementById('bulkaction').value='bulkapprove'; document.getElementById('questionsform').submit();"
+    ));
+    echo html_writer::end_div();
+}
+
+echo html_writer::end_tag('form');
+
+// JavaScript for Select All
+echo html_writer::script("
+    document.querySelectorAll('.selectall-checkbox').forEach(function(selectAll) {
+        selectAll.addEventListener('change', function() {
+            var table = this.closest('table');
+            var checkboxes = table.querySelectorAll('.question-checkbox');
+            checkboxes.forEach(function(checkbox) {
+                checkbox.checked = selectAll.checked;
+            });
+        });
+    });
+");
+
+echo $OUTPUT->footer();

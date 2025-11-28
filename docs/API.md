@@ -1,5 +1,103 @@
 # ClassEngage API Documentation
 
+## AJAX Endpoints (ajax.php)
+
+### Control Panel Statistics Endpoint
+
+#### `ajax.php?action=getstats`
+
+Real-time AJAX endpoint for control panel updates. Returns current session statistics including participant count, response distribution, and participation rate.
+
+**HTTP Method:** POST
+
+**Parameters:**
+- `action` (string, required) - Must be `'getstats'`
+- `sessionid` (int, required) - Session ID
+- `sesskey` (string, required) - Moodle session key for CSRF protection
+
+**Authentication:**
+- Requires valid Moodle session
+- Requires `mod/classengage:startquiz` capability
+- User must be logged into the course
+
+**Response Format:** JSON
+
+**Success Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "participants": 25,
+    "responses": 23,
+    "participationrate": 92.0,
+    "distribution": {
+      "A": 5,
+      "B": 12,
+      "C": 4,
+      "D": 2,
+      "total": 23,
+      "correctanswer": "B"
+    },
+    "status": "active"
+  }
+}
+```
+
+**Error Response:**
+```json
+{
+  "success": false,
+  "error": "Error message"
+}
+```
+
+**Usage Example (JavaScript):**
+```javascript
+$.ajax({
+    url: M.cfg.wwwroot + '/mod/classengage/ajax.php',
+    method: 'POST',
+    data: {
+        action: 'getstats',
+        sessionid: 12,
+        sesskey: M.cfg.sesskey
+    },
+    dataType: 'json',
+    success: function(response) {
+        if (response.success) {
+            console.log('Participants:', response.data.participants);
+            console.log('Distribution:', response.data.distribution);
+        }
+    }
+});
+```
+
+**Implementation Details:**
+- Uses `session_manager` to retrieve current question
+- Uses `analytics_engine` for cached statistics (2-second cache)
+- Returns response distribution for current question only
+- Participation rate calculated as percentage of enrolled students
+- Only available for active sessions
+
+**Security:**
+- CSRF protection via `require_sesskey()`
+- Capability check: `mod/classengage:startquiz`
+- Session ownership verification
+
+**Performance:**
+- Analytics data cached for 2 seconds
+- Optimized for 1-second polling interval
+- Minimal database queries via caching layer
+
+**Added:** Version 2025110306
+
+**Breaking Changes from Previous Version:**
+- Removed `getcurrent` action (moved to student quiz interface)
+- Removed `submitanswer` action (moved to student quiz interface)
+- Focused exclusively on instructor control panel statistics
+- Now requires `startquiz` capability instead of `takequiz`
+
+---
+
 ## Core Library Functions (lib.php)
 
 ### Navigation

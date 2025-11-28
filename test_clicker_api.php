@@ -6,7 +6,7 @@
  * Place this in your Moodle root directory and access via browser.
  * 
  * @package    mod_classengage
- * @copyright  2025 Your Name
+ * @copyright  2025 Danielle
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 

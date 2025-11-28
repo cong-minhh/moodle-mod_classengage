@@ -17,7 +17,7 @@
  * Filter interactions for analytics page
  *
  * @module     mod_classengage/analytics_filters
- * @copyright  2025 Your Name
+ * @copyright  2025 Danielle
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 

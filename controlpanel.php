@@ -18,7 +18,7 @@
  * Instructor control panel for managing live quiz sessions with real-time updates
  *
  * @package    mod_classengage
- * @copyright  2025 Your Name
+ * @copyright  2025 Danielle
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -130,7 +130,10 @@ classengage_render_tabs($cm->id);
 
 // Control panel subheading.
 $subheading = format_string($session->name) . ' - ' . get_string('controlpanel', 'mod_classengage');
-echo html_writer::tag('h4', $subheading, array('class' => 'mb-3'));
+echo html_writer::tag('h4', $subheading, array('class' => 'mb-4 text-primary font-weight-bold'));
+
+// Start of Main Control Panel Container
+echo html_writer::start_div('mod-classengage-controlpanel');
 
 // ============================================================================
 // SESSION STATUS CARDS
@@ -196,6 +199,9 @@ if ($session->status === constants::SESSION_STATUS_ACTIVE) {
         'text-center mt-3'
     );
 }
+
+// End of Main Control Panel Container
+echo html_writer::end_div();
 
 echo $OUTPUT->footer();
 

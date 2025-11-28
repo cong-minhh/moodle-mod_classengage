@@ -18,7 +18,7 @@
  * Session manager class for handling quiz sessions
  *
  * @package    mod_classengage
- * @copyright  2025 Your Name
+ * @copyright  2025 Danielle
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -246,6 +246,47 @@ class session_manager {
             $gradedata->rawgrade = $grade;
             
             classengage_grade_item_update($classengage, $gradedata);
+        }
+    }
+    /**
+     * Delete a session and all related data
+     *
+     * @param int $sessionid
+     * @return bool True on success
+     */
+    public function delete_session($sessionid) {
+        global $DB;
+
+        // Delete responses
+        $DB->delete_records('classengage_responses', array('sessionid' => $sessionid));
+
+        // Delete session questions
+        $DB->delete_records('classengage_session_questions', array('sessionid' => $sessionid));
+
+        // Delete session
+        return $DB->delete_records('classengage_sessions', array('id' => $sessionid));
+    }
+
+    /**
+     * Delete multiple sessions
+     *
+     * @param array $sessionids
+     * @return bool True on success
+     */
+    public function delete_sessions($sessionids) {
+        global $DB;
+
+        $transaction = $DB->start_delegated_transaction();
+
+        try {
+            foreach ($sessionids as $sessionid) {
+                $this->delete_session($sessionid);
+            }
+            $transaction->allow_commit();
+            return true;
+        } catch (\Exception $e) {
+            $transaction->rollback($e);
+            return false;
         }
     }
 }
