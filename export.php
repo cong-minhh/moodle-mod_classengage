@@ -15,19 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Export analytics data to CSV format
- *
- * This script exports session analytics data including:
- * - Session name and date
- * - Engagement percentage and level
- * - Comprehension level and summary
- * - Activity counts (questions, polls, reactions)
- * - Responsiveness summary
- * - Difficult concepts list
- * - Teaching recommendations
- *
- * Individual student names and identifiable information are excluded
- * to maintain privacy compliance.
+ * Export analytics data
  *
  * @package    mod_classengage
  * @copyright  2025 Danielle
@@ -36,15 +24,8 @@
 
 require(__DIR__.'/../../config.php');
 require_once(__DIR__.'/lib.php');
-
-use mod_classengage\engagement_calculator;
-use mod_classengage\comprehension_analyzer;
-use mod_classengage\teaching_recommender;
-use mod_classengage\analytics_engine;
-
-// ============================================================================
-// PARAMETER VALIDATION AND SECURITY
-// ============================================================================
+require_once(__DIR__.'/classes/form/export_form.php');
+require_once(__DIR__.'/classes/export_manager.php');
 
 $id = required_param('id', PARAM_INT); // Course module ID.
 $sessionid = required_param('sessionid', PARAM_INT);
@@ -65,111 +46,103 @@ require_login($course, true, $cm);
 $context = context_module::instance($cm->id);
 require_capability('mod/classengage:viewanalytics', $context);
 
-// ============================================================================
-// CALCULATE ANALYTICS DATA
-// ============================================================================
+$PAGE->set_url('/mod/classengage/export.php', array('id' => $cm->id, 'sessionid' => $sessionid));
+$PAGE->set_title(format_string($classengage->name));
+$PAGE->set_heading(format_string($course->fullname));
+$PAGE->set_context($context);
 
-try {
-    // Instantiate analytics components.
-    $engagementcalculator = new engagement_calculator($sessionid, $course->id);
-    $engagement = $engagementcalculator->calculate_engagement_level();
-    $activitycounts = $engagementcalculator->get_activity_counts();
-    $responsiveness = $engagementcalculator->get_responsiveness_indicator();
+// Instantiate form.
+$mform = new \mod_classengage\form\export_form(null, array('id' => $id, 'sessionid' => $sessionid));
+
+// Set default data.
+$toform = new stdClass();
+$toform->id = $id;
+$toform->sessionid = $sessionid;
+$mform->set_data($toform);
+
+// Handle form submission.
+if ($mform->is_cancelled()) {
+    redirect(new moodle_url('/mod/classengage/analytics.php', array('id' => $id, 'sessionid' => $sessionid)));
+} else if ($data = $mform->get_data()) {
     
-    $comprehensionanalyzer = new comprehension_analyzer($sessionid);
-    $comprehension = $comprehensionanalyzer->get_comprehension_summary();
-    $conceptdifficulty = $comprehensionanalyzer->get_concept_difficulty();
+    $exportmanager = new \mod_classengage\export_manager($sessionid, $course->id);
+    $filename = clean_filename($classengage->name . '_' . $session->name . '_' . $data->reporttype . '_' . date('Y-m-d'));
     
-    $teachingrecommender = new teaching_recommender($sessionid, $engagement, $comprehension);
-    $recommendations = $teachingrecommender->generate_recommendations();
-    
-} catch (Exception $e) {
-    debugging('Export failed: ' . $e->getMessage(), DEBUG_DEVELOPER);
-    throw new moodle_exception('error:analyticsfailed', 'mod_classengage');
-}
-
-// ============================================================================
-// GENERATE CSV OUTPUT
-// ============================================================================
-
-// Set headers for CSV download.
-$filename = clean_filename($classengage->name . '_' . $session->name . '_analytics_' . date('Y-m-d') . '.csv');
-header('Content-Type: text/csv; charset=utf-8');
-header('Content-Disposition: attachment; filename="' . $filename . '"');
-header('Cache-Control: no-cache, must-revalidate');
-header('Expires: 0');
-
-// Open output stream.
-$output = fopen('php://output', 'w');
-
-// Write UTF-8 BOM for Excel compatibility.
-fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
-
-// Write header row.
-fputcsv($output, array(
-    get_string('sessionname', 'mod_classengage'),
-    get_string('completeddate', 'mod_classengage'),
-    get_string('engagementpercentage', 'mod_classengage'),
-    get_string('engagementlevel', 'mod_classengage'),
-    get_string('comprehensionsummary', 'mod_classengage'),
-    get_string('questionsanswered', 'mod_classengage'),
-    get_string('pollsubmissions', 'mod_classengage'),
-    get_string('reactions', 'mod_classengage'),
-    get_string('responsivenesspage', 'mod_classengage'),
-    get_string('avgresponsetime', 'mod_classengage'),
-    get_string('difficultconcepts', 'mod_classengage'),
-    get_string('teachingrecommendations', 'mod_classengage')
-));
-
-// Prepare data row.
-$sessiondate = $session->timecompleted ? userdate($session->timecompleted, get_string('strftimedatetimeshort', 'langconfig')) : '-';
-
-// Format confused topics list.
-$confusedtopics = '';
-if (!empty($comprehension->confused_topics)) {
-    $confusedtopics = implode('; ', array_map(function($topic) {
-        return strip_tags($topic);
-    }, $comprehension->confused_topics));
-}
-
-// Format difficult concepts list.
-$difficultconcepts = '';
-if (!empty($conceptdifficulty)) {
-    $difficultlist = array();
-    foreach ($conceptdifficulty as $concept) {
-        if ($concept->difficulty_level === 'difficult') {
-            $difficultlist[] = strip_tags($concept->question_text) . ' (' . round($concept->correctness_rate, 1) . '%)';
-        }
+    switch ($data->reporttype) {
+        case 'summary':
+            $exportdata = $exportmanager->get_session_summary_data();
+            $columns = [
+                'sessionname' => get_string('sessionname', 'mod_classengage'),
+                'completeddate' => get_string('completeddate', 'mod_classengage'),
+                'engagementpercentage' => get_string('engagementpercentage', 'mod_classengage'),
+                'engagementlevel' => get_string('engagementlevel', 'mod_classengage'),
+                'comprehensionsummary' => get_string('comprehensionsummary', 'mod_classengage'),
+                'questionsanswered' => get_string('questionsanswered', 'mod_classengage'),
+                'pollsubmissions' => get_string('pollsubmissions', 'mod_classengage'),
+                'reactions' => get_string('reactions', 'mod_classengage'),
+                'responsiveness' => get_string('responsiveness', 'mod_classengage'),
+                'avgresponsetime' => get_string('avgresponsetime', 'mod_classengage'),
+                'difficultconcepts' => get_string('difficultconcepts', 'mod_classengage'),
+                'recommendations' => get_string('teachingrecommendations', 'mod_classengage')
+            ];
+            break;
+            
+        case 'participation':
+            $exportdata = $exportmanager->get_student_participation_data();
+            $columns = [
+                'fullname' => get_string('studentname', 'mod_classengage'),
+                'email' => get_string('email'),
+                'responsecount' => get_string('totalresponses', 'mod_classengage'),
+                'correctcount' => get_string('correctresponses', 'mod_classengage'),
+                'score' => get_string('score', 'mod_classengage'),
+                'avgtime' => get_string('avgresponsetime', 'mod_classengage')
+            ];
+            break;
+            
+        case 'questions':
+            $exportdata = $exportmanager->get_question_analysis_data();
+            $columns = [
+                'question' => get_string('question', 'mod_classengage'),
+                'type' => get_string('questiontype', 'mod_classengage'),
+                'correctanswer' => get_string('correctanswer', 'mod_classengage'),
+                'totalresponses' => get_string('totalresponses', 'mod_classengage'),
+                'correctresponses' => get_string('correctresponses', 'mod_classengage'),
+                'correctnessrate' => get_string('correctnessrate', 'mod_classengage'),
+                'avgtime' => get_string('avgresponsetime', 'mod_classengage')
+            ];
+            break;
+            
+        case 'raw':
+            $exportdata = $exportmanager->get_raw_response_data();
+            $columns = [
+                'username' => get_string('username'),
+                'question' => get_string('question', 'mod_classengage'),
+                'answer' => get_string('answer', 'mod_classengage'),
+                'iscorrect' => get_string('correct', 'mod_classengage'),
+                'responsetime' => get_string('responsetime', 'mod_classengage'),
+                'timestamp' => get_string('time')
+            ];
+            break;
+            
+        default:
+            throw new moodle_exception('invalidreporttype', 'mod_classengage');
     }
-    $difficultconcepts = implode('; ', $difficultlist);
+    
+    \core\dataformat::download_data(
+        $filename,
+        $data->format,
+        $columns,
+        $exportdata,
+        function($row) {
+            return (array)$row;
+        }
+    );
+    exit;
 }
 
-// Format recommendations list.
-$recommendationstext = '';
-if (!empty($recommendations)) {
-    $recommendationstext = implode('; ', array_map(function($rec) {
-        return strip_tags($rec->message);
-    }, $recommendations));
-}
+echo $OUTPUT->header();
+echo $OUTPUT->heading(get_string('exportanalytics', 'mod_classengage'));
 
-// Write data row.
-fputcsv($output, array(
-    $session->name,
-    $sessiondate,
-    round($engagement->percentage, 1) . '%',
-    $engagement->level,
-    $comprehension->message . ($confusedtopics ? ' (' . $confusedtopics . ')' : ''),
-    $activitycounts->questions_answered,
-    $activitycounts->poll_submissions,
-    $activitycounts->reactions,
-    $responsiveness->pace,
-    round($responsiveness->avg_time, 1) . 's',
-    $difficultconcepts ?: get_string('none'),
-    $recommendationstext ?: get_string('none')
-));
+$mform->display();
 
-// Close output stream.
-fclose($output);
-
-// Exit to prevent any additional output.
-exit;
+echo $OUTPUT->footer();

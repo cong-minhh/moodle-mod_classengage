@@ -452,17 +452,19 @@ $string['participationnone'] = 'No participation';
 $string['broadparticipation'] = 'Most students engaged at least once';
 $string['quietperiodsuggestion'] = 'Some quiet periods suggest students may benefit from structured prompts';
 
-// Export
-$string['exportanalytics'] = 'Export Analytics';
-$string['engagementpercentage'] = 'Engagement Percentage';
-$string['responsivenesspace'] = 'Responsiveness Pace';
-$string['avgresponsetime'] = 'Average Response Time';
-
-// Empty states
-$string['noresponsesyet'] = 'No student responses yet';
-$string['nosessionselected'] = 'Please select a session to view analytics';
-$string['sessionnotcompleted'] = 'Session must be completed to view analytics';
-
+// Advanced Analysis - Response Distribution
+$string['lowparticipation'] = 'Low (1 response)';
+$string['noparticipation'] = 'None (0 responses)';
+$string['studentcount'] = 'Student Count';
+$string['timeinterval'] = 'Time Interval';
+$string['responsecount'] = 'Response Count';
+$string['peak'] = 'Peak';
+$string['dip'] = 'Dip';
+$string['multichoice'] = 'Multiple Choice';
+$string['questiontype'] = 'Question Type';
+$string['easy'] = 'Easy';
+$string['medium'] = 'Medium';
+$string['hard'] = 'Hard';
 // Accessibility
 $string['tabpanel'] = 'Analytics tab panel';
 
@@ -480,3 +482,24 @@ $string['noquestionsselected'] = 'No questions selected';
 $string['slide'] = 'Slide';
 $string['unknownslide'] = 'Orphaned / Unknown Source';
 $string['created'] = 'Created';
+
+// Export
+$string['exportoptions'] = 'Export Options';
+$string['reporttype'] = 'Report Type';
+$string['report_summary'] = 'Session Summary';
+$string['report_participation'] = 'Student Participation';
+$string['report_questions'] = 'Question Analysis';
+$string['report_raw'] = 'Raw Response Data';
+$string['export'] = 'Export';
+$string['exportanalytics'] = 'Export Analytics';
+$string['reporttype_help'] = 'Select the type of report you want to generate:
+* **Session Summary**: Overview of engagement, comprehension, and recommendations.
+* **Student Participation**: List of students with their scores and participation metrics.
+* **Question Analysis**: Detailed breakdown of each question\'s performance and difficulty.
+* **Raw Response Data**: Full list of individual student responses for detailed analysis.';
+
+// Export Columns
+$string['engagementpercentage'] = 'Engagement Percentage';
+$string['avgresponsetime'] = 'Avg Response Time';
+$string['difficultconcepts'] = 'Difficult Concepts';
+$string['username'] = 'Username';
