@@ -80,6 +80,7 @@ $string['slidedeleted'] = 'Slide deleted successfully';
 $string['invalidfiletype'] = 'Invalid file type. Please upload a PDF or PPT/PPTX file.';
 $string['filesizeexceeded'] = 'File size exceeds maximum allowed size';
 $string['erroruploadingfile'] = 'Error uploading file. Please try again.';
+$string['usefilename'] = 'Use File Name';
 
 // Questions page
 $string['questionspage'] = 'Manage Questions';

@@ -164,8 +164,17 @@ class slide_processor {
         global $DB;
         
         $slide = new \stdClass();
+        $slide = new \stdClass();
         $slide->classengageid = $classengageid;
-        $slide->title = $data->title;
+        
+        if (!empty($data->usefilename)) {
+            // Use filename as title, removing extension
+            $filename = $file->get_filename();
+            $slide->title = pathinfo($filename, PATHINFO_FILENAME);
+        } else {
+            $slide->title = $data->title;
+        }
+
         $slide->filename = $file->get_filename();
         $slide->filepath = $file->get_filepath();
         $slide->filesize = $file->get_filesize();

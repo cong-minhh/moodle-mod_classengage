@@ -1,5 +1,6 @@
 /**
  * Custom styles for mod_classengage
+ * Clean, spacious, professional design with light colors
  *
  * @package    mod_classengage
  * @copyright  2025 Danielle
@@ -11,654 +12,413 @@
    ============================================================================ */
 
 .mod-classengage {
-    /* Brand colors */
-    --classengage-success: #28a745;
-    --classengage-danger: #dc3545;
-    --classengage-warning: #ffc107;
-    --classengage-info: #17a2b8;
-    --classengage-secondary: #6c757d;
+    /* Primary palette - soft, professional colors */
+    --ce-primary: #4a90a4;
+    --ce-primary-light: #e8f4f8;
+    --ce-primary-dark: #3a7287;
+    
+    /* Status colors - muted, professional */
+    --ce-success: #5cb85c;
+    --ce-success-light: #edf7ed;
+    --ce-danger: #d9534f;
+    --ce-danger-light: #fbeaea;
+    --ce-warning: #f0ad4e;
+    --ce-warning-light: #fef6e8;
+    --ce-info: #5bc0de;
+    --ce-info-light: #e8f6fa;
+    
+    /* Neutral palette */
+    --ce-gray-50: #fafbfc;
+    --ce-gray-100: #f4f6f8;
+    --ce-gray-200: #e9ecef;
+    --ce-gray-300: #dee2e6;
+    --ce-gray-400: #ced4da;
+    --ce-gray-500: #adb5bd;
+    --ce-gray-600: #6c757d;
+    --ce-gray-700: #495057;
+    --ce-gray-800: #343a40;
+    --ce-gray-900: #212529;
+    
+    /* Spacing - generous for spacious feel */
+    --ce-space-xs: 0.5rem;
+    --ce-space-sm: 0.75rem;
+    --ce-space-md: 1.25rem;
+    --ce-space-lg: 2rem;
+    --ce-space-xl: 3rem;
+    
+    /* Border radius */
+    --ce-radius-sm: 0.375rem;
+    --ce-radius-md: 0.5rem;
+    --ce-radius-lg: 0.75rem;
 
-    /* Opacity levels */
-    --classengage-opacity-light: 0.1;
-    --classengage-opacity-medium: 0.15;
-    --classengage-opacity-hover: 0.05;
-    --classengage-opacity-disabled: 0.3;
-
-    /* Spacing scale */
-    --classengage-spacing-xs: 0.25rem;
-    --classengage-spacing-sm: 0.5rem;
-    --classengage-spacing-md: 1rem;
-    --classengage-spacing-lg: 1.5rem;
-    --classengage-spacing-xl: 2rem;
-
-    /* Shadows */
-    --classengage-shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
-    --classengage-shadow-md: 0 4px 8px rgba(0, 0, 0, 0.15);
-    --classengage-shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.15);
-
+    /* Shadows - subtle */
+    --ce-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+    --ce-shadow-md: 0 2px 8px rgba(0, 0, 0, 0.08);
+    --ce-shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.1);
+    
     /* Transitions */
-    --classengage-transition-fast: 0.2s ease;
-    --classengage-transition-normal: 0.3s ease;
-
-    /* Z-index scale */
-    --classengage-z-sticky: 100;
-    --classengage-z-modal: 1000;
+    --ce-transition: 0.2s ease;
 }
 
 /* ============================================================================
-   CONTROL PANEL COMPONENTS
+   BASE LAYOUT
    ============================================================================ */
 
-/* Main Control Panel Container */
-/* Main Control Panel Container */
-.mod-classengage-controlpanel {
-    background-color: #f8f9fa;
-    padding: var(--classengage-spacing-lg);
-    border-radius: 0.5rem;
+.mod-classengage-controlpanel,
+.classengage-teacher-view,
+.classengage-student-view {
+    background-color: var(--ce-gray-50);
+    padding: var(--ce-space-lg);
+    border-radius: var(--ce-radius-lg);
 }
 
-/* Control panel cards */
+/* ============================================================================
+   CARDS - Clean, spacious design
+   ============================================================================ */
+
 .mod-classengage .card {
-    border: none;
-    box-shadow: var(--classengage-shadow-sm);
-    transition: transform var(--classengage-transition-fast), box-shadow var(--classengage-transition-normal);
-    border-radius: 0.75rem;
+    background-color: #fff;
+    border: 1px solid var(--ce-gray-200);
+    border-radius: var(--ce-radius-lg);
+    box-shadow: var(--ce-shadow-sm);
+    transition: box-shadow var(--ce-transition);
     overflow: hidden;
     height: 100%;
 }
 
 .mod-classengage .card:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--classengage-shadow-md);
+    box-shadow: var(--ce-shadow-md);
 }
 
-/* Card headers */
 .mod-classengage .card-header {
-    background-color: #fff;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    background-color: var(--ce-gray-50);
+    border-bottom: 1px solid var(--ce-gray-200);
+    padding: var(--ce-space-md) var(--ce-space-lg);
     font-weight: 600;
-    font-size: 0.9rem;
+    font-size: 0.95rem;
+    color: var(--ce-gray-800);
 }
 
-/* Status Cards Specifics */
+.mod-classengage .card-body {
+    padding: var(--ce-space-lg);
+}
+
+.mod-classengage .card-footer {
+    background-color: var(--ce-gray-50);
+    border-top: 1px solid var(--ce-gray-200);
+    padding: var(--ce-space-md) var(--ce-space-lg);
+}
+
+/* Status card variants - light backgrounds only */
+.mod-classengage .card.border-primary {
+    border-color: var(--ce-primary);
+    border-left-width: 3px;
+}
+
+.mod-classengage .card.border-success {
+    border-color: var(--ce-success);
+    border-left-width: 3px;
+}
+
+.mod-classengage .card.border-info {
+    border-color: var(--ce-info);
+    border-left-width: 3px;
+}
+
+.mod-classengage .card.border-warning {
+    border-color: var(--ce-warning);
+    border-left-width: 3px;
+}
+
+.mod-classengage .card.border-danger {
+    border-color: var(--ce-danger);
+    border-left-width: 3px;
+}
+
+/*
+ ============================================================================
+   STATUS CARDS
+   ============================================================================ */
+
 .mod-classengage .status-card-value {
-    font-size: 2.5rem;
-    font-weight: 900;
-    line-height: 1.1;
-    margin: var(--classengage-spacing-xs) 0;
-    color: #2c3e50;
-    text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.5);
+    font-size: 2.25rem;
+    font-weight: 700;
+    line-height: 1.2;
+    margin: var(--ce-space-xs) 0;
+    color: var(--ce-gray-800);
 }
 
 .mod-classengage .status-card-title {
     text-transform: uppercase;
-    letter-spacing: 1px;
-    font-size: 0.85rem;
-    font-weight: 700;
-    color: #6c757d;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-/* Highlight values based on card border color */
-.mod-classengage .card.border-primary .status-card-value {
-    color: #007bff;
-}
-
-.mod-classengage .card.border-success .status-card-value {
-    color: #28a745;
-}
-
-.mod-classengage .card.border-info .status-card-value {
-    color: #17a2b8;
-}
-
-.mod-classengage .card.border-warning .status-card-value {
-    color: #ffc107;
-}
-
-.mod-classengage .card.border-danger .status-card-value {
-    color: #dc3545;
-}
-
-/* Add subtle background to cards */
-.mod-classengage .card.border-primary {
-    background-color: rgba(0, 123, 255, 0.03);
-}
-
-.mod-classengage .card.border-success {
-    background-color: rgba(40, 167, 69, 0.03);
-}
-
-.mod-classengage .card.border-info {
-    background-color: rgba(23, 162, 184, 0.03);
-}
-
-.mod-classengage .card.border-warning {
-    background-color: rgba(255, 193, 7, 0.03);
-}
-
-.mod-classengage .card.border-danger {
-    background-color: rgba(220, 53, 69, 0.03);
-}
-
-/* Ensure cards have consistent height and spacing */
-.mod-classengage .col-md {
-    min-width: 140px;
-    /* Prevent too much shrinking */
-}
-
-/* Progress bars */
-.mod-classengage .progress {
-    background-color: #e9ecef;
-    border-radius: 1rem;
-    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
-    height: 1.5rem;
-}
-
-.mod-classengage .progress-bar {
-    border-radius: 1rem;
-    transition: width 0.6s ease;
-    font-weight: 600;
-    font-size: 0.9rem;
-}
-
-/* Response distribution table */
-.mod-classengage .table-hover tbody tr {
-    transition: background-color 0.2s ease;
-}
-
-.mod-classengage .table-hover tbody tr:hover {
-    background-color: rgba(0, 123, 255, 0.05);
-}
-
-.mod-classengage .table th {
-    border-top: none;
-    text-transform: uppercase;
+    letter-spacing: 0.5px;
     font-size: 0.8rem;
-    letter-spacing: 0.5px;
-    color: #6c757d;
-    font-weight: 700;
-}
-
-/* Correct answer highlighting */
-.mod-classengage .table-success {
-    background-color: rgba(40, 167, 69, 0.1) !important;
-}
-
-.mod-classengage .table-success td strong {
-    color: var(--classengage-success);
-}
-
-/* Status badges */
-.mod-classengage .badge {
-    padding: 0.5em 0.8em;
     font-weight: 600;
-    border-radius: 0.25rem;
-    font-size: 0.9rem;
+    color: var(--ce-gray-600);
 }
 
-.mod-classengage .badge-success {
-    background-color: rgba(40, 167, 69, 0.15);
-    color: var(--classengage-success);
+.mod-classengage .card.border-primary .status-card-value { color: var(--ce-primary); }
+.mod-classengage .card.border-success .status-card-value { color: var(--ce-success); }
+.mod-classengage .card.border-info .status-card-value { color: var(--ce-info); }
+.mod-classengage .card.border-warning .status-card-value { color: #c68a00; }
+.mod-classengage .card.border-danger .status-card-value { color: var(--ce-danger); }
+
+/* ============================================================================
+   BUTTONS - Flat, clean design (no gradients)
+   ============================================================================ */
+
+.mod-classengage .btn {
+    border-radius: var(--ce-radius-md);
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    transition: all var(--ce-transition);
+    border: none;
 }
 
-.mod-classengage .badge-warning {
-    background-color: rgba(255, 193, 7, 0.15);
-    color: #856404;
-}
-
-.mod-classengage .badge-secondary {
-    background-color: rgba(108, 117, 125, 0.15);
-    color: var(--classengage-secondary);
-}
-
-.mod-classengage .badge-info {
-    background-color: rgba(23, 162, 184, 0.15);
-    color: var(--classengage-info);
-}
-
-/* Button styling */
 .mod-classengage .btn-lg {
-    padding: 0.75rem 2rem;
-    font-weight: 600;
-    border-radius: 0.5rem;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    padding: 0.75rem 1.5rem;
     font-size: 1rem;
-    box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08);
-    transition: all 0.15s ease;
-}
-
-.mod-classengage .btn-lg:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 7px 14px rgba(50, 50, 93, 0.1), 0 3px 6px rgba(0, 0, 0, 0.08);
 }
 
 .mod-classengage .btn-primary {
-    background: linear-gradient(135deg, #007bff 0%, #0062cc 100%);
-    border: none;
+    background-color: var(--ce-primary);
+    color: #fff;
+}
+
+.mod-classengage .btn-primary:hover {
+    background-color: var(--ce-primary-dark);
+}
+
+.mod-classengage .btn-success {
+    background-color: var(--ce-success);
+    color: #fff;
+}
+
+.mod-classengage .btn-success:hover {
+    background-color: #4a9c4a;
 }
 
 .mod-classengage .btn-danger {
-    background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
-    border: none;
+    background-color: var(--ce-danger);
+    color: #fff;
 }
 
-.mod-classengage .mr-2 {
-    margin-right: var(--classengage-spacing-md) !important;
+.mod-classengage .btn-danger:hover {
+    background-color: #c9302c;
 }
 
-/* Real-time update indicator */
-.mod-classengage .live-indicator {
-    display: inline-block;
-    width: 12px;
-    height: 12px;
-    background-color: var(--classengage-success);
-    border-radius: 50%;
-    box-shadow: 0 0 0 rgba(40, 167, 69, 0.4);
-    animation: pulse 2s infinite;
-    margin-right: 8px;
+.mod-classengage .btn-outline-primary {
+    background-color: transparent;
+    border: 1px solid var(--ce-primary);
+    color: var(--ce-primary);
+}
+
+.mod-classengage .btn-outline-primary:hover {
+    background-color: var(--ce-primary-light);
+}
+
+.mod-classengage .btn-outline-danger {
+    background-color: transparent;
+    border: 1px solid var(--ce-danger);
+    color: var(--ce-danger);
+}
+
+.mod-classengage .btn-outline-danger:hover {
+    background-color: var(--ce-danger-light);
+}
+
+/* =
+===========================================================================
+   BADGES - Soft, light backgrounds
+   ============================================================================ */
+
+.mod-classengage .badge {
+    padding: 0.4em 0.75em;
+    font-weight: 500;
+    border-radius: var(--ce-radius-sm);
+    font-size: 0.85rem;
+}
+
+.mod-classengage .badge-success,
+.mod-classengage .badge.bg-success {
+    background-color: var(--ce-success-light);
+    color: #3d7a3d;
+}
+
+.mod-classengage .badge-warning,
+.mod-classengage .badge.bg-warning {
+    background-color: var(--ce-warning-light);
+    color: #8a6d3b;
+}
+
+.mod-classengage .badge-danger,
+.mod-classengage .badge.bg-danger {
+    background-color: var(--ce-danger-light);
+    color: #a94442;
+}
+
+.mod-classengage .badge-info,
+.mod-classengage .badge.bg-info {
+    background-color: var(--ce-info-light);
+    color: #31708f;
+}
+
+.mod-classengage .badge-secondary,
+.mod-classengage .badge.bg-secondary {
+    background-color: var(--ce-gray-100);
+    color: var(--ce-gray-700);
+}
+
+/* ============================================================================
+   PROGRESS BARS
+   ============================================================================ */
+
+.mod-classengage .progress {
+    background-color: var(--ce-gray-200);
+    border-radius: var(--ce-radius-md);
+    height: 1.25rem;
+    overflow: hidden;
+}
+
+.mod-classengage .progress-bar {
+    border-radius: var(--ce-radius-md);
+    transition: width 0.4s ease;
+    font-weight: 500;
+    font-size: 0.85rem;
+}
+
+.mod-classengage .progress-bar.bg-success { background-color: var(--ce-success); }
+.mod-classengage .progress-bar.bg-info { background-color: var(--ce-info); }
+.mod-classengage .progress-bar.bg-warning { background-color: var(--ce-warning); }
+.mod-classengage .progress-bar.bg-danger { background-color: var(--ce-danger); }
+
+/* ============================================================================
+   TABLES - Clean, spacious
+   ============================================================================ */
+
+.mod-classengage .table {
+    margin-bottom: 0;
+}
+
+.mod-classengage .table th {
+    background-color: var(--ce-gray-50);
+    border-top: none;
+    border-bottom: 2px solid var(--ce-gray-200);
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.5px;
+    color: var(--ce-gray-600);
+    font-weight: 600;
+    padding: var(--ce-space-md);
+}
+
+.mod-classengage .table td {
+    padding: var(--ce-space-md);
     vertical-align: middle;
+    border-bottom: 1px solid var(--ce-gray-200);
 }
 
-@keyframes pulse {
-    0% {
-        transform: scale(0.95);
-        box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7);
-    }
-
-    70% {
-        transform: scale(1);
-        box-shadow: 0 0 0 10px rgba(40, 167, 69, 0);
-    }
-
-    100% {
-        transform: scale(0.95);
-        box-shadow: 0 0 0 0 rgba(40, 167, 69, 0);
-    }
+.mod-classengage .table-hover tbody tr:hover {
+    background-color: var(--ce-gray-50);
 }
 
-/* Responsive adjustments */
-@media (max-width: 992px) {
-    .mod-classengage .status-card-value {
-        font-size: 1.75rem;
-    }
+.mod-classengage .table-success {
+    background-color: var(--ce-success-light) !important;
 }
 
-@media (max-width: 768px) {
-
-    .mod-classengage .col-md,
-    .mod-classengage .col-md-6 {
-        margin-bottom: var(--classengage-spacing-md);
-    }
-
-    .mod-classengage .status-card-value {
-        font-size: 2rem;
-    }
+.mod-classengage .table-top-performer {
+    background-color: var(--ce-success-light);
 }
 
-/* ============================================================================
-   ANALYTICS ENHANCEMENT COMPONENTS
+.mod-classengage .table-at-risk {
+    background-color: var(--ce-danger-light);
+}
+
+/*
+ ============================================================================
+   ANALYTICS TAB NAVIGATION
    ============================================================================ */
 
-/* Sticky filter toolbar */
-.mod-classengage .analytics-filter-toolbar {
-    position: sticky;
-    top: 0;
-    z-index: var(--classengage-z-sticky);
-    background-color: #fff;
-    padding: var(--classengage-spacing-md);
-    margin-bottom: var(--classengage-spacing-lg);
-    border-bottom: 2px solid #dee2e6;
-    box-shadow: var(--classengage-shadow-sm);
-}
-
-/* ============================================================================
-   TWO-TAB ANALYTICS INTERFACE
-   ============================================================================ */
-
-/* Tab Navigation Styles */
 .mod-classengage .analytics-tab-navigation {
     display: flex;
-    border-bottom: 2px solid #dee2e6;
-    margin-bottom: var(--classengage-spacing-lg);
+    border-bottom: 2px solid var(--ce-gray-200);
+    margin-bottom: var(--ce-space-lg);
     background-color: #fff;
+    border-radius: var(--ce-radius-lg) var(--ce-radius-lg) 0 0;
 }
 
 .mod-classengage .analytics-tab {
-    /* Positioning */
-    position: relative;
-
-    /* Display & Box Model */
     flex: 1;
-    padding: var(--classengage-spacing-md) var(--classengage-spacing-lg);
+    padding: var(--ce-space-md) var(--ce-space-lg);
     border: none;
     border-bottom: 3px solid transparent;
     background-color: transparent;
-
-    /* Typography */
     text-align: center;
-    font-size: 1rem;
-    font-weight: 600;
-    color: #495057;
-
-    /* Misc */
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--ce-gray-600);
     cursor: pointer;
-    transition:
-        background-color var(--classengage-transition-fast),
-        color var(--classengage-transition-fast),
-        border-color var(--classengage-transition-fast);
+    transition: all var(--ce-transition);
+    position: relative;
 }
 
 .mod-classengage .analytics-tab:hover {
-    background-color: rgba(0, 123, 255, 0.05);
-    color: #007bff;
+    background-color: var(--ce-gray-50);
+    color: var(--ce-primary);
 }
 
 .mod-classengage .analytics-tab.active {
-    color: #007bff;
-    border-bottom-color: #007bff;
-    background-color: rgba(0, 123, 255, 0.05);
+    color: var(--ce-primary);
+    border-bottom-color: var(--ce-primary);
+    background-color: var(--ce-primary-light);
 }
 
 .mod-classengage .analytics-tab:focus {
-    outline: 2px solid #007bff;
+    outline: 2px solid var(--ce-primary);
     outline-offset: -2px;
-    z-index: 1;
 }
 
-/* Tab Content Areas */
 .mod-classengage .analytics-tab-content {
     display: none;
 }
 
+/* ============================================================================
+   ANALYTICS CARDS
+   ============================================================================ */
 
-.mod-classengage .engagement-level-low {
-    color: #dc3545;
-    font-weight: 700;
-}
-
-.mod-classengage .engagement-indicator {
-    display: inline-flex;
-    align-items: center;
-    padding: var(--classengage-spacing-sm) var(--classengage-spacing-md);
-    border-radius: 0.25rem;
-    font-size: 1.25rem;
-    font-weight: 700;
-}
-
-.mod-classengage .engagement-indicator.high {
-    background-color: rgba(40, 167, 69, 0.15);
-    color: #28a745;
-    border: 2px solid #28a745;
-}
-
-.mod-classengage .engagement-indicator.moderate {
-    background-color: rgba(255, 193, 7, 0.15);
-    color: #856404;
-    border: 2px solid #ffc107;
-}
-
-.mod-classengage .engagement-indicator.low {
-    background-color: rgba(220, 53, 69, 0.15);
-    color: #dc3545;
-    border: 2px solid #dc3545;
-}
-
-/* Comprehension Level Color Coding */
-.mod-classengage .comprehension-level-strong {
-    color: #28a745;
-    font-weight: 700;
-}
-
-.mod-classengage .comprehension-level-partial {
-    color: #ffc107;
-    font-weight: 700;
-}
-
-.mod-classengage .comprehension-level-weak {
-    color: #dc3545;
-    font-weight: 700;
-}
-
-.mod-classengage .comprehension-indicator {
-    display: inline-flex;
-    align-items: center;
-    padding: var(--classengage-spacing-sm) var(--classengage-spacing-md);
-    border-radius: 0.25rem;
-    font-size: 1.1rem;
-    font-weight: 700;
-}
-
-.mod-classengage .comprehension-indicator.strong {
-    background-color: rgba(40, 167, 69, 0.15);
-    color: #28a745;
-    border: 2px solid #28a745;
-}
-
-.mod-classengage .comprehension-indicator.partial {
-    background-color: rgba(255, 193, 7, 0.15);
-    color: #856404;
-    border: 2px solid #ffc107;
-}
-
-.mod-classengage .comprehension-indicator.weak {
-    background-color: rgba(220, 53, 69, 0.15);
-    color: #dc3545;
-    border: 2px solid #dc3545;
-}
-
-/* Concept Difficulty Color Coding for Bar Chart */
-.mod-classengage .concept-difficulty-easy {
-    background-color: #28a745;
-}
-
-.mod-classengage .concept-difficulty-moderate {
-    background-color: #ffc107;
-}
-
-.mod-classengage .concept-difficulty-difficult {
-    background-color: #dc3545;
-}
-
-.mod-classengage .concept-difficulty-table {
-    width: 100%;
-    margin-bottom: var(--classengage-spacing-lg);
-}
-
-.mod-classengage .concept-difficulty-table th {
-    background-color: #f8f9fa;
-    font-weight: 600;
-    padding: var(--classengage-spacing-md);
-    border-bottom: 2px solid #dee2e6;
-}
-
-.mod-classengage .concept-difficulty-table td {
-    padding: var(--classengage-spacing-md);
-    border-bottom: 1px solid #dee2e6;
-}
-
-.mod-classengage .concept-difficulty-table tr:hover {
-    background-color: rgba(0, 0, 0, 0.02);
-}
-
-.mod-classengage .difficulty-badge {
-    display: inline-block;
-    padding: 0.25rem 0.75rem;
-    border-radius: 0.25rem;
-    font-size: 0.875rem;
-    font-weight: 600;
-    text-align: center;
-}
-
-.mod-classengage .difficulty-badge.easy {
-    background-color: rgba(40, 167, 69, 0.15);
-    color: #28a745;
-}
-
-.mod-classengage .difficulty-badge.moderate {
-    background-color: rgba(255, 193, 7, 0.15);
-    color: #856404;
-}
-
-.mod-classengage .difficulty-badge.difficult {
-    background-color: rgba(220, 53, 69, 0.15);
-    color: #dc3545;
-}
-
-/* Peak/Dip Highlighting Styles for Timeline */
-.mod-classengage .timeline-peak {
-    background-color: rgba(40, 167, 69, 0.2);
-    border: 2px solid #28a745;
-}
-
-.mod-classengage .timeline-dip {
-    background-color: rgba(220, 53, 69, 0.2);
-    border: 2px solid #dc3545;
-}
-
-.mod-classengage .timeline-marker {
-    position: relative;
-}
-
-.mod-classengage .timeline-marker.peak::after {
-    content: "▲";
-    position: absolute;
-    top: -20px;
-    left: 50%;
-    transform: translateX(-50%);
-    color: #28a745;
-    font-size: 1.2rem;
-}
-
-.mod-classengage .timeline-marker.dip::after {
-    content: "▼";
-    position: absolute;
-    bottom: -20px;
-    left: 50%;
-    transform: translateX(-50%);
-    color: #dc3545;
-    font-size: 1.2rem;
-}
-
-/* Recommendation Card Styles */
-.mod-classengage .recommendation-card {
-    background-color: #fff;
-    border-left: 4px solid #007bff;
-    border-radius: 0.25rem;
-    padding: var(--classengage-spacing-md);
-    margin-bottom: var(--classengage-spacing-md);
-    box-shadow: var(--classengage-shadow-sm);
-    transition:
-        box-shadow var(--classengage-transition-fast),
-        transform var(--classengage-transition-fast);
-}
-
-.mod-classengage .recommendation-card:hover {
-    box-shadow: var(--classengage-shadow-md);
-    transform: translateX(4px);
-}
-
-.mod-classengage .recommendation-card.priority-1 {
-    border-left-color: #dc3545;
-    background-color: rgba(220, 53, 69, 0.03);
-}
-
-.mod-classengage .recommendation-card.priority-2 {
-    border-left-color: #fd7e14;
-    background-color: rgba(253, 126, 20, 0.03);
-}
-
-.mod-classengage .recommendation-card.priority-3 {
-    border-left-color: #28a745;
-    background-color: rgba(40, 167, 69, 0.03);
-}
-
-.mod-classengage .recommendation-card.priority-4 {
-    border-left-color: #ffc107;
-    background-color: rgba(255, 193, 7, 0.03);
-}
-
-.mod-classengage .recommendation-card.priority-5,
-.mod-classengage .recommendation-card.priority-6 {
-    border-left-color: #17a2b8;
-    background-color: rgba(23, 162, 184, 0.03);
-}
-
-.mod-classengage .recommendation-icon {
-    font-size: 1.5rem;
-    margin-right: var(--classengage-spacing-md);
-    vertical-align: middle;
-}
-
-.mod-classengage .recommendation-text {
-    font-size: 1rem;
-    line-height: 1.5;
-    color: #495057;
-}
-
-.mod-classengage .recommendation-priority {
-    display: inline-block;
-    padding: 0.25rem 0.5rem;
-    border-radius: 0.25rem;
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    margin-left: var(--classengage-spacing-sm);
-}
-
-.mod-classengage .recommendation-priority.high {
-    background-color: #dc3545;
-    color: #fff;
-}
-
-.mod-classengage .recommendation-priority.medium {
-    background-color: #ffc107;
-    color: #212529;
-}
-
-.mod-classengage .recommendation-priority.low {
-    background-color: #17a2b8;
-    color: #fff;
-}
-
-/* Analytics Cards */
 .mod-classengage .analytics-card {
     background-color: #fff;
-    border-radius: 0.5rem;
-    padding: var(--classengage-spacing-lg);
-    margin-bottom: var(--classengage-spacing-lg);
-    box-shadow: var(--classengage-shadow-sm);
-    transition: box-shadow var(--classengage-transition-fast);
+    border: 1px solid var(--ce-gray-200);
+    border-radius: var(--ce-radius-lg);
+    padding: var(--ce-space-lg);
+    margin-bottom: var(--ce-space-lg);
+    box-shadow: var(--ce-shadow-sm);
 }
 
 .mod-classengage .analytics-card:hover {
-    box-shadow: var(--classengage-shadow-md);
+    box-shadow: var(--ce-shadow-md);
 }
 
 .mod-classengage .analytics-card-header {
-    font-size: 1.25rem;
+    font-size: 1.1rem;
     font-weight: 600;
-    margin-bottom: var(--classengage-spacing-md);
-    color: #212529;
-    border-bottom: 2px solid #dee2e6;
-    padding-bottom: var(--classengage-spacing-sm);
+    margin-bottom: var(--ce-space-md);
+    color: var(--ce-gray-800);
+    border-bottom: 1px solid var(--ce-gray-200);
+    padding-bottom: var(--ce-space-sm);
 }
 
 .mod-classengage .analytics-card-body {
-    font-size: 1rem;
+    font-size: 0.95rem;
     line-height: 1.6;
-    color: #495057;
+    color: var(--ce-gray-700);
 }
 
 .mod-classengage .analytics-metric {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: var(--classengage-spacing-sm) 0;
-    border-bottom: 1px solid #e9ecef;
+    padding: var(--ce-space-sm) 0;
+    border-bottom: 1px solid var(--ce-gray-100);
 }
 
 .mod-classengage .analytics-metric:last-child {
@@ -666,390 +426,607 @@
 }
 
 .mod-classengage .analytics-metric-label {
-    font-weight: 600;
-    color: #495057;
+    font-weight: 500;
+    color: var(--ce-gray-700);
 }
 
 .mod-classengage .analytics-metric-value {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: #007bff;
-}
-
-/* Responsive Styles for Mobile Devices */
-@media (max-width: 768px) {
-    .mod-classengage .analytics-tab-navigation {
-        flex-direction: column;
-    }
-
-    .mod-classengage .analytics-tab {
-        border-bottom: 1px solid #dee2e6;
-        border-left: 3px solid transparent;
-    }
-
-    .mod-classengage .analytics-tab.active {
-        border-bottom-color: #dee2e6;
-        border-left-color: #007bff;
-    }
-
-    .mod-classengage .analytics-card {
-        padding: var(--classengage-spacing-md);
-    }
-
-    .mod-classengage .analytics-card-header {
-        font-size: 1.1rem;
-    }
-
-    .mod-classengage .analytics-metric {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: var(--classengage-spacing-xs);
-    }
-
-    .mod-classengage .analytics-metric-value {
-        font-size: 1.25rem;
-    }
-
-    .mod-classengage .recommendation-card {
-        padding: var(--classengage-spacing-sm);
-    }
-
-    .mod-classengage .recommendation-icon {
-        display: block;
-        margin-bottom: var(--classengage-spacing-sm);
-    }
-
-    .mod-classengage .chart-container {
-        height: 300px;
-    }
-
-    .mod-classengage .concept-difficulty-table {
-        font-size: 0.875rem;
-    }
-
-    .mod-classengage .concept-difficulty-table th,
-    .mod-classengage .concept-difficulty-table td {
-        padding: var(--classengage-spacing-sm);
-    }
-}
-
-@media (max-width: 576px) {
-    .mod-classengage .analytics-tab {
-        padding: var(--classengage-spacing-sm);
-        font-size: 0.9rem;
-    }
-
-    .mod-classengage .engagement-indicator,
-    .mod-classengage .comprehension-indicator {
-        font-size: 1rem;
-        padding: var(--classengage-spacing-xs) var(--classengage-spacing-sm);
-    }
-
-    .mod-classengage .chart-container {
-        height: 250px;
-    }
-}
-
-/* Student performance highlighting */
-.mod-classengage .table-top-performer {
-    background-color: rgba(40, 167, 69, var(--classengage-opacity-light));
-}
-
-.mod-classengage .table-top-performer:hover {
-    background-color: rgba(40, 167, 69, var(--classengage-opacity-medium));
-}
-
-.mod-classengage .table-at-risk {
-    background-color: rgba(220, 53, 69, var(--classengage-opacity-light));
-}
-
-/* Sort indicator styles */
-.mod-classengage .sortable-column {
-    cursor: pointer;
-    user-select: none;
-    position: relative;
-    padding-right: var(--classengage-spacing-lg);
-}
-
-.mod-classengage .sortable-column:hover {
-    background-color: rgba(0, 0, 0, var(--classengage-opacity-hover));
-}
-
-.mod-classengage .sort-indicator {
-    position: absolute;
-    right: var(--classengage-spacing-sm);
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: 0.75rem;
-    color: var(--classengage-secondary);
-}
-
-.mod-classengage .sort-indicator.sort-asc::after {
-    content: "▲";
-}
-
-.mod-classengage .sort-indicator.sort-desc::after {
-    content: "▼";
-}
-
-.mod-classengage .sort-indicator.sort-none::after {
-    content: "⇅";
-    opacity: var(--classengage-opacity-disabled);
-}
-
-/* Performance badge styles */
-.mod-classengage .performance-badge {
-    display: inline-block;
-    padding: var(--classengage-spacing-sm) var(--classengage-spacing-md);
-    margin: var(--classengage-spacing-sm);
-    border-radius: var(--classengage-spacing-sm);
+    font-size: 1.25rem;
     font-weight: 600;
-    text-align: center;
-    box-shadow: var(--classengage-shadow-sm);
+    color: var(--ce-primary);
+}
+
+.mod-classengage .analytics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: var(--ce-space-lg);
+    margin-bottom: var(--ce-space-lg);
+}
+
+/*
+ ============================================================================
+   ENGAGEMENT & COMPREHENSION INDICATORS
+   ============================================================================ */
+
+.mod-classengage .engagement-indicator,
+.mod-classengage .comprehension-indicator {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--ce-space-xs) var(--ce-space-md);
+    border-radius: var(--ce-radius-md);
+    font-size: 1.1rem;
+    font-weight: 600;
+    border: 1px solid;
+}
+
+.mod-classengage .engagement-indicator.high,
+.mod-classengage .comprehension-indicator.strong {
+    background-color: var(--ce-success-light);
+    color: #3d7a3d;
+    border-color: var(--ce-success);
+}
+
+.mod-classengage .engagement-indicator.moderate,
+.mod-classengage .comprehension-indicator.partial {
+    background-color: var(--ce-warning-light);
+    color: #8a6d3b;
+    border-color: var(--ce-warning);
+}
+
+.mod-classengage .engagement-indicator.low,
+.mod-classengage .comprehension-indicator.weak {
+    background-color: var(--ce-danger-light);
+    color: #a94442;
+    border-color: var(--ce-danger);
+}
+
+.mod-classengage .engagement-level-high { color: #3d7a3d; font-weight: 600; }
+.mod-classengage .engagement-level-moderate { color: #8a6d3b; font-weight: 600; }
+.mod-classengage .engagement-level-low { color: #a94442; font-weight: 600; }
+
+.mod-classengage .comprehension-level-strong { color: #3d7a3d; font-weight: 600; }
+.mod-classengage .comprehension-level-partial { color: #8a6d3b; font-weight: 600; }
+.mod-classengage .comprehension-level-weak { color: #a94442; font-weight: 600; }
+
+/* ============================================================================
+   DIFFICULTY BADGES
+   ============================================================================ */
+
+.mod-classengage .difficulty-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: var(--ce-radius-sm);
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.mod-classengage .difficulty-badge.easy {
+    background-color: var(--ce-success-light);
+    color: #3d7a3d;
+}
+
+.mod-classengage .difficulty-badge.moderate {
+    background-color: var(--ce-warning-light);
+    color: #8a6d3b;
+}
+
+.mod-classengage .difficulty-badge.difficult {
+    background-color: var(--ce-danger-light);
+    color: #a94442;
+}
+
+/* ============================================================================
+   RECOMMENDATION CARDS
+   ============================================================================ */
+
+.mod-classengage .recommendation-card {
+    background-color: #fff;
+    border: 1px solid var(--ce-gray-200);
+    border-left: 4px solid var(--ce-primary);
+    border-radius: var(--ce-radius-md);
+    padding: var(--ce-space-md);
+    margin-bottom: var(--ce-space-md);
+    transition: box-shadow var(--ce-transition);
+}
+
+.mod-classengage .recommendation-card:hover {
+    box-shadow: var(--ce-shadow-md);
+}
+
+.mod-classengage .recommendation-card.priority-1 {
+    border-left-color: var(--ce-danger);
+    background-color: var(--ce-danger-light);
+}
+
+.mod-classengage .recommendation-card.priority-2 {
+    border-left-color: #e67e22;
+    background-color: #fef5e7;
+}
+
+.mod-classengage .recommendation-card.priority-3 {
+    border-left-color: var(--ce-success);
+    background-color: var(--ce-success-light);
+}
+
+.mod-classengage .recommendation-card.priority-4 {
+    border-left-color: var(--ce-warning);
+    background-color: var(--ce-warning-light);
+}
+
+.mod-classengage .recommendation-card.priority-5,
+.mod-classengage .recommendation-card.priority-6 {
+    border-left-color: var(--ce-info);
+    background-color: var(--ce-info-light);
+}
+
+.mod-classengage .recommendation-icon {
+    font-size: 1.25rem;
+    margin-right: var(--ce-space-sm);
+}
+
+.mod-classengage .recommendation-text {
+    font-size: 0.95rem;
+    line-height: 1.5;
+    color: var(--ce-gray-700);
+}
+
+.mod-classengage .recommendation-priority {
+    display: inline-block;
+    padding: 0.2rem 0.5rem;
+    border-radius: var(--ce-radius-sm);
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    margin-left: var(--ce-space-xs);
+}
+
+.mod-classengage .recommendation-priority.high {
+    background-color: var(--ce-danger);
     color: #fff;
 }
 
-.mod-classengage .badge-most-improved {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+.mod-classengage .recommendation-priority.medium {
+    background-color: var(--ce-warning);
+    color: #212529;
 }
 
-.mod-classengage .badge-fastest-responder {
-    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+.mod-classengage .recommendation-priority.low {
+    background-color: var(--ce-info);
+    color: #fff;
 }
 
-.mod-classengage .badge-most-consistent {
-    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-}
 
-/* Anomaly alert styles */
-.mod-classengage .anomaly-alert {
-    padding: 0.75rem var(--classengage-spacing-md);
-    margin-bottom: var(--classengage-spacing-sm);
-    border-left: 4px solid;
-    border-radius: var(--classengage-spacing-xs);
+/* ============================================================================
+   SLIDE CARDS
+   ============================================================================ */
+
+.mod-classengage .classengage-slide-card {
     background-color: #fff;
+    border: 1px solid var(--ce-gray-200);
+    border-radius: var(--ce-radius-lg);
+    box-shadow: var(--ce-shadow-sm);
+    transition: all var(--ce-transition);
+    overflow: hidden;
 }
 
-.mod-classengage .anomaly-alert.severity-low {
-    border-left-color: var(--classengage-warning);
-    background-color: rgba(255, 193, 7, var(--classengage-opacity-light));
+.mod-classengage .classengage-slide-card:hover {
+    box-shadow: var(--ce-shadow-md);
+    transform: translateY(-2px);
 }
 
-.mod-classengage .anomaly-alert.severity-medium {
-    border-left-color: #fd7e14;
-    background-color: rgba(253, 126, 20, var(--classengage-opacity-light));
+.mod-classengage .classengage-slide-card .card-header {
+    background-color: var(--ce-gray-50);
+    border-bottom: 1px solid var(--ce-gray-200);
+    padding: var(--ce-space-md);
 }
 
-.mod-classengage .anomaly-alert.severity-high {
-    border-left-color: var(--classengage-danger);
-    background-color: rgba(220, 53, 69, var(--classengage-opacity-light));
-}
-
-.mod-classengage .anomaly-icon {
-    font-size: 1.25rem;
-    margin-right: var(--classengage-spacing-sm);
-}
-
-/* Insights panel styling */
-.mod-classengage .insights-panel {
-    background-color: #f8f9fa;
-    border-radius: var(--classengage-spacing-sm);
-    padding: var(--classengage-spacing-lg);
-    margin-bottom: var(--classengage-spacing-lg);
-}
-
-.mod-classengage .insight-section {
-    margin-bottom: var(--classengage-spacing-md);
-}
-
-.mod-classengage .insight-section:last-child {
+.mod-classengage .classengage-slide-card .card-title {
+    font-weight: 600;
+    color: var(--ce-gray-800);
+    font-size: 1rem;
     margin-bottom: 0;
 }
 
-/* Chart container styling */
+.mod-classengage .classengage-slide-card .card-body {
+    padding: var(--ce-space-lg);
+}
+
+.mod-classengage .classengage-slide-card .card-footer {
+    background-color: var(--ce-gray-50);
+    border-top: 1px solid var(--ce-gray-200);
+    padding: var(--ce-space-md);
+}
+
+.mod-classengage .classengage-slide-card .fa-3x {
+    font-size: 2rem;
+    color: var(--ce-primary);
+    opacity: 0.7;
+}
+
+.mod-classengage .slide-checkbox {
+    width: 1.1rem;
+    height: 1.1rem;
+    cursor: pointer;
+    accent-color: var(--ce-primary);
+}
+
+/* ============================================================================
+   CHARTS & VISUALIZATIONS
+   ============================================================================ */
+
 .mod-classengage .chart-container {
     position: relative;
-    height: 400px;
-    margin-bottom: var(--classengage-spacing-xl);
+    height: 350px;
+    margin-bottom: var(--ce-space-xl);
 }
 
 .mod-classengage .chart-wrapper {
     background-color: #fff;
-    border-radius: var(--classengage-spacing-sm);
-    padding: var(--classengage-spacing-lg);
-    box-shadow: var(--classengage-shadow-sm);
+    border: 1px solid var(--ce-gray-200);
+    border-radius: var(--ce-radius-lg);
+    padding: var(--ce-space-lg);
+    box-shadow: var(--ce-shadow-sm);
 }
 
 /* ============================================================================
-   RTL (RIGHT-TO-LEFT) SUPPORT
+   FILTER & TOOLBAR
    ============================================================================ */
 
-[dir="rtl"] .mod-classengage .sort-indicator {
-    right: auto;
-    left: var(--classengage-spacing-sm);
+.mod-classengage .analytics-filter-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background-color: #fff;
+    padding: var(--ce-space-md);
+    margin-bottom: var(--ce-space-lg);
+    border: 1px solid var(--ce-gray-200);
+    border-radius: var(--ce-radius-md);
+    box-shadow: var(--ce-shadow-sm);
 }
 
-[dir="rtl"] .mod-classengage .sortable-column {
-    padding-right: 0.75rem;
-    padding-left: var(--classengage-spacing-lg);
+.mod-classengage .session-selector {
+    margin-bottom: var(--ce-space-lg);
+    padding: var(--ce-space-md);
+    background-color: var(--ce-gray-50);
+    border-radius: var(--ce-radius-md);
+    border: 1px solid var(--ce-gray-200);
 }
 
-[dir="rtl"] .mod-classengage .anomaly-icon {
-    margin-right: 0;
-    margin-left: var(--classengage-spacing-sm);
+.mod-classengage .session-selector label {
+    font-weight: 500;
+    margin-right: var(--ce-space-sm);
+    color: var(--ce-gray-700);
 }
 
-[dir="rtl"] .mod-classengage .anomaly-alert {
-    border-left: none;
-    border-right: 4px solid;
+.mod-classengage .session-selector select {
+    padding: var(--ce-space-xs) var(--ce-space-md);
+    border: 1px solid var(--ce-gray-300);
+    border-radius: var(--ce-radius-sm);
+    font-size: 0.95rem;
+    background-color: #fff;
 }
 
-[dir="rtl"] .mod-classengage .anomaly-alert.severity-low {
-    border-right-color: var(--classengage-warning);
-}
-
-[dir="rtl"] .mod-classengage .anomaly-alert.severity-medium {
-    border-right-color: #fd7e14;
-}
-
-[dir="rtl"] .mod-classengage .anomaly-alert.severity-high {
-    border-right-color: var(--classengage-danger);
-}
-
-/* RTL Support for Two-Tab Analytics Interface */
-[dir="rtl"] .mod-classengage .recommendation-card {
-    border-left: none;
-    border-right: 4px solid #007bff;
-}
-
-[dir="rtl"] .mod-classengage .recommendation-card:hover {
-    transform: translateX(-4px);
-}
-
-[dir="rtl"] .mod-classengage .recommendation-card.priority-1 {
-    border-right-color: #dc3545;
-}
-
-[dir="rtl"] .mod-classengage .recommendation-card.priority-2 {
-    border-right-color: #fd7e14;
-}
-
-[dir="rtl"] .mod-classengage .recommendation-card.priority-3 {
-    border-right-color: #28a745;
-}
-
-[dir="rtl"] .mod-classengage .recommendation-card.priority-4 {
-    border-right-color: #ffc107;
-}
-
-[dir="rtl"] .mod-classengage .recommendation-card.priority-5,
-[dir="rtl"] .mod-classengage .recommendation-card.priority-6 {
-    border-right-color: #17a2b8;
-}
-
-[dir="rtl"] .mod-classengage .recommendation-icon {
-    margin-right: 0;
-    margin-left: var(--classengage-spacing-md);
-}
-
-[dir="rtl"] .mod-classengage .recommendation-priority {
-    margin-left: 0;
-    margin-right: var(--classengage-spacing-sm);
-}
-
-[dir="rtl"] .mod-classengage .analytics-tab {
-    border-left: 3px solid transparent;
-    border-bottom: none;
-}
-
-[dir="rtl"] .mod-classengage .analytics-tab.active {
-    border-left-color: #007bff;
-}
-
-@media (max-width: 768px) {
-    [dir="rtl"] .mod-classengage .analytics-tab {
-        border-right: 3px solid transparent;
-        border-left: none;
-    }
-
-    [dir="rtl"] .mod-classengage .analytics-tab.active {
-        border-right-color: #007bff;
-        border-left-color: transparent;
-    }
-}
-
-/* Filter form styling */
 .mod-classengage .filter-form .form-group {
-    margin-bottom: var(--classengage-spacing-md);
+    margin-bottom: var(--ce-space-md);
 }
 
 .mod-classengage .filter-form label {
-    font-weight: 600;
-    margin-bottom: var(--classengage-spacing-xs);
+    font-weight: 500;
+    margin-bottom: var(--ce-space-xs);
+    color: var(--ce-gray-700);
 }
 
 .mod-classengage .filter-form input[type="text"],
 .mod-classengage .filter-form input[type="number"],
 .mod-classengage .filter-form select {
     width: 100%;
-    padding: var(--classengage-spacing-sm);
-    border: 1px solid #ced4da;
-    border-radius: var(--classengage-spacing-xs);
+    padding: var(--ce-space-sm);
+    border: 1px solid var(--ce-gray-300);
+    border-radius: var(--ce-radius-sm);
+    background-color: #fff;
 }
 
-.mod-classengage .filter-form input[type="checkbox"] {
-    margin-right: var(--classengage-spacing-sm);
+.mod-classengage .filter-form input:focus,
+.mod-classengage .filter-form select:focus {
+    outline: none;
+    border-color: var(--ce-primary);
+    box-shadow: 0 0 0 3px var(--ce-primary-light);
+}
+/* ============================================================================
+   EXPORT & ACTION BUTTONS
+   ============================================================================ */
+
+.mod-classengage .export-button {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--ce-space-sm) var(--ce-space-md);
+    background-color: var(--ce-success);
+    color: #fff;
+    border: none;
+    border-radius: var(--ce-radius-md);
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color var(--ce-transition);
 }
 
-[dir="rtl"] .mod-classengage .filter-form input[type="checkbox"] {
-    margin-right: 0;
-    margin-left: var(--classengage-spacing-sm);
+.mod-classengage .export-button:hover {
+    background-color: #4a9c4a;
 }
 
-/* Pagination styling */
+.mod-classengage .export-button-icon {
+    margin-right: var(--ce-space-xs);
+}
+
+/* ============================================================================
+   ALERTS & NOTIFICATIONS
+   ============================================================================ */
+
+.mod-classengage .alert-info {
+    background-color: var(--ce-info-light);
+    border: 1px solid #b8daff;
+    color: #31708f;
+    border-radius: var(--ce-radius-md);
+    padding: var(--ce-space-md) var(--ce-space-lg);
+}
+
+.mod-classengage .alert-success {
+    background-color: var(--ce-success-light);
+    border: 1px solid #c3e6cb;
+    color: #3d7a3d;
+}
+
+.mod-classengage .alert-warning {
+    background-color: var(--ce-warning-light);
+    border: 1px solid #ffeeba;
+    color: #8a6d3b;
+}
+
+.mod-classengage .alert-danger {
+    background-color: var(--ce-danger-light);
+    border: 1px solid #f5c6cb;
+    color: #a94442;
+}
+
+.mod-classengage .anomaly-alert {
+    padding: var(--ce-space-sm) var(--ce-space-md);
+    margin-bottom: var(--ce-space-sm);
+    border-left: 4px solid;
+    border-radius: var(--ce-radius-sm);
+    background-color: #fff;
+}
+
+.mod-classengage .anomaly-alert.severity-low {
+    border-left-color: var(--ce-warning);
+    background-color: var(--ce-warning-light);
+}
+
+.mod-classengage .anomaly-alert.severity-medium {
+    border-left-color: #e67e22;
+    background-color: #fef5e7;
+}
+
+.mod-classengage .anomaly-alert.severity-high {
+    border-left-color: var(--ce-danger);
+    background-color: var(--ce-danger-light);
+}
+
+.mod-classengage .anomaly-icon {
+    font-size: 1.1rem;
+    margin-right: var(--ce-space-sm);
+}
+
+/* ============================================================================
+   LIVE INDICATOR
+   ============================================================================ */
+
+.mod-classengage .live-indicator {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    background-color: var(--ce-success);
+    border-radius: 50%;
+    margin-right: var(--ce-space-xs);
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(0.9); }
+}
+
+/* ============================================================================
+   SORTABLE COLUMNS
+   ============================================================================ */
+
+.mod-classengage .sortable-column {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+    padding-right: var(--ce-space-lg);
+}
+
+.mod-classengage .sortable-column:hover {
+    background-color: var(--ce-gray-100);
+}
+
+.mod-classengage .sort-indicator {
+    position: absolute;
+    right: var(--ce-space-sm);
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.7rem;
+    color: var(--ce-gray-500);
+}
+
+.mod-classengage .sort-indicator.sort-asc::after { content: "▲"; }
+.mod-classengage .sort-indicator.sort-desc::after { content: "▼"; }
+.mod-classengage .sort-indicator.sort-none::after { content: "⇅"; opacity: 0.4; }
+
+/* ============================================================================
+   INSIGHTS PANEL
+   ============================================================================ */
+
+.mod-classengage .insights-panel {
+    background-color: var(--ce-gray-50);
+    border: 1px solid var(--ce-gray-200);
+    border-radius: var(--ce-radius-lg);
+    padding: var(--ce-space-lg);
+    margin-bottom: var(--ce-space-lg);
+}
+
+.mod-classengage .insight-section {
+    margin-bottom: var(--ce-space-md);
+}
+
+.mod-classengage .insight-section:last-child {
+    margin-bottom: 0;
+}
+
+/* ====
+========================================================================
+   TREND INDICATORS
+   ============================================================================ */
+
+.mod-classengage .trend-indicator {
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+.mod-classengage .trend-positive { color: var(--ce-success); }
+.mod-classengage .trend-negative { color: var(--ce-danger); }
+.mod-classengage .trend-neutral { color: var(--ce-gray-500); }
+
+/* ============================================================================
+   PAGINATION
+   ============================================================================ */
+
 .mod-classengage .analytics-pagination {
     display: flex;
     justify-content: center;
     align-items: center;
-    margin-top: var(--classengage-spacing-lg);
-    gap: var(--classengage-spacing-sm);
+    margin-top: var(--ce-space-lg);
+    gap: var(--ce-space-sm);
 }
 
 .mod-classengage .pagination-info {
-    margin: 0 var(--classengage-spacing-md);
+    margin: 0 var(--ce-space-md);
+    font-weight: 500;
+    color: var(--ce-gray-600);
+}
+
+/* ============================================================================
+   EMPTY & LOADING STATES
+   ============================================================================ */
+
+.mod-classengage .analytics-empty-state,
+.mod-classengage .no-data-message {
+    text-align: center;
+    padding: var(--ce-space-xl);
+    background-color: var(--ce-gray-50);
+    border-radius: var(--ce-radius-md);
+    color: var(--ce-gray-600);
+}
+
+.mod-classengage .analytics-empty-state-icon {
+    font-size: 2.5rem;
+    margin-bottom: var(--ce-space-md);
+    opacity: 0.4;
+}
+
+.mod-classengage .analytics-loading {
+    text-align: center;
+    padding: var(--ce-space-xl);
+    color: var(--ce-gray-600);
+}
+
+/* ============================================================================
+   TIMESTAMP
+   ============================================================================ */
+
+.mod-classengage .analytics-timestamp {
+    font-size: 0.85rem;
+    color: var(--ce-gray-500);
+    text-align: right;
+    margin-bottom: var(--ce-space-md);
+}
+
+/* ============================================================================
+   CONFUSED TOPICS
+   ============================================================================ */
+
+.mod-classengage .confused-topics-list {
+    list-style: none;
+    padding: 0;
+    margin: var(--ce-space-md) 0;
+}
+
+.mod-classengage .confused-topics-list li {
+    padding: var(--ce-space-sm) var(--ce-space-md);
+    margin-bottom: var(--ce-space-xs);
+    background-color: var(--ce-danger-light);
+    border-left: 3px solid var(--ce-danger);
+    border-radius: var(--ce-radius-sm);
+    color: #a94442;
+}
+
+/* ============================================================================
+   PACE INDICATOR
+   ============================================================================ */
+
+.mod-classengage .pace-indicator {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.2rem 0.6rem;
+    border-radius: var(--ce-radius-sm);
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.mod-classengage .pace-indicator.quick {
+    background-color: var(--ce-success-light);
+    color: #3d7a3d;
+}
+
+.mod-classengage .pace-indicator.normal {
+    background-color: var(--ce-info-light);
+    color: #31708f;
+}
+
+.mod-classengage .pace-indicator.slow {
+    background-color: var(--ce-warning-light);
+    color: #8a6d3b;
+}
+
+/* ============================================================================
+   CONCEPT DIFFICULTY TABLE
+   ============================================================================ */
+
+.mod-classengage .concept-difficulty-table {
+    width: 100%;
+    margin-bottom: var(--ce-space-lg);
+}
+
+.mod-classengage .concept-difficulty-table th {
+    background-color: var(--ce-gray-50);
     font-weight: 600;
-    color: var(--classengage-secondary);
+    padding: var(--ce-space-md);
+    border-bottom: 2px solid var(--ce-gray-200);
 }
 
-/* Summary card enhancements */
-.mod-classengage .summary-card {
-    border-radius: 0.5rem;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+.mod-classengage .concept-difficulty-table td {
+    padding: var(--ce-space-md);
+    border-bottom: 1px solid var(--ce-gray-200);
 }
 
-.mod-classengage .summary-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+.mod-classengage .concept-difficulty-table tr:hover {
+    background-color: var(--ce-gray-50);
 }
 
-.mod-classengage .trend-indicator {
-    font-size: 1.5rem;
-    font-weight: 700;
-}
 
-.mod-classengage .trend-positive {
-    color: #28a745;
-}
+/* ============================================================================
+   ACCESSIBILITY
+   ============================================================================ */
 
-.mod-classengage .trend-negative {
-    color: #dc3545;
-}
-
-.mod-classengage .trend-neutral {
-    color: #6c757d;
-}
-
-/* Accessibility improvements */
 .mod-classengage .sr-only {
     position: absolute;
     width: 1px;
@@ -1062,375 +1039,225 @@
     border: 0;
 }
 
-/* Focus styles for keyboard navigation */
+/* Focus styles */
 .mod-classengage .sortable-column:focus,
 .mod-classengage .filter-form input:focus,
 .mod-classengage .filter-form select:focus,
-.mod-classengage .analytics-pagination button:focus {
-    outline: 2px solid #007bff;
+.mod-classengage .analytics-pagination button:focus,
+.mod-classengage .btn:focus {
+    outline: 2px solid var(--ce-primary);
     outline-offset: 2px;
 }
 
-/* WCAG AA Color Contrast Compliance */
-/* Ensuring all text meets minimum 4.5:1 contrast ratio for normal text */
-/* and 3:1 for large text (18pt+ or 14pt+ bold) */
-
-.mod-classengage .engagement-indicator.moderate {
-    /* Enhanced contrast for yellow on light background */
-    color: #856404;
-    background-color: rgba(255, 193, 7, 0.2);
-}
-
-.mod-classengage .comprehension-indicator.moderate {
-    /* Enhanced contrast for yellow on light background */
-    color: #856404;
-    background-color: rgba(255, 193, 7, 0.2);
-}
-
-.mod-classengage .difficulty-badge.moderate {
-    /* Enhanced contrast for yellow badge */
-    color: #856404;
-    background-color: rgba(255, 193, 7, 0.2);
-}
-
-.mod-classengage .recommendation-priority.medium {
-    /* Enhanced contrast for medium priority badge */
-    background-color: #ffc107;
-    color: #212529;
-}
-
-/* High contrast mode support */
+/* High contrast mode */
 @media (prefers-contrast: high) {
-    .mod-classengage .analytics-tab {
-        border-width: 2px;
-    }
-
     .mod-classengage .analytics-tab.active {
         border-bottom-width: 4px;
     }
-
+    
     .mod-classengage .engagement-indicator,
     .mod-classengage .comprehension-indicator {
-        border-width: 3px;
+        border-width: 2px;
     }
-
+    
     .mod-classengage .recommendation-card {
-        border-left-width: 6px;
-    }
-
-    [dir="rtl"] .mod-classengage .recommendation-card {
-        border-right-width: 6px;
+        border-left-width: 5px;
     }
 }
 
-/* Reduced motion support for accessibility */
+/* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
-
+    .mod-classengage .card,
     .mod-classengage .analytics-tab,
     .mod-classengage .analytics-card,
     .mod-classengage .recommendation-card,
-    .mod-classengage .analytics-tab-content {
+    .mod-classengage .classengage-slide-card,
+    .mod-classengage .btn {
         transition: none;
-        animation: none;
     }
-
+    
     .mod-classengage .live-indicator {
         animation: none;
     }
-
-    .mod-classengage .recommendation-card:hover {
-        transform: none;
-    }
-
-    .mod-classengage .summary-card:hover {
-        transform: none;
-    }
 }
 
-/* Print styles for analytics reports */
-@media print {
-    .mod-classengage .analytics-tab-navigation {
-        display: none;
-    }
+/* ============================================================================
+   RTL SUPPORT
+   ============================================================================ */
 
-    .mod-classengage .analytics-tab-content {
-        /* stylelint-disable-next-line declaration-no-important */
-        display: block !important;
-    }
-
-    .mod-classengage .analytics-card {
-        page-break-inside: avoid;
-        box-shadow: none;
-        border: 1px solid #dee2e6;
-    }
-
-    .mod-classengage .recommendation-card {
-        page-break-inside: avoid;
-        box-shadow: none;
-    }
-
-    .mod-classengage .chart-container {
-        page-break-inside: avoid;
-    }
+[dir="rtl"] .mod-classengage .sort-indicator {
+    right: auto;
+    left: var(--ce-space-sm);
 }
 
-/* Loading state */
-.mod-classengage .analytics-loading {
-    text-align: center;
-    padding: 3rem;
-    color: #6c757d;
+[dir="rtl"] .mod-classengage .sortable-column {
+    padding-right: var(--ce-space-md);
+    padding-left: var(--ce-space-lg);
 }
 
-.mod-classengage .analytics-loading::after {
-    content: "...";
-    animation: loading 1.5s infinite;
+[dir="rtl"] .mod-classengage .anomaly-icon,
+[dir="rtl"] .mod-classengage .recommendation-icon,
+[dir="rtl"] .mod-classengage .export-button-icon {
+    margin-right: 0;
+    margin-left: var(--ce-space-sm);
 }
 
-@keyframes loading {
-
-    0%,
-    20% {
-        content: ".";
-    }
-
-    40% {
-        content: "..";
-    }
-
-    60%,
-    100% {
-        content: "...";
-    }
+[dir="rtl"] .mod-classengage .anomaly-alert,
+[dir="rtl"] .mod-classengage .recommendation-card,
+[dir="rtl"] .mod-classengage .confused-topics-list li {
+    border-left: none;
+    border-right-width: 4px;
+    border-right-style: solid;
 }
 
-/* Empty State Styles */
-.mod-classengage .analytics-empty-state {
-    text-align: center;
-    padding: var(--classengage-spacing-xl);
-    color: #6c757d;
-}
-
-.mod-classengage .analytics-empty-state-icon {
-    font-size: 3rem;
-    margin-bottom: var(--classengage-spacing-md);
-    opacity: 0.5;
-}
-
-.mod-classengage .analytics-empty-state-message {
-    font-size: 1.1rem;
-    margin-bottom: var(--classengage-spacing-sm);
-}
-
-/* Session Selector Styles */
-.mod-classengage .session-selector {
-    margin-bottom: var(--classengage-spacing-lg);
-    padding: var(--classengage-spacing-md);
-    background-color: #f8f9fa;
-    border-radius: 0.25rem;
-}
-
-.mod-classengage .session-selector label {
-    font-weight: 600;
-    margin-right: var(--classengage-spacing-sm);
+[dir="rtl"] .mod-classengage .recommendation-priority {
+    margin-left: 0;
+    margin-right: var(--ce-space-xs);
 }
 
 [dir="rtl"] .mod-classengage .session-selector label {
     margin-right: 0;
-    margin-left: var(--classengage-spacing-sm);
-}
-
-.mod-classengage .session-selector select {
-    padding: var(--classengage-spacing-sm) var(--classengage-spacing-md);
-    border: 1px solid #ced4da;
-    border-radius: 0.25rem;
-    font-size: 1rem;
-}
-
-/* Export Button Styles */
-.mod-classengage .export-button {
-    display: inline-flex;
-    align-items: center;
-    padding: var(--classengage-spacing-sm) var(--classengage-spacing-md);
-    background-color: #28a745;
-    color: #fff;
-    border: none;
-    border-radius: 0.25rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background-color var(--classengage-transition-fast);
-}
-
-.mod-classengage .export-button:hover {
-    background-color: #218838;
-}
-
-.mod-classengage .export-button:focus {
-    outline: 2px solid #28a745;
-    outline-offset: 2px;
-}
-
-.mod-classengage .export-button-icon {
-    margin-right: var(--classengage-spacing-sm);
-}
-
-[dir="rtl"] .mod-classengage .export-button-icon {
-    margin-right: 0;
-    margin-left: var(--classengage-spacing-sm);
-}
-
-/* Last Updated Timestamp */
-.mod-classengage .analytics-timestamp {
-    font-size: 0.875rem;
-    color: #6c757d;
-    text-align: right;
-    margin-bottom: var(--classengage-spacing-md);
-    font-style: italic;
+    margin-left: var(--ce-space-sm);
 }
 
 [dir="rtl"] .mod-classengage .analytics-timestamp {
     text-align: left;
 }
 
-/* Confused Topics List */
-.mod-classengage .confused-topics-list {
-    list-style: none;
-    padding: 0;
-    margin: var(--classengage-spacing-md) 0;
-}
-
-.mod-classengage .confused-topics-list li {
-    padding: var(--classengage-spacing-sm);
-    margin-bottom: var(--classengage-spacing-xs);
-    background-color: rgba(220, 53, 69, 0.1);
-    border-left: 3px solid #dc3545;
-    border-radius: 0.25rem;
-}
-
-[dir="rtl"] .mod-classengage .confused-topics-list li {
-    border-left: none;
-    border-right: 3px solid #dc3545;
-}
-
-/* Activity Count Icons */
-.mod-classengage .activity-icon {
-    font-size: 1.5rem;
-    margin-right: var(--classengage-spacing-sm);
-    color: #007bff;
-}
-
-[dir="rtl"] .mod-classengage .activity-icon {
+[dir="rtl"] .mod-classengage .live-indicator {
     margin-right: 0;
-    margin-left: var(--classengage-spacing-sm);
+    margin-left: var(--ce-space-xs);
 }
 
-/* Responsiveness Pace Indicator */
-.mod-classengage .pace-indicator {
-    display: inline-flex;
-    align-items: center;
-    padding: var(--classengage-spacing-xs) var(--classengage-spacing-sm);
-    border-radius: 0.25rem;
-    font-size: 0.875rem;
-    font-weight: 600;
+[dir="rtl"] .mod-classengage .card.border-primary,
+[dir="rtl"] .mod-classengage .card.border-success,
+[dir="rtl"] .mod-classengage .card.border-info,
+[dir="rtl"] .mod-classengage .card.border-warning,
+[dir="rtl"] .mod-classengage .card.border-danger {
+    border-left-width: 1px;
+    border-right-width: 3px;
 }
 
-.mod-classengage .pace-indicator.quick {
-    background-color: rgba(40, 167, 69, 0.15);
-    color: #28a745;
-}
 
-.mod-classengage .pace-indicator.normal {
-    background-color: rgba(23, 162, 184, 0.15);
-    color: #17a2b8;
-}
+/* ============================================================================
+   RESPONSIVE DESIGN
+   ============================================================================ */
 
-.mod-classengage .pace-indicator.slow {
-    background-color: rgba(255, 193, 7, 0.15);
-    color: #856404;
-}
-
-/* Grid Layout for Simple Analysis Cards */
-.mod-classengage .analytics-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: var(--classengage-spacing-lg);
-    margin-bottom: var(--classengage-spacing-lg);
-}
-
-@media (max-width: 768px) {
-    .mod-classengage .analytics-grid {
-        grid-template-columns: 1fr;
+@media (max-width: 992px) {
+    .mod-classengage .status-card-value {
+        font-size: 1.75rem;
+    }
+    
+    .mod-classengage .analytics-metric-value {
+        font-size: 1.1rem;
     }
 }
 
-/* Tooltip Styles for Chart Hover */
-.mod-classengage .chart-tooltip {
-    background-color: rgba(0, 0, 0, 0.8);
-    color: #fff;
-    padding: var(--classengage-spacing-sm);
-    border-radius: 0.25rem;
-    font-size: 0.875rem;
-    pointer-events: none;
+@media (max-width: 768px) {
+    .mod-classengage-controlpanel,
+    .classengage-teacher-view,
+    .classengage-student-view {
+        padding: var(--ce-space-md);
+    }
+    
+    .mod-classengage .analytics-tab-navigation {
+        flex-direction: column;
+    }
+    
+    .mod-classengage .analytics-tab {
+        border-bottom: 1px solid var(--ce-gray-200);
+        border-left: 3px solid transparent;
+    }
+    
+    .mod-classengage .analytics-tab.active {
+        border-bottom-color: var(--ce-gray-200);
+        border-left-color: var(--ce-primary);
+    }
+    
+    .mod-classengage .analytics-card {
+        padding: var(--ce-space-md);
+    }
+    
+    .mod-classengage .analytics-metric {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--ce-space-xs);
+    }
+    
+    .mod-classengage .chart-container {
+        height: 280px;
+    }
+    
+    .mod-classengage .analytics-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .mod-classengage .col-md,
+    .mod-classengage .col-md-6 {
+        margin-bottom: var(--ce-space-md);
+    }
+    
+    [dir="rtl"] .mod-classengage .analytics-tab {
+        border-right: 3px solid transparent;
+        border-left: none;
+    }
+    
+    [dir="rtl"] .mod-classengage .analytics-tab.active {
+        border-right-color: var(--ce-primary);
+    }
 }
 
-/* No Data Message */
-.mod-classengage .no-data-message {
-    text-align: center;
-    padding: var(--classengage-spacing-xl);
-    background-color: #f8f9fa;
-    border-radius: 0.25rem;
-    color: #6c757d;
-    font-style: italic;
+@media (max-width: 576px) {
+    .mod-classengage .analytics-tab {
+        padding: var(--ce-space-sm);
+        font-size: 0.85rem;
+    }
+    
+    .mod-classengage .engagement-indicator,
+    .mod-classengage .comprehension-indicator {
+        font-size: 0.95rem;
+        padding: var(--ce-space-xs) var(--ce-space-sm);
+    }
+    
+    .mod-classengage .chart-container {
+        height: 220px;
+    }
+    
+    .mod-classengage .status-card-value {
+        font-size: 1.5rem;
+    }
+    
+    .mod-classengage .btn-lg {
+        padding: 0.6rem 1rem;
+        font-size: 0.9rem;
+    }
 }
 
-/* Clickable Header Styles */
-.mod-classengage .clickable-header {
-    cursor: pointer;
-    user-select: none;
-    transition: background-color 0.2s ease;
-}
-
-.mod-classengage .clickable-header:hover {
-    background-color: rgba(0, 0, 0, 0.03) !important;
-}
-
-.mod-classengage .collapse-icon {
-    transition: transform 0.3s ease;
-}
-
-.mod-classengage .clickable-header[aria-expanded="true"] .collapse-icon {
-    transform: rotate(180deg);
-}
 /* ============================================================================
-   SLIDES MANAGEMENT
+   PRINT STYLES
    ============================================================================ */
 
-.mod-classengage .classengage-slide-card {
-    transition: transform var(--classengage-transition-fast), box-shadow var(--classengage-transition-normal);
-    border: none;
+@media print {
+    .mod-classengage .analytics-tab-navigation {
+        display: none;
+    }
+    
+    .mod-classengage .analytics-tab-content {
+        display: block !important;
+    }
+    
+    .mod-classengage .analytics-card,
+    .mod-classengage .recommendation-card {
+        box-shadow: none;
+        border: 1px solid var(--ce-gray-300);
+        page-break-inside: avoid;
+    }
+    
+    .mod-classengage .chart-container {
+        page-break-inside: avoid;
+    }
+    
+    .mod-classengage .btn {
+        display: none;
+    }
 }
-
-.mod-classengage .classengage-slide-card:hover {
-    transform: translateY(-4px);
-    box-shadow: var(--classengage-shadow-md) !important;
-}
-
-.mod-classengage .slide-checkbox {
-    transform: scale(1.2);
-    cursor: pointer;
-}
-
-.mod-classengage .classengage-slide-card .card-title {
-    font-weight: 600;
-    font-size: 1.1rem;
-    color: #343a40;
-}
-
-.mod-classengage .classengage-slide-card .fa {
-    opacity: 0.8;
-}
-
-.mod-classengage .classengage-slide-card .badge {
-    font-size: 0.75rem;
-    padding: 0.4em 0.6em;
-}
-

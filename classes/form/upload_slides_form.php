@@ -43,7 +43,17 @@ class upload_slides_form extends \moodleform {
         // Title field
         $mform->addElement('text', 'title', get_string('slidetitle', 'mod_classengage'), array('size' => '60'));
         $mform->setType('title', PARAM_TEXT);
-        $mform->addRule('title', null, 'required', null, 'client');
+        // Title is required only if usefilename is not checked.
+        // We can't easily use 'required' rule with disabledIf, so we'll handle validation manually or use optional.
+        // For better UX, we'll make it optional here and validate in validation() method.
+        
+        // Use file name checkbox
+        $mform->addElement('checkbox', 'usefilename', get_string('usefilename', 'mod_classengage'));
+        $mform->setDefault('usefilename', 1);
+        // $mform->addHelpButton('usefilename', 'usefilename', 'mod_classengage');
+
+        // Disable title if usefilename is checked
+        $mform->disabledIf('title', 'usefilename', 'checked');
 
         // File picker
         $maxbytes = get_config('mod_classengage', 'maxfilesize');
@@ -85,6 +95,10 @@ class upload_slides_form extends \moodleform {
     public function validation($data, $files) {
         $errors = parent::validation($data, $files);
         
+        if (empty($data['usefilename']) && empty($data['title'])) {
+            $errors['title'] = get_string('required');
+        }
+
         return $errors;
     }
 }

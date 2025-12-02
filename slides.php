@@ -194,7 +194,7 @@ if ($slides) {
     echo html_writer::empty_tag('input', array('type' => 'hidden', 'name' => 'bulkaction', 'value' => 'delete'));
     
     // Bulk Actions Toolbar
-    echo html_writer::start_div('d-flex justify-content-between align-items-center mb-3 p-2 bg-light rounded border');
+    echo html_writer::start_div('d-flex justify-content-between align-items-center mb-3 p-2 slides-bulk-toolbar');
     echo html_writer::start_div('form-check ml-2');
     echo html_writer::checkbox('selectall', 1, false, get_string('selectall'), array('id' => 'select-all-slides', 'class' => 'form-check-input'));
     echo html_writer::label(get_string('selectall'), 'select-all-slides', false, array('class' => 'form-check-label font-weight-bold'));
@@ -214,6 +214,7 @@ if ($slides) {
     // Grid Layout
     echo html_writer::start_div('row');
     
+    $delay = 0;
     foreach ($slides as $slide) {
         $deleteurl = new moodle_url('/mod/classengage/slides.php', 
             array('id' => $cm->id, 'action' => 'delete', 'slideid' => $slide->id, 'sesskey' => sesskey()));
@@ -228,8 +229,10 @@ if ($slides) {
             $fileicon = 'fa-file-powerpoint-o text-warning';
         }
 
-        echo html_writer::start_div('col-md-6 col-lg-4 mb-4');
-        echo html_writer::start_div('card h-100 classengage-slide-card shadow-sm');
+        echo html_writer::start_div('col-md-6 col-lg-4 mb-4 animate-slide-in', array('style' => 'animation-delay: ' . $delay . 's'));
+        echo html_writer::start_div('card h-100 classengage-slide-card');
+        
+        $delay += 0.1;
         
         // Card Header with Checkbox and Title
         echo html_writer::start_div('card-header d-flex align-items-center bg-white border-bottom-0 pt-3 pb-0');
