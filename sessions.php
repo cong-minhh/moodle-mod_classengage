@@ -258,7 +258,12 @@ function render_session_table($sessions, $cm, $type) {
 }
 
 echo html_writer::tag('h3', get_string('activesessions', 'mod_classengage'), array('class' => 'mt-5'));
-$sessions = $DB->get_records('classengage_sessions', array('classengageid' => $classengage->id, 'status' => 'active'), 'timecreated DESC');
+// Include both active and paused sessions in the active sessions list.
+$sql = "SELECT * FROM {classengage_sessions}
+         WHERE classengageid = :classengageid
+           AND (status = 'active' OR status = 'paused')
+      ORDER BY timecreated DESC";
+$sessions = $DB->get_records_sql($sql, array('classengageid' => $classengage->id));
 echo render_session_table($sessions, $cm, 'active');
 
 echo html_writer::tag('h3', get_string('readysessions', 'mod_classengage'), array('class' => 'mt-4'));

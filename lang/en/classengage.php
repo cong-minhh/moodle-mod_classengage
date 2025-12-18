@@ -504,3 +504,36 @@ $string['engagementpercentage'] = 'Engagement Percentage';
 $string['avgresponsetime'] = 'Avg Response Time';
 $string['difficultconcepts'] = 'Difficult Concepts';
 $string['username'] = 'Username';
+// Real-time session control strings
+$string['sessionnotactive'] = 'Session is not active';
+$string['sessionnotpaused'] = 'Session is not paused';
+$string['sessionpaused'] = 'Session paused';
+$string['sessionresumed'] = 'Session resumed';
+$string['connectionregistered'] = 'Connection registered';
+$string['connectiondisconnected'] = 'Connection disconnected';
+$string['heartbeatprocessed'] = 'Heartbeat processed';
+$string['reconnected'] = 'Reconnected to session';
+$string['batchsubmitted'] = 'Batch submitted';
+$string['invalidresponsesformat'] = 'Invalid responses format';
+
+// Real-time quiz interface strings
+$string['offline'] = 'Offline - responses will be saved locally';
+$string['reconnecting'] = 'Reconnecting...';
+$string['connectionrestored'] = 'Connection restored';
+$string['submittingoffline'] = 'Saving response offline...';
+$string['pendingsubmissions'] = 'Pending submissions';
+$string['quizpaused'] = 'Quiz Paused';
+$string['quizresumed'] = 'Quiz resumed';
+$string['responsesavedoffline'] = 'Response saved offline';
+$string['cachedresponsesubmitted'] = 'Cached response submitted';
+$string['submitanswer'] = 'Submit Answer';
+
+// Control panel - session control strings
+$string['pause'] = 'Pause';
+$string['resume'] = 'Resume';
+$string['connectedstudents'] = 'Connected Students';
+$string['loadingstudents'] = 'Loading students...';
+$string['sessionstatistics'] = 'Session Statistics';
+$string['connected'] = 'Connected';
+$string['answered'] = 'Answered';
+$string['nostudentsconnected'] = 'No students connected';

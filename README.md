@@ -19,6 +19,18 @@ Run live, synchronous quiz sessions that keep students focused and engaged.
 - **Instant Feedback**: Students see immediate results, reinforcing learning concepts on the spot.
 - **Live Leaderboards**: Optional gamification elements to increase motivation.
 - **Dynamic Pacing**: Control the flow of questions to match your lecture speed.
+- **Pause/Resume Control**: Instructors can pause sessions to freeze timers and block submissions, then resume when ready.
+- **Offline Support**: Responses are cached locally when connectivity is lost and automatically synced when restored.
+- **Optimistic UI**: Immediate visual confirmation of answer submission before server acknowledgment.
+- **Real-Time Updates**: Server-Sent Events (SSE) for instant question broadcasts with automatic polling fallback.
+
+### Instructor Control Panel
+Monitor your class in real-time with the enhanced instructor dashboard:
+- **Live Student Status**: See which students are connected and their answer status, updated every 2 seconds.
+- **Aggregate Statistics**: View connected count, answered count, and pending responses at a glance.
+- **Session Control**: Pause and resume sessions with a single click to manage classroom flow.
+- **Response Distribution**: Real-time visualization of answer distribution with Chart.js graphs.
+- **Connection Indicators**: Monitor your own connection status with automatic reconnection.
 
 ### Deep Learning Analytics
 Gain actionable insights with our comprehensive analytics dashboard:
@@ -29,7 +41,9 @@ Gain actionable insights with our comprehensive analytics dashboard:
 
 ### Flexible Participation
 - **Web Interface**: Students can participate using any device with a browser (laptop, tablet, phone).
+- **Mobile-Optimized**: Touch-friendly answer buttons and responsive design for seamless mobile participation.
 - **Clicker Integration**: Native support for physical clicker devices via our REST API, perfect for environments with limited connectivity or strict device policies.
+- **Connection Resilience**: Automatic reconnection with state restoration when network connectivity is interrupted.
 
 ## Installation
 
@@ -85,19 +99,133 @@ To enable physical clicker support, you must configure Moodle Web Services.
 
 ## Development and Testing
 
-### Load Testing
-The plugin includes a script to verify performance under load.
+### Running Tests
 
-**Usage:**
+**PHPUnit Tests:**
 ```bash
-php mod/classengage/tests/load_test_api.php --users=50 --sessionid=1 --courseid=2 --cleanup
+vendor/bin/phpunit mod/classengage/tests/
 ```
 
+**Behat Acceptance Tests:**
+
+First, ensure Behat is configured in your `config.php`:
+```php
+$CFG->behat_prefix = 'behat_';
+$CFG->behat_dataroot = '/path/to/behatdata';
+$CFG->behat_wwwroot = 'http://localhost:8000';
+$CFG->behat_profiles = [
+    'default' => [
+        'browser' => 'chrome',
+        'wd_host' => 'http://localhost:4444/wd/hub',
+    ],
+];
+```
+
+Then initialize and run:
+```bash
+php admin/tool/behat/cli/init.php
+vendor/bin/behat --tags @mod_classengage
+```
+
+### Load Testing
+The plugin includes a comprehensive load testing script to verify performance under load. It supports testing both legacy clicker API endpoints and the new real-time quiz engine endpoints.
+
+**Basic Usage:**
+```bash
+# Create test users
+php mod/classengage/tests/load_test_api.php --action=create --users=200 --prefix=loadtest
+
+# Enroll users in a course
+php mod/classengage/tests/load_test_api.php --action=enroll --courseid=2 --prefix=loadtest
+
+# Simulate concurrent users (scalability test)
+php mod/classengage/tests/load_test_api.php --action=concurrent --sessionid=1 --prefix=loadtest --users=200
+
+# Clean up test users
+php mod/classengage/tests/load_test_api.php --action=cleanup --prefix=loadtest
+```
+
+**Available Actions:**
+
+| Action | Description |
+|--------|-------------|
+| `create` | Create test users with specified prefix |
+| `enroll` | Enroll test users in a course |
+| `answer` | Simulate single answer submissions (legacy API) |
+| `batch` | Test batch response submission endpoint |
+| `sse` | Test SSE connection handling |
+| `heartbeat` | Test heartbeat endpoint under load |
+| `concurrent` | Simulate 200+ concurrent users for scalability testing |
+| `cleanup` | Delete test users |
+| `all` | Run create, enroll, and answer actions sequentially |
+
 **Parameters:**
-- `--users`: Number of concurrent users to simulate.
-- `--sessionid`: The ID of the active ClassEngage session.
-- `--courseid`: The ID of the course.
-- `--cleanup`: Automatically remove test users and data after the test.
+
+| Parameter | Short | Description | Default |
+|-----------|-------|-------------|---------|
+| `--action` | `-a` | Action to perform | `all` |
+| `--users` | `-u` | Number of users to create/simulate | `50` |
+| `--sessionid` | `-s` | Session ID (required for most actions) | - |
+| `--courseid` | `-c` | Course ID (required for enroll) | - |
+| `--prefix` | `-p` | Username prefix for test users | `loadtest` |
+| `--percent` | - | Percentage of users to simulate answering | `100` |
+| `--delay` | `-d` | Delay in milliseconds between requests | `0` |
+| `--batchsize` | `-b` | Responses per batch (batch action) | `5` |
+| `--duration` | `-t` | Duration in seconds (sse/heartbeat) | `30` |
+| `--verbose` | `-v` | Show detailed output | `false` |
+| `--report` | `-r` | Generate detailed JSON performance report | `false` |
+
+**Example: Full Scalability Test:**
+```bash
+# 1. Create 200 test users
+php mod/classengage/tests/load_test_api.php -a create -u 200 -p scaletest
+
+# 2. Enroll in course
+php mod/classengage/tests/load_test_api.php -a enroll -c 2 -p scaletest
+
+# 3. Run concurrent simulation with report
+php mod/classengage/tests/load_test_api.php -a concurrent -s 1 -p scaletest -u 200 -r
+
+# 4. Test SSE connections
+php mod/classengage/tests/load_test_api.php -a sse -s 1 -p scaletest -t 60
+
+# 5. Cleanup
+php mod/classengage/tests/load_test_api.php -a cleanup -p scaletest
+```
+
+**NFR Compliance Checks:**
+The `concurrent` action automatically validates:
+- **NFR-01**: Sub-1-second average response latency
+- **NFR-03**: 95%+ success rate with 200+ concurrent users
+
+**Performance Metrics:**
+The script reports latency statistics (min, avg, P50, P95, P99, max), throughput (responses/second), and error summaries.
+
+## Technical Architecture
+
+### Client-Side Modules
+
+The quiz interface uses a modular JavaScript architecture:
+
+- **quiz.js**: Main quiz participation module with offline support and optimistic UI updates
+- **controlpanel.js**: Instructor control panel with real-time student monitoring and session control
+- **connection_manager.js**: Handles SSE connections with automatic polling fallback
+- **client_cache.js**: IndexedDB-based offline response caching with automatic retry
+
+### Connection Handling
+
+The plugin uses a tiered approach for real-time communication:
+
+1. **Primary**: Server-Sent Events (SSE) for low-latency server-to-client push
+2. **Fallback**: HTTP polling at configurable intervals when SSE is unavailable
+3. **Offline**: IndexedDB caching with automatic sync on reconnection
+
+### Performance Targets
+
+- Response acknowledgment: <1 second latency
+- Question broadcast: <500ms to all connected clients
+- Concurrent users: 200+ per session
+- Offline cache: Unlimited pending responses with automatic retry
 
 ## License
 

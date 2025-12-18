@@ -15,15 +15,23 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Load testing script for ClassEngage clicker API
+ * Load testing script for ClassEngage real-time quiz API
  *
- * This script creates test users and simulates concurrent clicker responses
- * to test the performance and reliability of the Web Services API under load.
+ * This script creates test users and simulates concurrent quiz responses
+ * to test the performance and reliability of the real-time quiz engine under load.
+ *
+ * Supports testing:
+ * - Legacy clicker API endpoints
+ * - New real-time endpoints (batch submission, heartbeat, SSE)
+ * - Concurrent user simulation for scalability testing
  *
  * Usage:
  *   php load_test_api.php --action=create --users=100 --prefix=loadtest
  *   php load_test_api.php --action=enroll --courseid=2 --prefix=loadtest
  *   php load_test_api.php --action=answer --sessionid=1 --prefix=loadtest --percent=50
+ *   php load_test_api.php --action=batch --sessionid=1 --prefix=loadtest --batchsize=10
+ *   php load_test_api.php --action=sse --sessionid=1 --prefix=loadtest --duration=30
+ *   php load_test_api.php --action=concurrent --sessionid=1 --prefix=loadtest --users=200
  *   php load_test_api.php --action=cleanup --prefix=loadtest
  *
  * @package    mod_classengage
@@ -51,6 +59,9 @@ list($options, $unrecognized) = cli_get_params(
         'percent' => 100,
         'delay' => 0,
         'verbose' => false,
+        'batchsize' => 5,
+        'duration' => 30,
+        'report' => false,
     ),
     array(
         'h' => 'help',
@@ -61,31 +72,50 @@ list($options, $unrecognized) = cli_get_params(
         'p' => 'prefix',
         'd' => 'delay',
         'v' => 'verbose',
+        'b' => 'batchsize',
+        't' => 'duration',
+        'r' => 'report',
     )
 );
 
 if ($options['help']) {
     $help = <<<EOT
-Load testing script for ClassEngage clicker API.
+Load testing script for ClassEngage real-time quiz API.
 
-Creates test users and simulates concurrent clicker responses to test
-the performance and reliability of the Web Services API under load.
+Creates test users and simulates concurrent quiz responses to test
+the performance and reliability of the real-time quiz engine under load.
 
 Options:
   -h, --help            Print this help message
-  -a, --action=STRING   Action to perform: create, enroll, answer, cleanup, all (default: all)
+  -a, --action=STRING   Action to perform (see below)
   -u, --users=N         Number of users to create/simulate (default: 50)
-  -s, --sessionid=N     Session ID to test (required for 'answer' action)
+  -s, --sessionid=N     Session ID to test (required for most actions)
   -c, --courseid=N      Course ID for enrollment (required for 'enroll' action)
   -p, --prefix=STRING   Prefix for test users (default: loadtest)
   --percent=N           Percentage of users to simulate answering (default: 100)
   -d, --delay=N         Delay in milliseconds between requests (default: 0)
   -v, --verbose         Show detailed output
+  -b, --batchsize=N     Number of responses per batch (default: 5)
+  -t, --duration=N      Duration in seconds for SSE test (default: 30)
+  -r, --report          Generate detailed performance report
+
+Actions:
+  create      Create test users
+  enroll      Enroll test users in a course
+  answer      Simulate single answer submissions (legacy)
+  batch       Test batch response submission endpoint
+  sse         Test SSE connection handling
+  heartbeat   Test heartbeat endpoint under load
+  concurrent  Simulate concurrent users (200+ users)
+  cleanup     Delete test users
+  all         Run create, enroll, and answer actions
 
 Examples:
-  php load_test_api.php --action=create --users=100 --prefix=testuser
+  php load_test_api.php --action=create --users=200 --prefix=testuser
   php load_test_api.php --action=enroll --courseid=2 --prefix=testuser
-  php load_test_api.php --action=answer --sessionid=1 --prefix=testuser --percent=50
+  php load_test_api.php --action=batch --sessionid=1 --prefix=testuser --batchsize=10
+  php load_test_api.php --action=sse --sessionid=1 --prefix=testuser --duration=60
+  php load_test_api.php --action=concurrent --sessionid=1 --prefix=testuser --users=200
   php load_test_api.php --action=cleanup --prefix=testuser
 
 EOT;
@@ -102,6 +132,9 @@ $prefix = $options['prefix'];
 $percent = (int)$options['percent'];
 $delay = (int)$options['delay'];
 $verbose = (bool)$options['verbose'];
+$batchsize = (int)$options['batchsize'];
+$duration = (int)$options['duration'];
+$report = (bool)$options['report'];
 
 if ($numusers < 1 || $numusers > 10000) {
     cli_error('Number of users must be between 1 and 10000');
@@ -111,14 +144,24 @@ if ($percent < 1 || $percent > 100) {
     cli_error('Percent must be between 1 and 100');
 }
 
+if ($batchsize < 1 || $batchsize > 100) {
+    cli_error('Batch size must be between 1 and 100');
+}
+
 cli_heading('ClassEngage Load Test');
 echo "Action: {$action}\n";
 echo "User Prefix: {$prefix}\n";
 if ($action === 'create' || $action === 'all') {
     echo "Target Users: {$numusers}\n";
 }
-if ($action === 'answer') {
+if ($action === 'answer' || $action === 'batch' || $action === 'concurrent') {
     echo "Participation: {$percent}%\n";
+}
+if ($action === 'batch') {
+    echo "Batch Size: {$batchsize}\n";
+}
+if ($action === 'sse') {
+    echo "Duration: {$duration}s\n";
 }
 echo "\n";
 
@@ -142,6 +185,34 @@ if ($action === 'answer' || $action === 'all') {
     perform_answer_questions($sessionid, $prefix, $percent, $delay, $verbose);
 }
 
+if ($action === 'batch') {
+    if (!$sessionid) {
+        cli_error('Session ID is required for batch action');
+    }
+    perform_batch_submission($sessionid, $prefix, $percent, $batchsize, $verbose);
+}
+
+if ($action === 'sse') {
+    if (!$sessionid) {
+        cli_error('Session ID is required for sse action');
+    }
+    perform_sse_test($sessionid, $prefix, $duration, $verbose);
+}
+
+if ($action === 'heartbeat') {
+    if (!$sessionid) {
+        cli_error('Session ID is required for heartbeat action');
+    }
+    perform_heartbeat_test($sessionid, $prefix, $duration, $verbose);
+}
+
+if ($action === 'concurrent') {
+    if (!$sessionid) {
+        cli_error('Session ID is required for concurrent action');
+    }
+    perform_concurrent_simulation($sessionid, $prefix, $numusers, $verbose, $report);
+}
+
 if ($action === 'cleanup' || ($action === 'all' && isset($options['cleanup']) && $options['cleanup'])) {
     perform_cleanup($prefix, $verbose);
 }
@@ -151,6 +222,14 @@ exit(0);
 
 // --- Functions ---
 
+
+/**
+ * Create test users for load testing
+ *
+ * @param int $numusers Number of users to create
+ * @param string $prefix Username prefix
+ * @param bool $verbose Show detailed output
+ */
 function perform_create_users($numusers, $prefix, $verbose) {
     global $CFG;
     cli_heading('Creating Users');
@@ -163,7 +242,9 @@ function perform_create_users($numusers, $prefix, $verbose) {
         $username = $prefix . '_' . $i;
         
         if (core_user::get_user_by_username($username)) {
-            if ($verbose) echo "User {$username} already exists, skipping.\n";
+            if ($verbose) {
+                echo "User {$username} already exists, skipping.\n";
+            }
             $skipped++;
             continue;
         }
@@ -181,7 +262,9 @@ function perform_create_users($numusers, $prefix, $verbose) {
         try {
             user_create_user($user, false, false);
             $created++;
-            if ($verbose) echo "Created user: {$username}\n";
+            if ($verbose) {
+                echo "Created user: {$username}\n";
+            }
         } catch (Exception $e) {
             echo "Error creating {$username}: " . $e->getMessage() . "\n";
         }
@@ -191,6 +274,13 @@ function perform_create_users($numusers, $prefix, $verbose) {
     echo "Created {$created} users, skipped {$skipped} existing users in " . number_format($time, 2) . "s\n";
 }
 
+/**
+ * Enroll test users in a course
+ *
+ * @param int $courseid Course ID
+ * @param string $prefix Username prefix
+ * @param bool $verbose Show detailed output
+ */
 function perform_enroll_users($courseid, $prefix, $verbose) {
     global $DB;
     cli_heading('Enrolling Users');
@@ -229,7 +319,9 @@ function perform_enroll_users($courseid, $prefix, $verbose) {
         try {
             $enrol->enrol_user($manualinstance, $user->id, $studentrole->id, 0, 0, null, false);
             $enrolled++;
-            if ($verbose) echo "Enrolled {$user->username}\n";
+            if ($verbose) {
+                echo "Enrolled {$user->username}\n";
+            }
         } catch (Exception $e) {
             echo "Error enrolling {$user->username}: " . $e->getMessage() . "\n";
         }
@@ -239,11 +331,20 @@ function perform_enroll_users($courseid, $prefix, $verbose) {
     echo "Enrolled {$enrolled} users in " . number_format($time, 2) . "s\n";
 }
 
+/**
+ * Simulate single answer submissions (legacy endpoint)
+ *
+ * @param int $sessionid Session ID
+ * @param string $prefix Username prefix
+ * @param int $percent Percentage of users to simulate
+ * @param int $delay Delay between requests in milliseconds
+ * @param bool $verbose Show detailed output
+ */
 function perform_answer_questions($sessionid, $prefix, $percent, $delay, $verbose) {
     global $DB, $CFG;
     cli_heading('Answering Questions');
 
-    // 1. Get Session & Question
+    // 1. Get Session & Question.
     $session = $DB->get_record('classengage_sessions', array('id' => $sessionid), '*', MUST_EXIST);
     if ($session->status !== 'active') {
         cli_error("Session {$sessionid} is not active.");
@@ -265,19 +366,19 @@ function perform_answer_questions($sessionid, $prefix, $percent, $delay, $verbos
     
     echo "Question: " . substr($currentquestion->questiontext, 0, 50) . "...\n";
 
-    // 2. Get Users
+    // 2. Get Users.
     $allusers = $DB->get_records_select('user', "username LIKE :prefix", array('prefix' => $prefix . '_%'));
     if (empty($allusers)) {
         cli_error("No users found with prefix '{$prefix}'");
     }
     
-    // Filter by percent
-    $target_count = ceil(count($allusers) * ($percent / 100));
-    $testusers = array_slice($allusers, 0, $target_count);
+    // Filter by percent.
+    $targetcount = ceil(count($allusers) * ($percent / 100));
+    $testusers = array_slice($allusers, 0, $targetcount);
     
-    echo "Simulating answers for {$target_count} users (" . count($allusers) . " total available)\n";
+    echo "Simulating answers for {$targetcount} users (" . count($allusers) . " total available)\n";
 
-    // 3. Generate Token (Admin)
+    // 3. Generate Token (Admin).
     $admin = get_admin();
     
     // Try to find a suitable service.
@@ -315,10 +416,20 @@ function perform_answer_questions($sessionid, $prefix, $percent, $delay, $verbos
         EXTERNAL_TOKEN_PERMANENT, $service, $admin->id, context_system::instance(), 0, ''
     );
 
-    // 4. Simulate Requests
+    // 4. Simulate Requests.
     $answers = array('A', 'B', 'C', 'D');
     $serverurl = $CFG->wwwroot . '/webservice/rest/server.php';
     
+    // Initialize session state manager for connection tracking.
+    $statemanager = new \mod_classengage\session_state_manager();
+    
+    // Register test users as connected.
+    echo "Registering connections for " . count($testusers) . " users...\n";
+    foreach ($testusers as $user) {
+        $connectionid = 'loadtest_' . $sessionid . '_' . $user->id;
+        $statemanager->register_connection($sessionid, $user->id, $connectionid, 'loadtest');
+    }
+
     $mh = curl_multi_init();
     $handles = array();
     $results = array('success' => 0, 'failed' => 0);
@@ -326,11 +437,11 @@ function perform_answer_questions($sessionid, $prefix, $percent, $delay, $verbos
     $starttime = microtime(true);
 
     foreach ($testusers as $idx => $user) {
-        // Logic for answer selection
+        // Logic for answer selection.
         $randomval = rand(1, 100);
         $answer = ($randomval <= 60) ? $currentquestion->correctanswer : $answers[array_rand($answers)];
         
-        $clickerid = 'CLICKER-' . $user->id; // Use User ID for stability
+        $clickerid = 'CLICKER-' . $user->id;
         
         $params = array(
             'wstoken' => $token,
@@ -355,7 +466,9 @@ function perform_answer_questions($sessionid, $prefix, $percent, $delay, $verbos
         $handles[] = array('ch' => $ch, 'user' => $user);
         curl_multi_add_handle($mh, $ch);
         
-        if ($delay > 0) usleep($delay * 1000);
+        if ($delay > 0) {
+            usleep($delay * 1000);
+        }
     }
 
     $running = null;
@@ -372,13 +485,19 @@ function perform_answer_questions($sessionid, $prefix, $percent, $delay, $verbos
             $data = json_decode($response, true);
             if (isset($data['success']) && $data['success']) {
                 $results['success']++;
+                // Mark as answered in connection tracking.
+                $statemanager->mark_question_answered($sessionid, $h['user']->id);
             } else {
                 $results['failed']++;
-                if ($verbose) echo "Failed ({$h['user']->username}): " . ($data['message'] ?? 'Unknown') . "\n";
+                if ($verbose) {
+                    echo "Failed ({$h['user']->username}): " . ($data['message'] ?? 'Unknown') . "\n";
+                }
             }
         } else {
             $results['failed']++;
-            if ($verbose) echo "HTTP Error ({$h['user']->username}): {$info['http_code']}\n";
+            if ($verbose) {
+                echo "HTTP Error ({$h['user']->username}): {$info['http_code']}\n";
+            }
         }
         curl_multi_remove_handle($mh, $h['ch']);
         curl_close($h['ch']);
@@ -389,6 +508,663 @@ function perform_answer_questions($sessionid, $prefix, $percent, $delay, $verbos
     echo "Results: {$results['success']} success, {$results['failed']} failed in " . number_format($time, 2) . "s\n";
 }
 
+
+/**
+ * Test batch response submission endpoint
+ *
+ * Requirements: 3.1, 3.5
+ *
+ * @param int $sessionid Session ID
+ * @param string $prefix Username prefix
+ * @param int $percent Percentage of users to simulate
+ * @param int $batchsize Number of responses per batch
+ * @param bool $verbose Show detailed output
+ */
+function perform_batch_submission($sessionid, $prefix, $percent, $batchsize, $verbose) {
+    global $DB, $CFG;
+    cli_heading('Testing Batch Submission');
+
+    // Get Session & Question.
+    $session = $DB->get_record('classengage_sessions', array('id' => $sessionid), '*', MUST_EXIST);
+    if ($session->status !== 'active') {
+        cli_error("Session {$sessionid} is not active.");
+    }
+
+    $sql = "SELECT q.*
+              FROM {classengage_questions} q
+              JOIN {classengage_session_questions} sq ON sq.questionid = q.id
+             WHERE sq.sessionid = :sessionid
+               AND sq.questionorder = :questionorder";
+    $currentquestion = $DB->get_record_sql($sql, array(
+        'sessionid' => $sessionid,
+        'questionorder' => $session->currentquestion + 1
+    ));
+
+    if (!$currentquestion) {
+        cli_error('No active question found for this session');
+    }
+
+    echo "Question: " . substr($currentquestion->questiontext, 0, 50) . "...\n";
+
+    // Get Users.
+    $allusers = $DB->get_records_select('user', "username LIKE :prefix", array('prefix' => $prefix . '_%'));
+    if (empty($allusers)) {
+        cli_error("No users found with prefix '{$prefix}'");
+    }
+
+    $targetcount = ceil(count($allusers) * ($percent / 100));
+    $testusers = array_slice($allusers, 0, $targetcount);
+
+    echo "Simulating batch submissions for {$targetcount} users\n";
+    echo "Batch size: {$batchsize} responses per request\n";
+
+    // Get classengage instance for context.
+    $classengage = $DB->get_record('classengage', array('id' => $session->classengageid), '*', MUST_EXIST);
+    $cm = get_coursemodule_from_instance('classengage', $classengage->id, 0, false, MUST_EXIST);
+
+    $ajaxurl = $CFG->wwwroot . '/mod/classengage/ajax.php';
+    $answers = array('A', 'B', 'C', 'D');
+
+    $results = array(
+        'batches_sent' => 0,
+        'responses_processed' => 0,
+        'responses_failed' => 0,
+        'latencies' => array(),
+    );
+
+    $starttime = microtime(true);
+
+    // Group users into batches.
+    $userbatches = array_chunk($testusers, $batchsize);
+
+    foreach ($userbatches as $batchindex => $batch) {
+        // Build batch of responses.
+        $responses = array();
+        foreach ($batch as $user) {
+            $randomval = rand(1, 100);
+            $answer = ($randomval <= 60) ? $currentquestion->correctanswer : $answers[array_rand($answers)];
+
+            $responses[] = array(
+                'questionid' => $currentquestion->id,
+                'answer' => $answer,
+                'timestamp' => time(),
+            );
+        }
+
+        // For batch submission, we need to simulate as a single user submitting multiple cached responses.
+        // In real scenario, each user would submit their own batch.
+        $testuser = reset($batch);
+
+        // Create a session key for the user (simulated).
+        $sesskey = sesskey();
+
+        $batchstarttime = microtime(true);
+
+        // Make the batch request.
+        $ch = curl_init();
+        $postdata = array(
+            'action' => 'submitbatch',
+            'sessionid' => $sessionid,
+            'responses' => json_encode($responses),
+            'sesskey' => $sesskey,
+        );
+
+        curl_setopt($ch, CURLOPT_URL, $ajaxurl);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postdata));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+        curl_setopt($ch, CURLOPT_COOKIE, 'MoodleSession=' . session_id());
+
+        $response = curl_exec($ch);
+        $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        $batchlatency = (microtime(true) - $batchstarttime) * 1000;
+        $results['latencies'][] = $batchlatency;
+        $results['batches_sent']++;
+
+        if ($httpcode == 200 && $response) {
+            $data = json_decode($response, true);
+            if (isset($data['success']) && $data['success']) {
+                $results['responses_processed'] += $data['processedcount'] ?? count($responses);
+                $results['responses_failed'] += $data['failedcount'] ?? 0;
+                if ($verbose) {
+                    echo "Batch {$batchindex}: processed={$data['processedcount']}, failed={$data['failedcount']}, latency=" . number_format($batchlatency, 2) . "ms\n";
+                }
+            } else {
+                $results['responses_failed'] += count($responses);
+                if ($verbose) {
+                    echo "Batch {$batchindex} failed: " . ($data['error'] ?? 'Unknown error') . "\n";
+                }
+            }
+        } else {
+            $results['responses_failed'] += count($responses);
+            if ($verbose) {
+                echo "Batch {$batchindex} HTTP error: {$httpcode}\n";
+            }
+        }
+    }
+
+    $totaltime = microtime(true) - $starttime;
+
+    // Calculate statistics.
+    $avglatency = count($results['latencies']) > 0 ? array_sum($results['latencies']) / count($results['latencies']) : 0;
+    sort($results['latencies']);
+    $p95index = (int)(count($results['latencies']) * 0.95);
+    $p95latency = $results['latencies'][$p95index] ?? $avglatency;
+
+    echo "\n--- Batch Submission Results ---\n";
+    echo "Total batches sent: {$results['batches_sent']}\n";
+    echo "Responses processed: {$results['responses_processed']}\n";
+    echo "Responses failed: {$results['responses_failed']}\n";
+    echo "Total time: " . number_format($totaltime, 2) . "s\n";
+    echo "Average latency: " . number_format($avglatency, 2) . "ms\n";
+    echo "P95 latency: " . number_format($p95latency, 2) . "ms\n";
+    echo "Throughput: " . number_format($results['responses_processed'] / $totaltime, 2) . " responses/s\n";
+}
+
+/**
+ * Test SSE connection handling
+ *
+ * Requirements: 6.1, 6.4
+ *
+ * @param int $sessionid Session ID
+ * @param string $prefix Username prefix
+ * @param int $duration Test duration in seconds
+ * @param bool $verbose Show detailed output
+ */
+function perform_sse_test($sessionid, $prefix, $duration, $verbose) {
+    global $DB, $CFG;
+    cli_heading('Testing SSE Connections');
+
+    // Get Session.
+    $session = $DB->get_record('classengage_sessions', array('id' => $sessionid), '*', MUST_EXIST);
+    $classengage = $DB->get_record('classengage', array('id' => $session->classengageid), '*', MUST_EXIST);
+    $cm = get_coursemodule_from_instance('classengage', $classengage->id, 0, false, MUST_EXIST);
+
+    // Get test users.
+    $allusers = $DB->get_records_select('user', "username LIKE :prefix", array('prefix' => $prefix . '_%'), '', '*', 0, 10);
+    if (empty($allusers)) {
+        cli_error("No users found with prefix '{$prefix}'");
+    }
+
+    echo "Testing SSE connections with " . count($allusers) . " users for {$duration} seconds\n";
+
+    $sseurl = $CFG->wwwroot . '/mod/classengage/sse_handler.php';
+
+    $results = array(
+        'connections_attempted' => 0,
+        'connections_established' => 0,
+        'events_received' => 0,
+        'errors' => 0,
+        'connection_times' => array(),
+    );
+
+    $starttime = microtime(true);
+    $mh = curl_multi_init();
+    $handles = array();
+
+    // Start SSE connections for each user.
+    foreach ($allusers as $user) {
+        $connectionid = uniqid('sse_test_' . $user->id . '_', true);
+        $url = $sseurl . '?' . http_build_query(array(
+            'sessionid' => $sessionid,
+            'connectionid' => $connectionid,
+        ));
+
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, $duration + 5);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+            'Accept: text/event-stream',
+            'Cache-Control: no-cache',
+        ));
+        // Use a write function to capture streaming data.
+        curl_setopt($ch, CURLOPT_WRITEFUNCTION, function($ch, $data) use (&$results, $verbose) {
+            // Parse SSE events.
+            $lines = explode("\n", $data);
+            foreach ($lines as $line) {
+                if (strpos($line, 'event:') === 0) {
+                    $results['events_received']++;
+                    if ($verbose) {
+                        echo "SSE Event: " . trim(substr($line, 6)) . "\n";
+                    }
+                }
+            }
+            return strlen($data);
+        });
+
+        $handles[] = array('ch' => $ch, 'user' => $user, 'start' => microtime(true));
+        curl_multi_add_handle($mh, $ch);
+        $results['connections_attempted']++;
+    }
+
+    // Run connections for the specified duration.
+    $running = null;
+    $endtime = time() + $duration;
+
+    do {
+        curl_multi_exec($mh, $running);
+        curl_multi_select($mh, 1);
+
+        // Check if we've exceeded duration.
+        if (time() >= $endtime) {
+            break;
+        }
+    } while ($running > 0);
+
+    // Cleanup and collect results.
+    foreach ($handles as $h) {
+        $info = curl_getinfo($h['ch']);
+        $connectiontime = ($info['connect_time'] ?? 0) * 1000;
+        $results['connection_times'][] = $connectiontime;
+
+        if ($info['http_code'] == 200) {
+            $results['connections_established']++;
+        } else {
+            $results['errors']++;
+            if ($verbose) {
+                echo "Connection error for {$h['user']->username}: HTTP {$info['http_code']}\n";
+            }
+        }
+
+        curl_multi_remove_handle($mh, $h['ch']);
+        curl_close($h['ch']);
+    }
+    curl_multi_close($mh);
+
+    $totaltime = microtime(true) - $starttime;
+
+    // Calculate statistics.
+    $avgconntime = count($results['connection_times']) > 0 ? array_sum($results['connection_times']) / count($results['connection_times']) : 0;
+
+    echo "\n--- SSE Connection Results ---\n";
+    echo "Connections attempted: {$results['connections_attempted']}\n";
+    echo "Connections established: {$results['connections_established']}\n";
+    echo "Events received: {$results['events_received']}\n";
+    echo "Errors: {$results['errors']}\n";
+    echo "Average connection time: " . number_format($avgconntime, 2) . "ms\n";
+    echo "Test duration: " . number_format($totaltime, 2) . "s\n";
+}
+
+
+/**
+ * Test heartbeat endpoint under load
+ *
+ * Requirements: 5.2, 5.3
+ *
+ * @param int $sessionid Session ID
+ * @param string $prefix Username prefix
+ * @param int $duration Test duration in seconds
+ * @param bool $verbose Show detailed output
+ */
+function perform_heartbeat_test($sessionid, $prefix, $duration, $verbose) {
+    global $DB, $CFG;
+    cli_heading('Testing Heartbeat Endpoint');
+
+    // Get test users.
+    $allusers = $DB->get_records_select('user', "username LIKE :prefix", array('prefix' => $prefix . '_%'));
+    if (empty($allusers)) {
+        cli_error("No users found with prefix '{$prefix}'");
+    }
+
+    echo "Testing heartbeat with " . count($allusers) . " users for {$duration} seconds\n";
+
+    $ajaxurl = $CFG->wwwroot . '/mod/classengage/ajax.php';
+    $sesskey = sesskey();
+
+    $results = array(
+        'heartbeats_sent' => 0,
+        'heartbeats_success' => 0,
+        'heartbeats_failed' => 0,
+        'latencies' => array(),
+    );
+
+    $starttime = microtime(true);
+    $endtime = time() + $duration;
+    $heartbeatinterval = 2; // Send heartbeats every 2 seconds.
+
+    // Create connection IDs for each user.
+    $connections = array();
+    foreach ($allusers as $user) {
+        $connections[$user->id] = uniqid('hb_test_' . $user->id . '_', true);
+    }
+
+    while (time() < $endtime) {
+        $mh = curl_multi_init();
+        $handles = array();
+
+        // Send heartbeats for all users.
+        foreach ($allusers as $user) {
+            $postdata = array(
+                'action' => 'heartbeat',
+                'sessionid' => $sessionid,
+                'connectionid' => $connections[$user->id],
+                'sesskey' => $sesskey,
+            );
+
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, $ajaxurl);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postdata));
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+
+            $handles[] = array('ch' => $ch, 'user' => $user, 'start' => microtime(true));
+            curl_multi_add_handle($mh, $ch);
+            $results['heartbeats_sent']++;
+        }
+
+        // Execute all requests.
+        $running = null;
+        do {
+            curl_multi_exec($mh, $running);
+            curl_multi_select($mh);
+        } while ($running > 0);
+
+        // Collect results.
+        foreach ($handles as $h) {
+            $response = curl_multi_getcontent($h['ch']);
+            $info = curl_getinfo($h['ch']);
+            $latency = (microtime(true) - $h['start']) * 1000;
+            $results['latencies'][] = $latency;
+
+            if ($info['http_code'] == 200 && $response) {
+                $data = json_decode($response, true);
+                if (isset($data['success']) && $data['success']) {
+                    $results['heartbeats_success']++;
+                } else {
+                    $results['heartbeats_failed']++;
+                }
+            } else {
+                $results['heartbeats_failed']++;
+            }
+
+            curl_multi_remove_handle($mh, $h['ch']);
+            curl_close($h['ch']);
+        }
+        curl_multi_close($mh);
+
+        if ($verbose) {
+            echo "Heartbeat round: success={$results['heartbeats_success']}, failed={$results['heartbeats_failed']}\n";
+        }
+
+        // Wait for next heartbeat interval.
+        sleep($heartbeatinterval);
+    }
+
+    $totaltime = microtime(true) - $starttime;
+
+    // Calculate statistics.
+    $avglatency = count($results['latencies']) > 0 ? array_sum($results['latencies']) / count($results['latencies']) : 0;
+    sort($results['latencies']);
+    $p95index = (int)(count($results['latencies']) * 0.95);
+    $p95latency = $results['latencies'][$p95index] ?? $avglatency;
+
+    echo "\n--- Heartbeat Test Results ---\n";
+    echo "Total heartbeats sent: {$results['heartbeats_sent']}\n";
+    echo "Successful: {$results['heartbeats_success']}\n";
+    echo "Failed: {$results['heartbeats_failed']}\n";
+    echo "Average latency: " . number_format($avglatency, 2) . "ms\n";
+    echo "P95 latency: " . number_format($p95latency, 2) . "ms\n";
+    echo "Test duration: " . number_format($totaltime, 2) . "s\n";
+}
+
+/**
+ * Simulate concurrent users for scalability testing
+ *
+ * Requirements: 3.1, 3.2, 3.3
+ *
+ * @param int $sessionid Session ID
+ * @param string $prefix Username prefix
+ * @param int $numusers Number of concurrent users to simulate
+ * @param bool $verbose Show detailed output
+ * @param bool $report Generate detailed performance report
+ */
+function perform_concurrent_simulation($sessionid, $prefix, $numusers, $verbose, $report) {
+    global $DB, $CFG;
+    cli_heading('Concurrent User Simulation');
+
+    // Get Session & Question.
+    $session = $DB->get_record('classengage_sessions', array('id' => $sessionid), '*', MUST_EXIST);
+    if ($session->status !== 'active') {
+        cli_error("Session {$sessionid} is not active.");
+    }
+
+    $sql = "SELECT q.*
+              FROM {classengage_questions} q
+              JOIN {classengage_session_questions} sq ON sq.questionid = q.id
+             WHERE sq.sessionid = :sessionid
+               AND sq.questionorder = :questionorder";
+    $currentquestion = $DB->get_record_sql($sql, array(
+        'sessionid' => $sessionid,
+        'questionorder' => $session->currentquestion + 1
+    ));
+
+    if (!$currentquestion) {
+        cli_error('No active question found for this session');
+    }
+
+    // Get test users.
+    $allusers = $DB->get_records_select('user', "username LIKE :prefix", array('prefix' => $prefix . '_%'), '', '*', 0, $numusers);
+    $actualusers = count($allusers);
+
+    if ($actualusers < $numusers) {
+        echo "Warning: Only {$actualusers} users available (requested {$numusers})\n";
+    }
+
+    echo "Simulating {$actualusers} concurrent users\n";
+    echo "Question: " . substr($currentquestion->questiontext, 0, 50) . "...\n";
+
+    $ajaxurl = $CFG->wwwroot . '/mod/classengage/ajax.php';
+    $answers = array('A', 'B', 'C', 'D');
+    $sesskey = sesskey();
+
+    $results = array(
+        'total_requests' => 0,
+        'successful' => 0,
+        'failed' => 0,
+        'latencies' => array(),
+        'errors' => array(),
+        'start_time' => microtime(true),
+    );
+
+    // Phase 1: Register all connections simultaneously.
+    echo "\nPhase 1: Registering connections...\n";
+    $connections = array();
+    $mh = curl_multi_init();
+    $handles = array();
+
+    foreach ($allusers as $user) {
+        $connectionid = uniqid('concurrent_' . $user->id . '_', true);
+        $connections[$user->id] = $connectionid;
+
+        $postdata = array(
+            'action' => 'reconnect',
+            'sessionid' => $sessionid,
+            'connectionid' => $connectionid,
+            'sesskey' => $sesskey,
+        );
+
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $ajaxurl);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postdata));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+
+        $handles[] = array('ch' => $ch, 'user' => $user, 'start' => microtime(true));
+        curl_multi_add_handle($mh, $ch);
+    }
+
+    $running = null;
+    do {
+        curl_multi_exec($mh, $running);
+        curl_multi_select($mh);
+    } while ($running > 0);
+
+    $connectionsregistered = 0;
+    foreach ($handles as $h) {
+        $response = curl_multi_getcontent($h['ch']);
+        $info = curl_getinfo($h['ch']);
+
+        if ($info['http_code'] == 200 && $response) {
+            $data = json_decode($response, true);
+            if (isset($data['success']) && $data['success']) {
+                $connectionsregistered++;
+            }
+        }
+
+        curl_multi_remove_handle($mh, $h['ch']);
+        curl_close($h['ch']);
+    }
+    curl_multi_close($mh);
+
+    echo "Connections registered: {$connectionsregistered}/{$actualusers}\n";
+
+    // Phase 2: Submit answers simultaneously.
+    echo "\nPhase 2: Submitting answers simultaneously...\n";
+    $mh = curl_multi_init();
+    $handles = array();
+    $submissionstart = microtime(true);
+
+    foreach ($allusers as $user) {
+        $randomval = rand(1, 100);
+        $answer = ($randomval <= 60) ? $currentquestion->correctanswer : $answers[array_rand($answers)];
+
+        $postdata = array(
+            'action' => 'submitanswer',
+            'sessionid' => $sessionid,
+            'questionid' => $currentquestion->id,
+            'answer' => $answer,
+            'sesskey' => $sesskey,
+        );
+
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $ajaxurl);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postdata));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+
+        $handles[] = array('ch' => $ch, 'user' => $user, 'start' => microtime(true));
+        curl_multi_add_handle($mh, $ch);
+        $results['total_requests']++;
+    }
+
+    $running = null;
+    do {
+        curl_multi_exec($mh, $running);
+        curl_multi_select($mh);
+    } while ($running > 0);
+
+    foreach ($handles as $h) {
+        $response = curl_multi_getcontent($h['ch']);
+        $info = curl_getinfo($h['ch']);
+        $latency = (microtime(true) - $h['start']) * 1000;
+        $results['latencies'][] = $latency;
+
+        if ($info['http_code'] == 200 && $response) {
+            $data = json_decode($response, true);
+            if (isset($data['success']) && $data['success']) {
+                $results['successful']++;
+            } else {
+                $results['failed']++;
+                $error = $data['error'] ?? 'Unknown error';
+                $results['errors'][$error] = ($results['errors'][$error] ?? 0) + 1;
+            }
+        } else {
+            $results['failed']++;
+            $results['errors']['HTTP ' . $info['http_code']] = ($results['errors']['HTTP ' . $info['http_code']] ?? 0) + 1;
+        }
+
+        curl_multi_remove_handle($mh, $h['ch']);
+        curl_close($h['ch']);
+    }
+    curl_multi_close($mh);
+
+    $submissiontime = microtime(true) - $submissionstart;
+    $totaltime = microtime(true) - $results['start_time'];
+
+    // Calculate statistics.
+    sort($results['latencies']);
+    $avglatency = count($results['latencies']) > 0 ? array_sum($results['latencies']) / count($results['latencies']) : 0;
+    $p50index = (int)(count($results['latencies']) * 0.50);
+    $p95index = (int)(count($results['latencies']) * 0.95);
+    $p99index = (int)(count($results['latencies']) * 0.99);
+    $p50latency = $results['latencies'][$p50index] ?? $avglatency;
+    $p95latency = $results['latencies'][$p95index] ?? $avglatency;
+    $p99latency = $results['latencies'][$p99index] ?? $avglatency;
+    $minlatency = min($results['latencies']);
+    $maxlatency = max($results['latencies']);
+
+    // Check NFR compliance.
+    $nfr01pass = $avglatency < 1000; // Sub-1-second average latency.
+    $nfr03pass = $results['successful'] >= ($actualusers * 0.95); // 95% success rate for 200+ users.
+
+    echo "\n--- Concurrent Simulation Results ---\n";
+    echo "Total users simulated: {$actualusers}\n";
+    echo "Total requests: {$results['total_requests']}\n";
+    echo "Successful: {$results['successful']}\n";
+    echo "Failed: {$results['failed']}\n";
+    echo "Success rate: " . number_format(($results['successful'] / $results['total_requests']) * 100, 2) . "%\n";
+    echo "\n--- Latency Statistics ---\n";
+    echo "Min latency: " . number_format($minlatency, 2) . "ms\n";
+    echo "Average latency: " . number_format($avglatency, 2) . "ms\n";
+    echo "P50 latency: " . number_format($p50latency, 2) . "ms\n";
+    echo "P95 latency: " . number_format($p95latency, 2) . "ms\n";
+    echo "P99 latency: " . number_format($p99latency, 2) . "ms\n";
+    echo "Max latency: " . number_format($maxlatency, 2) . "ms\n";
+    echo "\n--- Performance ---\n";
+    echo "Submission time: " . number_format($submissiontime, 2) . "s\n";
+    echo "Total time: " . number_format($totaltime, 2) . "s\n";
+    echo "Throughput: " . number_format($results['successful'] / $submissiontime, 2) . " responses/s\n";
+    echo "\n--- NFR Compliance ---\n";
+    echo "NFR-01 (sub-1s latency): " . ($nfr01pass ? "PASS" : "FAIL") . " (avg: " . number_format($avglatency, 2) . "ms)\n";
+    echo "NFR-03 (200+ concurrent): " . ($nfr03pass ? "PASS" : "FAIL") . " (success rate: " . number_format(($results['successful'] / $results['total_requests']) * 100, 2) . "%)\n";
+
+    if (!empty($results['errors'])) {
+        echo "\n--- Error Summary ---\n";
+        foreach ($results['errors'] as $error => $count) {
+            echo "  {$error}: {$count}\n";
+        }
+    }
+
+    if ($report) {
+        // Generate detailed report file.
+        $reportfile = $CFG->dataroot . '/classengage_load_test_' . date('Y-m-d_H-i-s') . '.json';
+        $reportdata = array(
+            'timestamp' => date('c'),
+            'sessionid' => $sessionid,
+            'users' => $actualusers,
+            'results' => $results,
+            'statistics' => array(
+                'min_latency' => $minlatency,
+                'avg_latency' => $avglatency,
+                'p50_latency' => $p50latency,
+                'p95_latency' => $p95latency,
+                'p99_latency' => $p99latency,
+                'max_latency' => $maxlatency,
+                'throughput' => $results['successful'] / $submissiontime,
+            ),
+            'nfr_compliance' => array(
+                'nfr01' => $nfr01pass,
+                'nfr03' => $nfr03pass,
+            ),
+        );
+        file_put_contents($reportfile, json_encode($reportdata, JSON_PRETTY_PRINT));
+        echo "\nDetailed report saved to: {$reportfile}\n";
+    }
+}
+
+/**
+ * Clean up test users
+ *
+ * @param string $prefix Username prefix
+ * @param bool $verbose Show detailed output
+ */
 function perform_cleanup($prefix, $verbose) {
     global $DB;
     cli_heading('Cleaning Up');
@@ -400,7 +1176,9 @@ function perform_cleanup($prefix, $verbose) {
         try {
             delete_user($user);
             $count++;
-            if ($verbose) echo "Deleted {$user->username}\n";
+            if ($verbose) {
+                echo "Deleted {$user->username}\n";
+            }
         } catch (Exception $e) {
             echo "Error deleting {$user->username}: " . $e->getMessage() . "\n";
         }

@@ -55,14 +55,8 @@ class mod_classengage_mod_form extends moodleform_mod {
         // Introduction field
         $this->standard_intro_elements();
 
-        // Grading settings
-        $mform->addElement('header', 'gradesettings', get_string('gradesettings', 'mod_classengage'));
-
-        // Grade
-        $mform->addElement('text', 'grade', get_string('grade', 'mod_classengage'), array('size' => '10'));
-        $mform->setType('grade', PARAM_INT);
-        $mform->setDefault('grade', 100);
-        $mform->addHelpButton('grade', 'grade', 'mod_classengage');
+        // Standard grading elements
+        $this->standard_grading_coursemodule_elements();
 
         // Standard elements
         $this->standard_coursemodule_elements();

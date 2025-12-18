@@ -137,10 +137,21 @@ function classengage_grade_item_update($classengage, $grades = null) {
 
     $params = array('itemname' => $classengage->name);
     
-    if (isset($classengage->grade) && $classengage->grade > 0) {
+    if (isset($classengage->cmidnumber)) {
+        $params['idnumber'] = $classengage->cmidnumber;
+    }
+
+    if (isset($classengage->gradepass)) {
+        $params['gradepass'] = $classengage->gradepass;
+    }
+
+    if (isset($classengage->grade) && $classengage->grade < 0) {
+        $params['gradetype'] = GRADE_TYPE_SCALE;
+        $params['scaleid']   = -$classengage->grade;
+    } else if (isset($classengage->grade) && $classengage->grade > 0) {
         $params['gradetype'] = GRADE_TYPE_VALUE;
-        $params['grademax'] = $classengage->grade;
-        $params['grademin'] = 0;
+        $params['grademax']  = $classengage->grade;
+        $params['grademin']  = 0;
     } else {
         $params['gradetype'] = GRADE_TYPE_NONE;
     }

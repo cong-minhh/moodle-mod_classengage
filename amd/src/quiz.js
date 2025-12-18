@@ -16,71 +16,729 @@
 /**
  * JavaScript for real-time quiz participation
  *
+ * Enhanced with connection_manager for transport handling, client_cache for
+ * offline support, offline indicator UI, and optimistic UI updates.
+ *
+ * Requirements: 2.4, 4.5, 8.5
+ *
  * @module     mod_classengage/quiz
- * @package
  * @copyright  2025 Danielle
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-define(['jquery', 'core/ajax', 'core/notification'], function($, Ajax, Notification) {
+define([
+    'jquery',
+    'core/ajax',
+    'core/notification',
+    'core/str',
+    'mod_classengage/connection_manager',
+    'mod_classengage/client_cache'
+], function($, Ajax, Notification, Str, ConnectionManager, ClientCache) {
 
-    var currentQuestion = null;
-    var pollingTimer = null;
-    var countdownTimer = null;
+    /**
+     * Quiz state constants
+     * @type {Object}
+     */
+    var STATE = {
+        WAITING: 'waiting',
+        ACTIVE: 'active',
+        PAUSED: 'paused',
+        COMPLETED: 'completed'
+    };
 
-    return {
+    /**
+     * Quiz module instance
+     * @type {Object}
+     */
+    var Quiz = {
+        cmid: null,
+        sessionId: null,
+        currentQuestion: null,
+        pollingTimer: null,
+        countdownTimer: null,
+        isOnline: true,
+        pendingSubmission: null,
+        strings: {},
+
+        /**
+         * Initialize the quiz module
+         *
+         * @param {number} cmid Course module ID
+         * @param {number} sessionid Session ID
+         * @param {number} pollinginterval Polling interval in milliseconds
+         * @return {Promise} Resolves when initialized
+         */
         init: function(cmid, sessionid, pollinginterval) {
             var self = this;
 
-            // Start polling for updates
-            this.startPolling(sessionid, pollinginterval);
+            this.cmid = cmid;
+            this.sessionId = sessionid;
 
-            // Handle answer submission
-            $(document).on('click', '.submit-answer-btn', function() {
-                self.submitAnswer(sessionid);
+            // Load language strings
+            return this.loadStrings().then(function() {
+                // Initialize client cache for offline support
+                return ClientCache.init({
+                    maxRetries: 3,
+                    retryDelay: 2000
+                });
+            }).then(function() {
+                // Set up connection manager for client cache
+                ClientCache.setConnectionManager(ConnectionManager.getInstance());
+
+                // Initialize connection manager
+                return ConnectionManager.init(sessionid, {
+                    pollInterval: pollinginterval || 2000
+                });
+            }).then(function() {
+                // Set up event handlers
+                self.setupEventHandlers();
+                self.setupConnectionHandlers();
+                self.setupOfflineIndicator();
+
+                // Handle answer submission
+                $(document).on('click', '.submit-answer-btn', function() {
+                    self.submitAnswer();
+                });
+
+                // Handle touch events for mobile
+                $(document).on('touchend', '.quiz-option', function(e) {
+                    e.preventDefault();
+                    $(this).find('input[type="radio"]').prop('checked', true);
+                    $(this).addClass('selected').siblings().removeClass('selected');
+                });
+
+                return null;
+            }).catch(function(error) {
+                // eslint-disable-next-line no-console
+                console.error('Quiz initialization error:', error);
+                // Fall back to legacy polling if connection manager fails
+                self.startLegacyPolling(pollinginterval);
             });
         },
 
-        startPolling: function(sessionid, interval) {
+        /**
+         * Load required language strings
+         *
+         * @return {Promise} Resolves when strings are loaded
+         */
+        loadStrings: function() {
             var self = this;
+            var stringKeys = [
+                {key: 'answersubmitted', component: 'mod_classengage'},
+                {key: 'correct', component: 'mod_classengage'},
+                {key: 'incorrect', component: 'mod_classengage'},
+                {key: 'correctanswer', component: 'mod_classengage'},
+                {key: 'waitingnextquestion', component: 'mod_classengage'},
+                {key: 'quizcompleted', component: 'mod_classengage'},
+                {key: 'alreadyanswered', component: 'mod_classengage'},
+                {key: 'selectanswer', component: 'mod_classengage'},
+                {key: 'error', component: 'core'},
+                {key: 'offline', component: 'mod_classengage'},
+                {key: 'reconnecting', component: 'mod_classengage'},
+                {key: 'connectionrestored', component: 'mod_classengage'},
+                {key: 'submittingoffline', component: 'mod_classengage'},
+                {key: 'pendingsubmissions', component: 'mod_classengage'}
+            ];
 
-            // Poll for current question
-            pollingTimer = setInterval(function() {
-                self.getCurrentQuestion(sessionid);
-            }, interval);
-
-            // Get initial question
-            this.getCurrentQuestion(sessionid);
+            return Str.get_strings(stringKeys).then(function(strings) {
+                self.strings = {
+                    answersubmitted: strings[0],
+                    correct: strings[1],
+                    incorrect: strings[2],
+                    correctanswer: strings[3],
+                    waitingnextquestion: strings[4],
+                    quizcompleted: strings[5],
+                    alreadyanswered: strings[6],
+                    selectanswer: strings[7],
+                    error: strings[8],
+                    offline: strings[9] || 'Offline - responses will be saved locally',
+                    reconnecting: strings[10] || 'Reconnecting...',
+                    connectionrestored: strings[11] || 'Connection restored',
+                    submittingoffline: strings[12] || 'Saving response offline...',
+                    pendingsubmissions: strings[13] || 'Pending submissions'
+                };
+                return null;
+            }).catch(function() {
+                // Use fallback strings if loading fails
+                self.strings = {
+                    answersubmitted: 'Answer submitted!',
+                    correct: 'Correct!',
+                    incorrect: 'Incorrect',
+                    correctanswer: 'Correct Answer',
+                    waitingnextquestion: 'Waiting for next question...',
+                    quizcompleted: 'Quiz completed!',
+                    alreadyanswered: 'You have already answered this question',
+                    selectanswer: 'Please select an answer',
+                    error: 'Error',
+                    offline: 'Offline - responses will be saved locally',
+                    reconnecting: 'Reconnecting...',
+                    connectionrestored: 'Connection restored',
+                    submittingoffline: 'Saving response offline...',
+                    pendingsubmissions: 'Pending submissions'
+                };
+            });
         },
 
-        getCurrentQuestion: function(sessionid) {
+        /**
+         * Set up connection manager event handlers
+         */
+        setupConnectionHandlers: function() {
             var self = this;
 
-            Ajax.call([{
-                methodname: 'mod_classengage_get_current_question',
-                args: {sessionid: sessionid},
-                done: function(response) {
-                    self.updateQuestionDisplay(response);
-                },
-                fail: function() {
-                    // Fallback to direct AJAX call
-                    $.ajax({
-                        url: M.cfg.wwwroot + '/mod/classengage/ajax.php',
-                        method: 'POST',
-                        data: {
-                            action: 'getcurrent',
-                            sessionid: sessionid,
-                            sesskey: M.cfg.sesskey
-                        },
-                        dataType: 'json',
-                        success: function(response) {
-                            self.updateQuestionDisplay(response);
-                        }
-                    });
+            // Handle connection status changes
+            ConnectionManager.on('statuschange', function(data) {
+                self.handleConnectionStatusChange(data);
+            });
+
+            // Handle session state updates from server
+            ConnectionManager.on('state_update', function(data) {
+                self.handleStateUpdate(data);
+            });
+
+            // Handle question broadcasts
+            ConnectionManager.on('question_broadcast', function(data) {
+                self.handleQuestionBroadcast(data);
+            });
+
+            // Handle session events
+            ConnectionManager.on('session_started', function(data) {
+                self.handleSessionStarted(data);
+            });
+
+            ConnectionManager.on('session_paused', function(data) {
+                self.handleSessionPaused(data);
+            });
+
+            ConnectionManager.on('session_resumed', function(data) {
+                self.handleSessionResumed(data);
+            });
+
+            ConnectionManager.on('session_completed', function(data) {
+                self.handleSessionCompleted(data);
+            });
+
+            // Handle timer sync
+            ConnectionManager.on('timer_sync', function(data) {
+                self.updateTimer(data.remaining);
+            });
+
+            // Handle reconnection
+            ConnectionManager.on('reconnected', function() {
+                self.handleReconnected();
+            });
+
+            // Handle disconnection
+            ConnectionManager.on('disconnected', function() {
+                self.handleDisconnected();
+            });
+        },
+
+        /**
+         * Set up client cache event handlers
+         */
+        setupEventHandlers: function() {
+            var self = this;
+
+            // Handle cached response submission
+            ClientCache.on('submitted', function(data) {
+                self.handleCachedResponseSubmitted(data);
+            });
+
+            // Handle retry events
+            ClientCache.on('retrying', function(data) {
+                self.showNotification('info', self.strings.pendingsubmissions + ': ' + data.count);
+            });
+
+            // Handle retry completion
+            ClientCache.on('retryComplete', function(data) {
+                var successCount = data.results.filter(function(r) {
+                    return r.success;
+                }).length;
+                if (successCount > 0) {
+                    self.showNotification('success', successCount + ' cached response(s) submitted');
                 }
-            }]);
+            });
         },
 
+        /**
+         * Set up offline indicator UI element
+         */
+        setupOfflineIndicator: function() {
+            // Create offline indicator if it doesn't exist
+            if ($('#offline-indicator').length === 0) {
+                var indicator = $('<div id="offline-indicator" class="offline-indicator" style="display: none;">' +
+                    '<span class="offline-icon">&#9888;</span>' +
+                    '<span class="offline-text"></span>' +
+                    '<span class="pending-count"></span>' +
+                    '</div>');
+                $('#quiz-status').after(indicator);
+            }
+
+            // Listen for online/offline events
+            var self = this;
+            window.addEventListener('online', function() {
+                self.handleOnlineStatusChange(true);
+            });
+            window.addEventListener('offline', function() {
+                self.handleOnlineStatusChange(false);
+            });
+
+            // Check initial status
+            this.isOnline = navigator.onLine;
+            this.updateOfflineIndicator();
+        },
+
+        /**
+         * Handle online/offline status change
+         *
+         * @param {boolean} online Whether we're online
+         */
+        handleOnlineStatusChange: function(online) {
+            this.isOnline = online;
+            this.updateOfflineIndicator();
+
+            if (online) {
+                // Try to reconnect
+                ConnectionManager.reconnect().catch(function() {
+                    // Reconnection will be retried automatically
+                });
+            }
+        },
+
+        /**
+         * Handle connection status change from connection manager
+         *
+         * @param {Object} data Status change data
+         */
+        handleConnectionStatusChange: function(data) {
+            var status = data.status;
+            var transport = data.transport;
+
+            if (status === ConnectionManager.STATUS.CONNECTED) {
+                this.isOnline = true;
+                this.updateOfflineIndicator();
+                // Update transport indicator if needed
+                this.updateTransportIndicator(transport);
+            } else if (status === ConnectionManager.STATUS.RECONNECTING) {
+                this.showReconnectingIndicator();
+            } else if (status === ConnectionManager.STATUS.DISCONNECTED) {
+                this.isOnline = false;
+                this.updateOfflineIndicator();
+            }
+        },
+
+        /**
+         * Update offline indicator display
+         */
+        updateOfflineIndicator: function() {
+            var indicator = $('#offline-indicator');
+            var textSpan = indicator.find('.offline-text');
+            var pendingSpan = indicator.find('.pending-count');
+
+            if (!this.isOnline) {
+                textSpan.text(this.strings.offline);
+                indicator.removeClass('reconnecting').addClass('offline').show();
+            } else {
+                indicator.hide();
+            }
+
+            // Update pending count
+            var stats = ClientCache.getStats();
+            if (stats.pending > 0) {
+                pendingSpan.text(' (' + stats.pending + ' pending)').show();
+                indicator.show();
+            } else {
+                pendingSpan.hide();
+            }
+        },
+
+        /**
+         * Show reconnecting indicator
+         */
+        showReconnectingIndicator: function() {
+            var indicator = $('#offline-indicator');
+            indicator.find('.offline-text').text(this.strings.reconnecting);
+            indicator.removeClass('offline').addClass('reconnecting').show();
+        },
+
+        /**
+         * Update transport indicator (SSE vs polling)
+         *
+         * @param {string} transport Transport type
+         */
+        updateTransportIndicator: function(transport) {
+            var transportIndicator = $('#transport-indicator');
+            if (transportIndicator.length === 0) {
+                transportIndicator = $('<span id="transport-indicator" class="transport-indicator"></span>');
+                $('#quiz-status').append(transportIndicator);
+            }
+
+            if (transport === ConnectionManager.TRANSPORT.SSE) {
+                transportIndicator.text('Real-time').addClass('realtime');
+            } else if (transport === ConnectionManager.TRANSPORT.POLLING) {
+                transportIndicator.text('Polling').removeClass('realtime');
+            }
+        },
+
+        /**
+         * Handle state update from server
+         *
+         * @param {Object} data State update data
+         */
+        handleStateUpdate: function(data) {
+            if (data.question) {
+                this.updateQuestionDisplay({
+                    success: true,
+                    status: data.status,
+                    question: data.question
+                });
+            }
+
+            if (data.status === STATE.COMPLETED) {
+                this.handleSessionCompleted(data);
+            } else if (data.status === STATE.PAUSED) {
+                this.handleSessionPaused(data);
+            }
+        },
+
+        /**
+         * Handle question broadcast from server
+         *
+         * @param {Object} data Question data
+         */
+        handleQuestionBroadcast: function(data) {
+            this.currentQuestion = data.question;
+            this.displayQuestion(data.question);
+            this.updateTimer(data.question.timeremaining);
+        },
+
+        /**
+         * Handle session started event
+         *
+         * @param {Object} data Session data
+         */
+        handleSessionStarted: function(data) {
+            $('#quiz-status').removeClass('alert-warning').addClass('alert-info');
+            if (data.question) {
+                this.currentQuestion = data.question;
+                this.displayQuestion(data.question);
+            }
+        },
+
+        /**
+         * Handle session paused event
+         *
+         * @param {Object} data Session data
+         */
+        handleSessionPaused: function(data) {
+            var container = $('#question-container');
+            container.find('.submit-answer-btn').prop('disabled', true);
+            this.showNotification('warning', 'Quiz paused by instructor');
+
+            // Show paused overlay
+            if ($('.paused-overlay').length === 0) {
+                container.append('<div class="paused-overlay"><span>Quiz Paused</span></div>');
+            }
+
+            // Store remaining time if provided
+            if (data.timerRemaining !== undefined) {
+                this.pausedTimerRemaining = data.timerRemaining;
+            }
+        },
+
+        /**
+         * Handle session resumed event
+         *
+         * @param {Object} data Session data
+         */
+        handleSessionResumed: function(data) {
+            var container = $('#question-container');
+            container.find('.submit-answer-btn').prop('disabled', false);
+            container.find('.paused-overlay').remove();
+            this.showNotification('info', 'Quiz resumed');
+
+            // Restore timer
+            if (data.timerRemaining !== undefined) {
+                this.updateTimer(data.timerRemaining);
+            }
+        },
+
+        /**
+         * Handle session completed event
+         *
+         * @param {Object} data Session data
+         */
+        handleSessionCompleted: function(data) {
+            var container = $('#question-container');
+            var statusDiv = $('#quiz-status');
+
+            statusDiv.removeClass('alert-info').addClass('alert-success');
+
+            var scoreText = data.score !== undefined ? ' Your score: ' + data.score : '';
+            statusDiv.html(this.strings.quizcompleted + scoreText);
+
+            container.html('<div class="alert alert-success">' +
+                '<h4>' + this.strings.quizcompleted + '</h4>' +
+                (data.score !== undefined ? '<p>Your score: ' + data.score + '</p>' : '') +
+                '</div>');
+
+            this.stopPolling();
+            ConnectionManager.disconnect();
+        },
+
+        /**
+         * Handle reconnection
+         */
+        handleReconnected: function() {
+            this.isOnline = true;
+            this.updateOfflineIndicator();
+            this.showNotification('success', this.strings.connectionrestored);
+
+            // Request current state
+            ConnectionManager.send('getstatus', {
+                sessionid: this.sessionId
+            }).then(function(response) {
+                if (response.success && response.session) {
+                    this.handleStateUpdate(response.session);
+                }
+                return null;
+            }.bind(this)).catch(function() {
+                // Ignore errors, state will sync on next update
+            });
+        },
+
+        /**
+         * Handle disconnection
+         */
+        handleDisconnected: function() {
+            this.isOnline = false;
+            this.updateOfflineIndicator();
+        },
+
+        /**
+         * Handle cached response submitted
+         *
+         * @param {Object} data Submission data
+         */
+        handleCachedResponseSubmitted: function(data) {
+            this.showNotification('success', 'Cached response submitted: ' + data.id);
+            this.updateOfflineIndicator();
+        },
+
+        /**
+         * Submit answer with optimistic UI update
+         */
+        submitAnswer: function() {
+            var self = this;
+            var selectedAnswer = $('input[name="answer"]:checked').val();
+
+            if (!selectedAnswer) {
+                Notification.alert(this.strings.error, this.strings.selectanswer);
+                return;
+            }
+
+            if (!this.currentQuestion) {
+                return;
+            }
+
+            var questionId = this.currentQuestion.id;
+            var clientTimestamp = Date.now();
+
+            // Optimistic UI update (Requirement 8.5)
+            this.showOptimisticSubmission();
+
+            // Disable submit button to prevent double submission
+            $('.submit-answer-btn').prop('disabled', true);
+
+            // Check if we're online
+            if (!this.isOnline || !ConnectionManager.getStatus().connected) {
+                // Store in cache for later submission (Requirement 4.5)
+                this.submitOffline(questionId, selectedAnswer, clientTimestamp);
+                return;
+            }
+
+            // Submit via connection manager
+            ConnectionManager.send('submitanswer', {
+                sessionid: this.sessionId,
+                questionid: questionId,
+                answer: selectedAnswer,
+                clienttimestamp: clientTimestamp
+            }).then(function(response) {
+                self.handleSubmissionResponse(response);
+                return null;
+            }).catch(function(error) {
+                // Network error - cache the response
+                self.submitOffline(questionId, selectedAnswer, clientTimestamp);
+                // eslint-disable-next-line no-console
+                console.warn('Submission failed, cached offline:', error);
+            });
+        },
+
+        /**
+         * Show optimistic UI update before server confirmation (Requirement 8.5)
+         */
+        showOptimisticSubmission: function() {
+            var container = $('#question-container');
+
+            // Add submitting state
+            container.addClass('submitting');
+
+            // Show optimistic feedback
+            var feedbackDiv = container.find('.optimistic-feedback');
+            if (feedbackDiv.length === 0) {
+                feedbackDiv = $('<div class="optimistic-feedback">' +
+                    '<span class="spinner"></span> Submitting...' +
+                    '</div>');
+                container.find('.submit-answer-btn').after(feedbackDiv);
+            }
+            feedbackDiv.show();
+        },
+
+        /**
+         * Submit response offline
+         *
+         * @param {number} questionId Question ID
+         * @param {string} answer Selected answer
+         * @param {number} clientTimestamp Client timestamp
+         */
+        submitOffline: function(questionId, answer, clientTimestamp) {
+            var self = this;
+
+            // Show offline submission feedback
+            this.showNotification('info', this.strings.submittingoffline);
+
+            ClientCache.storeResponse({
+                sessionId: this.sessionId,
+                questionId: questionId,
+                answer: answer,
+                clientTimestamp: clientTimestamp
+            }).then(function() {
+                self.showOfflineSubmissionConfirmation();
+                self.updateOfflineIndicator();
+                return null;
+            }).catch(function(error) {
+                // eslint-disable-next-line no-console
+                console.error('Failed to cache response:', error);
+                Notification.exception({message: 'Failed to save response offline'});
+                $('.submit-answer-btn').prop('disabled', false);
+            });
+        },
+
+        /**
+         * Show offline submission confirmation
+         */
+        showOfflineSubmissionConfirmation: function() {
+            var container = $('#question-container');
+            container.removeClass('submitting');
+            container.find('.optimistic-feedback').remove();
+
+            container.html(
+                '<div class="alert alert-info">' +
+                '<h4>' + this.strings.answersubmitted + '</h4>' +
+                '<p>' + this.strings.offline + '</p>' +
+                '<p>' + this.strings.waitingnextquestion + '</p>' +
+                '</div>'
+            );
+        },
+
+        /**
+         * Handle submission response from server
+         *
+         * @param {Object} response Server response
+         */
+        handleSubmissionResponse: function(response) {
+            var container = $('#question-container');
+            container.removeClass('submitting');
+            container.find('.optimistic-feedback').remove();
+
+            if (response.success) {
+                var message = response.iscorrect ? this.strings.correct : this.strings.incorrect;
+                var alertClass = response.iscorrect ? 'success' : 'warning';
+
+                var html = '<div class="alert alert-' + alertClass + '">' +
+                    '<h4>' + message + '</h4>';
+
+                if (response.correctanswer) {
+                    html += '<p>' + this.strings.correctanswer + ': ' + response.correctanswer + '</p>';
+                }
+
+                if (response.islate) {
+                    html += '<p class="text-muted"><em>Response recorded as late</em></p>';
+                }
+
+                html += '<p>' + this.strings.waitingnextquestion + '</p>' +
+                    '</div>';
+
+                container.html(html);
+
+                // Visual confirmation (Requirement 2.4)
+                this.showVisualConfirmation(response.iscorrect);
+            } else {
+                // Handle error
+                if (response.error && response.error.indexOf('Duplicate') !== -1) {
+                    container.html('<div class="alert alert-info">' + this.strings.alreadyanswered + '</div>');
+                } else {
+                    Notification.exception({message: response.error || 'Error submitting answer'});
+                    $('.submit-answer-btn').prop('disabled', false);
+                }
+            }
+        },
+
+        /**
+         * Show visual confirmation of answer submission (Requirement 2.4)
+         *
+         * @param {boolean} isCorrect Whether the answer was correct
+         */
+        showVisualConfirmation: function(isCorrect) {
+            var confirmationClass = isCorrect ? 'confirmation-correct' : 'confirmation-incorrect';
+
+            // Create confirmation overlay
+            var overlay = $('<div class="submission-confirmation ' + confirmationClass + '">' +
+                '<span class="confirmation-icon">' + (isCorrect ? '✓' : '✗') + '</span>' +
+                '</div>');
+
+            $('body').append(overlay);
+
+            // Animate and remove
+            setTimeout(function() {
+                overlay.addClass('fade-out');
+                setTimeout(function() {
+                    overlay.remove();
+                }, 300);
+            }, 500);
+        },
+
+        /**
+         * Show notification message
+         *
+         * @param {string} type Notification type (success, info, warning, error)
+         * @param {string} message Message to display
+         */
+        showNotification: function(type, message) {
+            var notificationArea = $('#quiz-notifications');
+            if (notificationArea.length === 0) {
+                notificationArea = $('<div id="quiz-notifications" class="quiz-notifications"></div>');
+                $('#quiz-status').before(notificationArea);
+            }
+
+            var alertClass = 'alert-' + (type === 'error' ? 'danger' : type);
+            var notification = $('<div class="alert ' + alertClass + ' notification-toast">' + message + '</div>');
+
+            notificationArea.append(notification);
+
+            // Auto-dismiss after 3 seconds
+            setTimeout(function() {
+                notification.fadeOut(function() {
+                    $(this).remove();
+                });
+            }, 3000);
+        },
+
+        /**
+         * Update question display
+         *
+         * @param {Object} response Server response with question data
+         */
         updateQuestionDisplay: function(response) {
             var container = $('#question-container');
             var statusDiv = $('#quiz-status');
@@ -89,10 +747,12 @@ define(['jquery', 'core/ajax', 'core/notification'], function($, Ajax, Notificat
                 container.html('');
                 if (response.status === 'completed') {
                     statusDiv.removeClass('alert-info').addClass('alert-success');
-                    statusDiv.html(M.util.get_string('quizcompleted', 'mod_classengage'));
+                    statusDiv.html(this.strings.quizcompleted);
                     this.stopPolling();
+                } else if (response.status === 'paused') {
+                    statusDiv.html('Quiz is paused');
                 } else {
-                    statusDiv.html(M.util.get_string('waitingnextquestion', 'mod_classengage'));
+                    statusDiv.html(this.strings.waitingnextquestion);
                 }
                 return;
             }
@@ -100,13 +760,13 @@ define(['jquery', 'core/ajax', 'core/notification'], function($, Ajax, Notificat
             var question = response.question;
 
             if (!question) {
-                container.html('<p>' + M.util.get_string('waitingnextquestion', 'mod_classengage') + '</p>');
+                container.html('<p>' + this.strings.waitingnextquestion + '</p>');
                 return;
             }
 
             // Check if this is a new question
-            if (currentQuestion === null || currentQuestion.id !== question.id) {
-                currentQuestion = question;
+            if (this.currentQuestion === null || this.currentQuestion.id !== question.id) {
+                this.currentQuestion = question;
                 this.displayQuestion(question);
             }
 
@@ -114,36 +774,39 @@ define(['jquery', 'core/ajax', 'core/notification'], function($, Ajax, Notificat
             this.updateTimer(question.timeremaining);
 
             // Update question number
-            statusDiv.html(M.util.get_string('currentquestion', 'mod_classengage', {
-                current: question.number,
-                total: question.total
-            }));
+            statusDiv.html('Question ' + question.number + ' of ' + question.total);
         },
 
+        /**
+         * Display a question
+         *
+         * @param {Object} question Question data
+         */
         displayQuestion: function(question) {
             var html = '<div class="question-text mb-4">';
             html += '<h4>' + question.text + '</h4>';
             html += '</div>';
 
             if (question.answered) {
-                html += '<div class="alert alert-info">' + M.util.get_string('alreadyanswered', 'mod_classengage') + '</div>';
+                html += '<div class="alert alert-info">' + this.strings.alreadyanswered + '</div>';
             } else {
                 html += '<form id="answer-form">';
                 html += '<div class="question-options">';
 
                 for (var i = 0; i < question.options.length; i++) {
                     var option = question.options[i];
-                    html += '<div class="quiz-option">';
-                    html += '<label>';
+                    html += '<div class="quiz-option" data-option="' + option.key + '">';
+                    html += '<label class="quiz-option-label">';
                     html += '<input type="radio" name="answer" value="' + option.key + '" required> ';
-                    html += '<strong>' + option.key + '.</strong> ' + option.text;
+                    html += '<span class="option-key">' + option.key + '</span>';
+                    html += '<span class="option-text">' + option.text + '</span>';
                     html += '</label>';
                     html += '</div>';
                 }
 
                 html += '</div>';
                 html += '<button type="button" class="btn btn-primary btn-lg submit-answer-btn mt-3">';
-                html += M.util.get_string('submitanswer', 'mod_classengage');
+                html += this.strings.answersubmitted ? 'Submit Answer' : 'Submit Answer';
                 html += '</button>';
                 html += '</form>';
             }
@@ -151,6 +814,11 @@ define(['jquery', 'core/ajax', 'core/notification'], function($, Ajax, Notificat
             $('#question-container').html(html);
         },
 
+        /**
+         * Update timer display
+         *
+         * @param {number} seconds Seconds remaining
+         */
         updateTimer: function(seconds) {
             var display = $('#timer-display');
 
@@ -175,65 +843,78 @@ define(['jquery', 'core/ajax', 'core/notification'], function($, Ajax, Notificat
             }
         },
 
-        submitAnswer: function(sessionid) {
-            var selectedAnswer = $('input[name="answer"]:checked').val();
+        /**
+         * Start legacy polling (fallback when connection manager fails)
+         *
+         * @param {number} interval Polling interval
+         */
+        startLegacyPolling: function(interval) {
+            var self = this;
 
-            if (!selectedAnswer) {
-                Notification.alert(
-                    M.util.get_string('error'),
-                    M.util.get_string('selectanswer', 'mod_classengage')
-                );
-                return;
-            }
+            this.pollingTimer = setInterval(function() {
+                self.getCurrentQuestion();
+            }, interval || 2000);
 
-            if (!currentQuestion) {
-                return;
-            }
-
-            $.ajax({
-                url: M.cfg.wwwroot + '/mod/classengage/ajax.php',
-                method: 'POST',
-                data: {
-                    action: 'submitanswer',
-                    sessionid: sessionid,
-                    questionid: currentQuestion.id,
-                    answer: selectedAnswer,
-                    sesskey: M.cfg.sesskey
-                },
-                dataType: 'json',
-                success: function(response) {
-                    if (response.success) {
-                        var message = response.iscorrect ?
-                            M.util.get_string('correct', 'mod_classengage') :
-                            M.util.get_string('incorrect', 'mod_classengage');
-
-                        $('#question-container').html(
-                            '<div class="alert alert-' + (response.iscorrect ? 'success' : 'warning') + '">' +
-                            '<h4>' + message + '</h4>' +
-                            '<p>' + M.util.get_string('correctanswer', 'mod_classengage') + ': ' + response.correctanswer + '</p>' +
-                            '<p>' + M.util.get_string('waitingnextquestion', 'mod_classengage') + '</p>' +
-                            '</div>'
-                        );
-                    } else {
-                        Notification.exception({message: response.error || 'Error submitting answer'});
-                    }
-                },
-                error: function() {
-                    Notification.exception({message: 'Error submitting answer'});
-                }
-            });
+            this.getCurrentQuestion();
         },
 
+        /**
+         * Get current question via legacy AJAX
+         */
+        getCurrentQuestion: function() {
+            var self = this;
+
+            Ajax.call([{
+                methodname: 'mod_classengage_get_current_question',
+                args: {sessionid: this.sessionId},
+                done: function(response) {
+                    self.updateQuestionDisplay(response);
+                },
+                fail: function() {
+                    // Fallback to direct AJAX call
+                    $.ajax({
+                        url: M.cfg.wwwroot + '/mod/classengage/ajax.php',
+                        method: 'POST',
+                        data: {
+                            action: 'getcurrent',
+                            sessionid: self.sessionId,
+                            sesskey: M.cfg.sesskey
+                        },
+                        dataType: 'json',
+                        success: function(response) {
+                            self.updateQuestionDisplay(response);
+                        }
+                    });
+                }
+            }]);
+        },
+
+        /**
+         * Stop polling
+         */
         stopPolling: function() {
-            if (pollingTimer) {
-                clearInterval(pollingTimer);
-                pollingTimer = null;
+            if (this.pollingTimer) {
+                clearInterval(this.pollingTimer);
+                this.pollingTimer = null;
             }
-            if (countdownTimer) {
-                clearInterval(countdownTimer);
-                countdownTimer = null;
+            if (this.countdownTimer) {
+                clearInterval(this.countdownTimer);
+                this.countdownTimer = null;
             }
         }
     };
-});
 
+    return {
+        /**
+         * Initialize the quiz module
+         *
+         * @param {number} cmid Course module ID
+         * @param {number} sessionid Session ID
+         * @param {number} pollinginterval Polling interval
+         * @return {Promise} Resolves when initialized
+         */
+        init: function(cmid, sessionid, pollinginterval) {
+            return Quiz.init(cmid, sessionid, pollinginterval);
+        }
+    };
+});

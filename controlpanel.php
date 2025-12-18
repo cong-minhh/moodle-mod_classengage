@@ -152,22 +152,43 @@ echo $renderer->render_status_cards($session, $participantcount);
 // Shows current question, live response statistics, and control buttons
 // ============================================================================
 
-if ($session->status === constants::SESSION_STATUS_ACTIVE) {
+if ($session->status === constants::SESSION_STATUS_ACTIVE || $session->status === constants::SESSION_STATUS_PAUSED) {
     try {
         $currentq = $sessionmanager->get_current_question($sessionid);
-        
+
         if ($currentq) {
+            // Two-column layout for main content and sidebar.
+            echo html_writer::start_div('row');
+
+            // Main content column (left).
+            echo html_writer::start_div('col-lg-8');
+
             // Display current question text.
             echo $renderer->render_question_display($currentq);
-            
+
             // Display response distribution (table and chart).
             echo $renderer->render_response_distribution($currentq);
-            
+
             // Display overall response rate progress bar.
             echo $renderer->render_response_rate_progress();
-            
-            // Display control buttons.
+
+            // Display control buttons (including pause/resume).
             echo $renderer->render_control_buttons($session, $cm->id, $sessionid);
+
+            echo html_writer::end_div(); // col-lg-8.
+
+            // Sidebar column (right) - Student status and statistics.
+            echo html_writer::start_div('col-lg-4');
+
+            // Session statistics panel (Requirement 5.5).
+            echo $renderer->render_session_statistics_panel();
+
+            // Connected students panel (Requirement 5.1).
+            echo $renderer->render_connected_students_panel();
+
+            echo html_writer::end_div(); // col-lg-4.
+
+            echo html_writer::end_div(); // row.
         } else {
             echo $OUTPUT->notification(
                 get_string('error:noquestionfound', 'mod_classengage'),

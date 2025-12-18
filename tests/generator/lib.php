@@ -116,5 +116,112 @@ class mod_classengage_generator extends testing_module_generator {
 
         return $record;
     }
+
+    /**
+     * Create a connection record for a user in a session
+     *
+     * @param int $sessionid
+     * @param int $userid
+     * @param array $record
+     * @return stdClass
+     */
+    public function create_connection($sessionid, $userid, $record = array()) {
+        global $DB;
+
+        $defaults = array(
+            'sessionid' => $sessionid,
+            'userid' => $userid,
+            'connectionid' => uniqid('test_' . $userid . '_', true),
+            'transport' => 'polling',
+            'status' => 'connected',
+            'last_heartbeat' => time(),
+            'current_question_answered' => 0,
+            'timecreated' => time(),
+            'timemodified' => time(),
+        );
+
+        $record = (object)array_merge($defaults, $record);
+        $record->id = $DB->insert_record('classengage_connections', $record);
+
+        return $record;
+    }
+
+    /**
+     * Create a response record for a user
+     *
+     * @param int $sessionid
+     * @param int $questionid
+     * @param int $classengageid
+     * @param int $userid
+     * @param array $record
+     * @return stdClass
+     */
+    public function create_response($sessionid, $questionid, $classengageid, $userid, $record = array()) {
+        global $DB;
+
+        // Get the question to check correct answer.
+        $question = $DB->get_record('classengage_questions', ['id' => $questionid]);
+        $answer = $record['answer'] ?? 'A';
+        $iscorrect = ($question && strtoupper($answer) === strtoupper($question->correctanswer)) ? 1 : 0;
+
+        $defaults = array(
+            'sessionid' => $sessionid,
+            'questionid' => $questionid,
+            'classengageid' => $classengageid,
+            'userid' => $userid,
+            'answer' => $answer,
+            'iscorrect' => $iscorrect,
+            'score' => $iscorrect ? 1 : 0,
+            'responsetime' => 5,
+            'timecreated' => time(),
+        );
+
+        $record = (object)array_merge($defaults, $record);
+        $record->id = $DB->insert_record('classengage_responses', $record);
+
+        return $record;
+    }
+
+    /**
+     * Link questions to a session
+     *
+     * @param int $sessionid
+     * @param array $questionids Array of question IDs
+     * @return void
+     */
+    public function link_questions_to_session($sessionid, $questionids) {
+        global $DB;
+
+        $order = 1;
+        foreach ($questionids as $questionid) {
+            $sq = new stdClass();
+            $sq->sessionid = $sessionid;
+            $sq->questionid = $questionid;
+            $sq->questionorder = $order++;
+            $sq->timecreated = time();
+            $DB->insert_record('classengage_session_questions', $sq);
+        }
+    }
+
+    /**
+     * Start a session (set to active status)
+     *
+     * @param int $sessionid
+     * @return stdClass Updated session record
+     */
+    public function start_session($sessionid) {
+        global $DB;
+
+        $session = $DB->get_record('classengage_sessions', ['id' => $sessionid], '*', MUST_EXIST);
+        $session->status = 'active';
+        $session->currentquestion = 0;
+        $session->questionstarttime = time();
+        $session->timestarted = time();
+        $session->timemodified = time();
+
+        $DB->update_record('classengage_sessions', $session);
+
+        return $session;
+    }
 }
 

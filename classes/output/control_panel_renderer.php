@@ -47,10 +47,7 @@ class control_panel_renderer {
         
         // Question progress card.
         $output .= $this->render_status_card(
-            get_string('currentquestion', 'mod_classengage', [
-                'current' => $session->currentquestion + 1,
-                'total' => $session->numquestions
-            ]),
+            get_string('currentquestiontext', 'mod_classengage'), // "Current Question"
             html_writer::tag('span', ($session->currentquestion + 1) . ' / ' . $session->numquestions, ['id' => 'question-progress']),
             'primary'
         );
@@ -288,7 +285,9 @@ class control_panel_renderer {
     }
     
     /**
-     * Render control buttons
+     * Render control buttons including pause/resume
+     *
+     * Requirements: 1.4, 1.5
      *
      * @param \stdClass $session Session object
      * @param int $cmid Course module ID
@@ -298,24 +297,180 @@ class control_panel_renderer {
     public function render_control_buttons($session, $cmid, $sessionid) {
         $output = html_writer::start_div('card');
         $output .= html_writer::start_div('card-body text-center');
-        
+
         $baseparams = ['id' => $cmid, 'sessionid' => $sessionid, 'sesskey' => sesskey()];
-        
+
+        // Pause/Resume buttons (Requirement 1.4, 1.5).
+        $ispaused = ($session->status === constants::SESSION_STATUS_PAUSED);
+
+        // Pause button - shown when session is active.
+        $pausestyle = $ispaused ? 'display: none;' : '';
+        $output .= html_writer::tag('button',
+            html_writer::tag('i', '', ['class' => 'fa fa-pause mr-2']) .
+            get_string('pause', 'mod_classengage'),
+            [
+                'id' => 'btn-pause-session',
+                'class' => 'btn btn-warning btn-lg mr-2',
+                'style' => $pausestyle,
+                'type' => 'button',
+            ]
+        );
+
+        // Resume button - shown when session is paused.
+        $resumestyle = $ispaused ? '' : 'display: none;';
+        $output .= html_writer::tag('button',
+            html_writer::tag('i', '', ['class' => 'fa fa-play mr-2']) .
+            get_string('resume', 'mod_classengage'),
+            [
+                'id' => 'btn-resume-session',
+                'class' => 'btn btn-success btn-lg mr-2',
+                'style' => $resumestyle,
+                'type' => 'button',
+            ]
+        );
+
         if ($session->currentquestion < $session->numquestions) {
-            $nexturl = new moodle_url('/mod/classengage/controlpanel.php', 
+            $nexturl = new moodle_url('/mod/classengage/controlpanel.php',
                 array_merge($baseparams, ['action' => constants::ACTION_NEXT]));
-            $output .= html_writer::link($nexturl, get_string('nextquestion', 'mod_classengage'), 
+            $output .= html_writer::link($nexturl, get_string('nextquestion', 'mod_classengage'),
                 ['class' => 'btn btn-primary btn-lg mr-2']);
         }
-        
+
         $stopurl = new moodle_url('/mod/classengage/controlpanel.php',
             array_merge($baseparams, ['action' => constants::ACTION_STOP]));
         $output .= html_writer::link($stopurl, get_string('stopsession', 'mod_classengage'),
             ['class' => 'btn btn-danger btn-lg']);
-        
+
         $output .= html_writer::end_div();
         $output .= html_writer::end_div();
-        
+
+        return $output;
+    }
+
+    /**
+     * Render connected students panel
+     *
+     * Requirement: 5.1 - Display list of connected students with status
+     *
+     * @return string HTML output
+     */
+    public function render_connected_students_panel() {
+        $output = html_writer::start_div('card mb-4 shadow-sm');
+
+        // Card header with connection status indicator.
+        $output .= html_writer::start_div('card-header bg-white d-flex justify-content-between align-items-center');
+        $output .= html_writer::tag('h5',
+            html_writer::tag('i', '', ['class' => 'fa fa-users mr-2']) .
+            get_string('connectedstudents', 'mod_classengage'),
+            ['class' => 'mb-0']
+        );
+        $output .= html_writer::tag('span',
+            html_writer::tag('i', '', [
+                'id' => 'connection-status-indicator',
+                'class' => 'fa fa-circle text-success',
+                'title' => 'Connected',
+            ]),
+            ['class' => 'connection-indicator']
+        );
+        $output .= html_writer::end_div();
+
+        // Card body with student list container.
+        $output .= html_writer::start_div('card-body p-0');
+        $output .= html_writer::div(
+            html_writer::div(
+                get_string('loadingstudents', 'mod_classengage'),
+                'text-muted p-3 text-center'
+            ),
+            '',
+            ['id' => 'connected-students-list', 'style' => 'max-height: 300px; overflow-y: auto;']
+        );
+        $output .= html_writer::end_div();
+
+        $output .= html_writer::end_div();
+
+        return $output;
+    }
+
+    /**
+     * Render session statistics panel
+     *
+     * Requirement: 5.5 - Display aggregate statistics (connected, answered, pending)
+     *
+     * @return string HTML output
+     */
+    public function render_session_statistics_panel() {
+        $output = html_writer::start_div('card mb-4 shadow-sm');
+
+        // Card header.
+        $output .= html_writer::start_div('card-header bg-white');
+        $output .= html_writer::tag('h5',
+            html_writer::tag('i', '', ['class' => 'fa fa-chart-bar mr-2']) .
+            get_string('sessionstatistics', 'mod_classengage'),
+            ['class' => 'mb-0']
+        );
+        $output .= html_writer::end_div();
+
+        // Card body with statistics.
+        $output .= html_writer::start_div('card-body');
+
+        // Statistics row.
+        $output .= html_writer::start_div('row text-center');
+
+        // Connected count.
+        $output .= html_writer::start_div('col-4');
+        $output .= html_writer::tag('div',
+            html_writer::tag('span', '0', ['id' => 'stat-connected', 'class' => 'h3 text-primary']),
+            ['class' => 'stat-value']
+        );
+        $output .= html_writer::tag('div',
+            get_string('connected', 'mod_classengage'),
+            ['class' => 'stat-label text-muted small']
+        );
+        $output .= html_writer::end_div();
+
+        // Answered count.
+        $output .= html_writer::start_div('col-4');
+        $output .= html_writer::tag('div',
+            html_writer::tag('span', '0', ['id' => 'stat-answered', 'class' => 'h3 text-success']),
+            ['class' => 'stat-value']
+        );
+        $output .= html_writer::tag('div',
+            get_string('answered', 'mod_classengage'),
+            ['class' => 'stat-label text-muted small']
+        );
+        $output .= html_writer::end_div();
+
+        // Pending count.
+        $output .= html_writer::start_div('col-4');
+        $output .= html_writer::tag('div',
+            html_writer::tag('span', '0', ['id' => 'stat-pending', 'class' => 'h3 text-warning']),
+            ['class' => 'stat-value']
+        );
+        $output .= html_writer::tag('div',
+            get_string('pending', 'mod_classengage'),
+            ['class' => 'stat-label text-muted small']
+        );
+        $output .= html_writer::end_div();
+
+        $output .= html_writer::end_div(); // row.
+
+        // Progress bar for answered/connected ratio.
+        $output .= html_writer::start_div('mt-3');
+        $output .= html_writer::start_div('progress', ['style' => 'height: 0.5rem;']);
+        $output .= html_writer::div('', 'progress-bar bg-success', [
+            'id' => 'answered-progress',
+            'role' => 'progressbar',
+            'style' => 'width: 0%',
+            'aria-valuenow' => '0',
+            'aria-valuemin' => '0',
+            'aria-valuemax' => '100',
+        ]);
+        $output .= html_writer::end_div();
+        $output .= html_writer::end_div();
+
+        $output .= html_writer::end_div(); // card-body.
+        $output .= html_writer::end_div(); // card.
+
         return $output;
     }
 }

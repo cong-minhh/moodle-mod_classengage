@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="mod/classengage/db" VERSION="20251028" COMMENT="XMLDB file for Moodle mod/classengage"
+<XMLDB PATH="mod/classengage/db" VERSION="20251205" COMMENT="XMLDB file for Moodle mod/classengage"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
 >
@@ -80,9 +80,12 @@
         <FIELD NAME="timelimit" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="30" SEQUENCE="false" COMMENT="Time limit per question in seconds"/>
         <FIELD NAME="shufflequestions" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="1" SEQUENCE="false" COMMENT="Shuffle question order"/>
         <FIELD NAME="shuffleanswers" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="1" SEQUENCE="false" COMMENT="Shuffle answer options"/>
-        <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="ready" SEQUENCE="false" COMMENT="Status: ready, active, completed"/>
+        <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="ready" SEQUENCE="false" COMMENT="Status: ready, active, paused, completed"/>
         <FIELD NAME="currentquestion" TYPE="int" LENGTH="5" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Current question number (0-based)"/>
         <FIELD NAME="questionstarttime" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="When current question was started"/>
+        <FIELD NAME="paused_at" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Timestamp when session was paused"/>
+        <FIELD NAME="pause_duration" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Total accumulated pause duration in seconds"/>
+        <FIELD NAME="timer_remaining" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Remaining timer value when paused"/>
         <FIELD NAME="createdby" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="User who created session"/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timestarted" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="When session was started"/>
@@ -156,6 +159,74 @@
       <INDEXES>
         <INDEX NAME="clickerid" UNIQUE="true" FIELDS="clickerid" COMMENT="Each clicker can only be registered to one user"/>
         <INDEX NAME="userid_clickerid" UNIQUE="true" FIELDS="userid, clickerid"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="classengage_connections" COMMENT="Tracks active client connections for real-time status updates">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="sessionid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Foreign key to classengage_sessions"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Foreign key to user table"/>
+        <FIELD NAME="connectionid" TYPE="char" LENGTH="64" NOTNULL="true" SEQUENCE="false" COMMENT="Unique connection identifier"/>
+        <FIELD NAME="transport" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="polling" SEQUENCE="false" COMMENT="Transport type: websocket, polling, sse"/>
+        <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="connected" SEQUENCE="false" COMMENT="Status: connected, disconnected, answering"/>
+        <FIELD NAME="last_heartbeat" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Timestamp of last heartbeat"/>
+        <FIELD NAME="current_question_answered" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Whether user answered current question"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="sessionid" TYPE="foreign" FIELDS="sessionid" REFTABLE="classengage_sessions" REFFIELDS="id"/>
+        <KEY NAME="userid" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="connectionid" UNIQUE="true" FIELDS="connectionid"/>
+        <INDEX NAME="sessionid_status" UNIQUE="false" FIELDS="sessionid, status"/>
+        <INDEX NAME="sessionid_userid" UNIQUE="false" FIELDS="sessionid, userid"/>
+        <INDEX NAME="last_heartbeat" UNIQUE="false" FIELDS="last_heartbeat"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="classengage_response_queue" COMMENT="Temporary queue for batch processing responses under high load">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="sessionid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Foreign key to classengage_sessions"/>
+        <FIELD NAME="questionid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Foreign key to classengage_questions"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Foreign key to user table"/>
+        <FIELD NAME="answer" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" COMMENT="The answer submitted"/>
+        <FIELD NAME="client_timestamp" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Client-side timestamp for latency calculation"/>
+        <FIELD NAME="server_timestamp" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Server-side timestamp when received"/>
+        <FIELD NAME="processed" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Whether response has been processed"/>
+        <FIELD NAME="is_late" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Whether response was submitted after timer expired"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="sessionid" TYPE="foreign" FIELDS="sessionid" REFTABLE="classengage_sessions" REFFIELDS="id"/>
+        <KEY NAME="questionid" TYPE="foreign" FIELDS="questionid" REFTABLE="classengage_questions" REFFIELDS="id"/>
+        <KEY NAME="userid" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="processed_timestamp" UNIQUE="false" FIELDS="processed, server_timestamp"/>
+        <INDEX NAME="session_question_user" UNIQUE="false" FIELDS="sessionid, questionid, userid"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="classengage_session_log" COMMENT="Comprehensive logging for diagnostics and analytics">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="sessionid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Foreign key to classengage_sessions"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Foreign key to user table (null for system events)"/>
+        <FIELD NAME="event_type" TYPE="char" LENGTH="50" NOTNULL="true" SEQUENCE="false" COMMENT="Type of event: session_start, session_end, response, error, warning"/>
+        <FIELD NAME="event_data" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="JSON-encoded event details"/>
+        <FIELD NAME="latency_ms" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Latency in milliseconds for response events"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="sessionid" TYPE="foreign" FIELDS="sessionid" REFTABLE="classengage_sessions" REFFIELDS="id"/>
+        <KEY NAME="userid" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="sessionid_eventtype" UNIQUE="false" FIELDS="sessionid, event_type"/>
+        <INDEX NAME="timecreated" UNIQUE="false" FIELDS="timecreated"/>
       </INDEXES>
     </TABLE>
   </TABLES>

@@ -33,4 +33,29 @@ $definitions = array(
         'staticacceleration' => true,
         'staticaccelerationsize' => 10,
     ),
+    // Real-time quiz engine caches (Requirements 3.1, 3.5).
+    'session_state' => array(
+        'mode' => cache_store::MODE_APPLICATION,
+        'simplekeys' => true,
+        'simpledata' => false,
+        'ttl' => 60, // Cache session state for 60 seconds
+        'staticacceleration' => true,
+        'staticaccelerationsize' => 50,
+    ),
+    'connection_status' => array(
+        'mode' => cache_store::MODE_APPLICATION,
+        'simplekeys' => true,
+        'simpledata' => true,
+        'ttl' => 10, // Short TTL for connection status (10 seconds)
+        'staticacceleration' => true,
+        'staticaccelerationsize' => 200, // Support 200+ concurrent users
+    ),
+    'question_broadcast' => array(
+        'mode' => cache_store::MODE_APPLICATION,
+        'simplekeys' => true,
+        'simpledata' => false,
+        'ttl' => 300, // Cache question broadcasts for 5 minutes
+        'staticacceleration' => true,
+        'staticaccelerationsize' => 20,
+    ),
 );

@@ -16,14 +16,18 @@
 /**
  * JavaScript for real-time instructor control panel
  *
+ * Provides real-time student status monitoring, session control (pause/resume),
+ * and aggregate statistics display via SSE with polling fallback.
+ *
+ * Requirements: 1.3, 1.4, 1.5, 5.1, 5.4, 5.5
+ *
  * @module     mod_classengage/controlpanel
- * @package
  * @copyright  2025 Danielle
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-define(['jquery', 'core/notification'],
-    function ($, Notification) {
+define(['jquery', 'core/notification', 'mod_classengage/connection_manager'],
+    function ($, Notification, ConnectionManager) {
 
         var pollingTimer = null;
         var pollingInterval = 1000; // 1 second
@@ -31,14 +35,26 @@ define(['jquery', 'core/notification'],
         var chart = null;
         var consecutiveFailures = 0;
         var warningDisplayed = false;
+        var lastQuestionNumber = -1; // Track last known question to prevent stale updates
 
         // Constants
         var MAX_CONSECUTIVE_FAILURES = 5;
+
         var ANSWER_OPTIONS = ['A', 'B', 'C', 'D'];
+        var STUDENT_STATUS_UPDATE_INTERVAL = 2000; // 2 seconds (Requirement 1.3)
+
+        // Session state
+        var isPaused = false;
+
+        // SSE connection state
+        var studentStatusTimer = null;
+
+        // Connected students cache
+        var connectedStudents = {};
 
         return {
             /**
-             * Initialize the control panel with real-time polling
+             * Initialize the control panel with real-time polling and SSE
              *
              * @param {number} sid Session ID
              * @param {number} interval Polling interval in milliseconds
@@ -50,14 +66,81 @@ define(['jquery', 'core/notification'],
                 sessionId = sid;
                 pollingInterval = interval || 1000;
 
-                // Start polling for updates
+                // Initialize connection manager for SSE
+                this.initSSEConnection();
+
+                // Start polling for updates (fallback and stats)
                 this.startPolling();
+
+                // Start student status polling
+                this.startStudentStatusPolling();
 
                 // Initialize chart
                 this.initChart();
 
+                // Setup pause/resume controls
+                this.setupSessionControls();
+
                 // Add cleanup on page unload
                 this.setupUnloadHandler();
+            },
+
+            /**
+             * Initialize SSE connection for real-time updates
+             *
+             * @private
+             */
+            initSSEConnection: function () {
+                var self = this;
+
+                // Register event handlers before connecting
+                ConnectionManager.on('session_paused', function (data) {
+                    self.handleSessionPaused(data);
+                });
+
+                ConnectionManager.on('session_resumed', function (data) {
+                    self.handleSessionResumed(data);
+                });
+
+                ConnectionManager.on('question_broadcast', function (data) {
+                    self.handleQuestionBroadcast(data);
+                });
+
+                ConnectionManager.on('state_update', function (data) {
+                    self.handleStateUpdate(data);
+                });
+
+                ConnectionManager.on('statuschange', function (data) {
+                    self.handleConnectionStatusChange(data);
+                });
+
+                // Try to connect via SSE
+                ConnectionManager.init(sessionId, {
+                    pollInterval: pollingInterval
+                }).then(function () {
+                    // eslint-disable-next-line no-console
+                    console.log('SSE connection established for control panel');
+                    return null;
+                }).catch(function () {
+                    // eslint-disable-next-line no-console
+                    console.log('SSE not available, using polling fallback');
+                    // Ensure polling is active if SSE fails
+                    if (!pollingTimer) {
+                        self.startPolling();
+                    }
+                });
+            },
+
+            /**
+             * Stop polling for session statistics
+             *
+             * @private
+             */
+            stopPolling: function () {
+                if (pollingTimer) {
+                    clearInterval(pollingTimer);
+                    pollingTimer = null;
+                }
             },
 
             /**
@@ -69,7 +152,430 @@ define(['jquery', 'core/notification'],
                 var self = this;
                 $(window).on('beforeunload', function () {
                     self.stopPolling();
+                    self.stopStudentStatusPolling();
+                    ConnectionManager.disconnect();
                 });
+            },
+
+            /**
+             * Setup pause/resume session controls
+             *
+             * Requirements: 1.4, 1.5
+             * @private
+             */
+            setupSessionControls: function () {
+                var self = this;
+
+                // Pause button handler
+                $(document).on('click', '#btn-pause-session', function (e) {
+                    e.preventDefault();
+                    self.pauseSession();
+                });
+
+                // Resume button handler
+                $(document).on('click', '#btn-resume-session', function (e) {
+                    e.preventDefault();
+                    self.resumeSession();
+                });
+            },
+
+
+            /**
+             * Pause the current session
+             *
+             * Requirement: 1.4 - Freeze timer and prevent new submissions
+             * @private
+             */
+            pauseSession: function () {
+                var self = this;
+
+                $.ajax({
+                    url: M.cfg.wwwroot + '/mod/classengage/ajax.php',
+                    method: 'POST',
+                    data: {
+                        action: 'pause',
+                        sessionid: sessionId,
+                        sesskey: M.cfg.sesskey
+                    },
+                    dataType: 'json',
+                    success: function (response) {
+                        if (response.success) {
+                            self.handleSessionPaused(response);
+                            Notification.addNotification({
+                                message: M.util.get_string('sessionpaused', 'mod_classengage'),
+                                type: 'info'
+                            });
+                        } else {
+                            Notification.addNotification({
+                                message: response.error || 'Failed to pause session',
+                                type: 'error'
+                            });
+                        }
+                    },
+                    error: function () {
+                        Notification.addNotification({
+                            message: 'Network error while pausing session',
+                            type: 'error'
+                        });
+                    }
+                });
+            },
+
+            /**
+             * Resume the paused session
+             *
+             * Requirement: 1.5 - Restore timer and re-enable submissions
+             * @private
+             */
+            resumeSession: function () {
+                var self = this;
+
+                $.ajax({
+                    url: M.cfg.wwwroot + '/mod/classengage/ajax.php',
+                    method: 'POST',
+                    data: {
+                        action: 'resume',
+                        sessionid: sessionId,
+                        sesskey: M.cfg.sesskey
+                    },
+                    dataType: 'json',
+                    success: function (response) {
+                        if (response.success) {
+                            self.handleSessionResumed(response);
+                            Notification.addNotification({
+                                message: M.util.get_string('sessionresumed', 'mod_classengage'),
+                                type: 'info'
+                            });
+                        } else {
+                            Notification.addNotification({
+                                message: response.error || 'Failed to resume session',
+                                type: 'error'
+                            });
+                        }
+                    },
+                    error: function () {
+                        Notification.addNotification({
+                            message: 'Network error while resuming session',
+                            type: 'error'
+                        });
+                    }
+                });
+            },
+
+            /**
+             * Handle session paused event
+             *
+             * @param {Object} data Pause event data
+             * @private
+             */
+            handleSessionPaused: function (data) {
+                isPaused = true;
+
+                // Update UI
+                $('#btn-pause-session').hide();
+                $('#btn-resume-session').show();
+                $('#session-status').text('Paused').addClass('text-warning');
+                $('#session-status-badge').removeClass('badge-success').addClass('badge-warning').text('Paused');
+
+                // Update timer display
+                if (data.timerremaining !== undefined) {
+                    $('#time-display').text(this.formatTime(data.timerremaining));
+                }
+            },
+
+            /**
+             * Handle session resumed event
+             *
+             * @private
+             */
+            handleSessionResumed: function () {
+                isPaused = false;
+
+                // Update UI
+                $('#btn-resume-session').hide();
+                $('#btn-pause-session').show();
+                $('#session-status').text('Active').removeClass('text-warning');
+                $('#session-status-badge').removeClass('badge-warning').addClass('badge-success').text('Active');
+            },
+
+            /**
+             * Handle question broadcast event
+             *
+             * @param {Object} data Question broadcast data
+             * @private
+             */
+            handleQuestionBroadcast: function (data) {
+                // Reset student answered status for new question
+                this.resetStudentAnsweredStatus();
+
+                // Update question progress
+                if (data.questionnumber !== undefined) {
+                    var newQuestion = parseInt(data.questionnumber);
+                    lastQuestionNumber = newQuestion; // Update version tracker to prevent stale overwrites
+
+                    var total = $('#question-progress').data('total') || data.questionnumber + 1;
+                    $('#question-progress').text((newQuestion + 1) + ' / ' + total);
+                }
+
+                // Refresh stats
+                this.updateStats();
+            },
+
+            /**
+             * Handle state update from polling
+             *
+             * @param {Object} data State update data
+             * @private
+             */
+            handleStateUpdate: function (data) {
+                if (data.status) {
+                    isPaused = (data.status === 'paused');
+
+                    if (isPaused) {
+                        $('#btn-pause-session').hide();
+                        $('#btn-resume-session').show();
+                    } else {
+                        $('#btn-resume-session').hide();
+                        $('#btn-pause-session').show();
+                    }
+                }
+            },
+
+            /**
+             * Handle connection status change
+             *
+             * @param {Object} data Status change data
+             * @private
+             */
+            handleConnectionStatusChange: function (data) {
+                var statusIndicator = $('#connection-status-indicator');
+                if (data.status === 'connected') {
+                    statusIndicator.removeClass('text-danger text-warning').addClass('text-success');
+                    statusIndicator.attr('title', 'Connected via ' + (data.transport || 'polling'));
+                } else if (data.status === 'reconnecting') {
+                    statusIndicator.removeClass('text-success text-danger').addClass('text-warning');
+                    statusIndicator.attr('title', 'Reconnecting...');
+                } else {
+                    statusIndicator.removeClass('text-success text-warning').addClass('text-danger');
+                    statusIndicator.attr('title', 'Disconnected');
+                }
+            },
+
+            /**
+             * Start polling for student status updates
+             *
+             * Requirement: 1.3 - Display connected students count updated every 2 seconds
+             * @private
+             */
+            startStudentStatusPolling: function () {
+                var self = this;
+
+                // Poll for student status
+                studentStatusTimer = setInterval(function () {
+                    self.updateStudentStatus();
+                }, STUDENT_STATUS_UPDATE_INTERVAL);
+
+                // Get initial status
+                this.updateStudentStatus();
+            },
+
+            /**
+             * Stop student status polling
+             *
+             * @private
+             */
+            stopStudentStatusPolling: function () {
+                if (studentStatusTimer) {
+                    clearInterval(studentStatusTimer);
+                    studentStatusTimer = null;
+                }
+            },
+
+            /**
+             * Fetch and update student connection status
+             *
+             * Requirements: 5.1, 5.4, 5.5
+             * @private
+             */
+            updateStudentStatus: function () {
+                var self = this;
+
+                $.ajax({
+                    url: M.cfg.wwwroot + '/mod/classengage/ajax.php',
+                    method: 'POST',
+                    data: {
+                        action: 'getstudents',
+                        sessionid: sessionId,
+                        sesskey: M.cfg.sesskey
+                    },
+                    dataType: 'json',
+                    success: function (response) {
+                        if (response.success) {
+                            self.updateStudentList(response.students || []);
+                            self.updateAggregateStats(response.stats || {});
+                        }
+                    },
+                    error: function () {
+                        // Silent fail - stats polling will continue
+                    }
+                });
+            },
+
+            /**
+             * Update the connected students list display
+             *
+             * Requirement: 5.1 - Display list of connected students with status
+             * @param {Array} students Array of student objects
+             * @private
+             */
+            updateStudentList: function (students) {
+                var self = this;
+                var container = $('#connected-students-list');
+                if (!container.length) {
+                    return;
+                }
+
+                // Update cache
+                students.forEach(function (student) {
+                    connectedStudents[student.userid] = student;
+                });
+
+                // Build student list HTML
+                var html = '';
+                if (students.length === 0) {
+                    html = '<div class="text-muted p-2">No students connected</div>';
+                } else {
+                    html = '<ul class="list-group list-group-flush student-status-list">';
+                    students.forEach(function (student) {
+                        var statusClass = self.getStatusClass(student.status);
+                        var statusIcon = self.getStatusIcon(student.status, student.hasanswered);
+                        var answeredBadge = student.hasanswered ?
+                            '<span class="badge badge-success ml-2">Answered</span>' : '';
+
+                        html += '<li class="list-group-item d-flex ' +
+                            'justify-content-between align-items-center py-2">';
+                        html += '<span class="student-name">' +
+                            self.escapeHtml(student.fullname || 'User ' + student.userid) + '</span>';
+                        html += '<span class="student-status">';
+                        html += '<i class="fa ' + statusIcon + ' ' + statusClass +
+                            '" title="' + student.status + '"></i>';
+                        html += answeredBadge;
+                        html += '</span>';
+                        html += '</li>';
+                    });
+                    html += '</ul>';
+                }
+
+                container.html(html);
+            },
+
+            /**
+             * Get CSS class for student status
+             *
+             * @param {string} status Student connection status
+             * @return {string} CSS class
+             * @private
+             */
+            getStatusClass: function (status) {
+                switch (status) {
+                    case 'connected':
+                        return 'text-success';
+                    case 'disconnected':
+                        return 'text-danger';
+                    case 'answering':
+                        return 'text-info';
+                    default:
+                        return 'text-muted';
+                }
+            },
+
+            /**
+             * Get Font Awesome icon for student status
+             *
+             * @param {string} status Student connection status
+             * @param {boolean} hasAnswered Whether student has answered
+             * @return {string} FA icon class
+             * @private
+             */
+            getStatusIcon: function (status, hasAnswered) {
+                if (hasAnswered) {
+                    return 'fa-check-circle';
+                }
+                switch (status) {
+                    case 'connected':
+                        return 'fa-circle';
+                    case 'disconnected':
+                        return 'fa-times-circle';
+                    case 'answering':
+                        return 'fa-spinner fa-spin';
+                    default:
+                        return 'fa-question-circle';
+                }
+            },
+
+            /**
+             * Update aggregate statistics display
+             *
+             * Requirement: 5.5 - Display aggregate statistics
+             * @param {Object} stats Statistics object
+             * @private
+             */
+            updateAggregateStats: function (stats) {
+                // Update connected count
+                if (stats.connected !== undefined) {
+                    $('#stat-connected').text(stats.connected);
+                    $('#connected-count').text(stats.connected);
+                }
+
+                // Update answered count
+                if (stats.answered !== undefined) {
+                    $('#stat-answered').text(stats.answered);
+                }
+
+                // Update pending count
+                if (stats.pending !== undefined) {
+                    $('#stat-pending').text(stats.pending);
+                }
+
+                // Update progress bar if available
+                if (stats.connected > 0 && stats.answered !== undefined) {
+                    var percentage = Math.round((stats.answered / stats.connected) * 100);
+                    $('#answered-progress').css('width', percentage + '%');
+                    $('#answered-progress').attr('aria-valuenow', percentage);
+                }
+            },
+
+            /**
+             * Reset student answered status for new question
+             *
+             * @private
+             */
+            resetStudentAnsweredStatus: function () {
+                // Clear answered badges in UI
+                $('.student-status-list .badge-success').remove();
+
+                // Reset cache
+                Object.keys(connectedStudents).forEach(function (userid) {
+                    connectedStudents[userid].hasanswered = false;
+                });
+
+                // Reset aggregate stats
+                $('#stat-answered').text('0');
+                $('#stat-pending').text($('#stat-connected').text());
+                $('#answered-progress').css('width', '0%');
+            },
+
+            /**
+             * Escape HTML to prevent XSS
+             *
+             * @param {string} text Text to escape
+             * @return {string} Escaped text
+             * @private
+             */
+            escapeHtml: function (text) {
+                var div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
             },
 
             /**
@@ -146,18 +652,9 @@ define(['jquery', 'core/notification'],
              * Update the display with new session data
              *
              * @param {Object} data Session statistics data
-             * @param {number} data.participants Total participant count
-             * @param {number} data.responses Total response count
-             * @param {number} data.participationrate Participation rate percentage
-             * @param {Object} data.distribution Answer distribution
-             * @param {string} data.status Session status
              * @private
              */
             updateDisplay: function (data) {
-                // Debug logging
-                // eslint-disable-next-line no-console
-                console.log('Updating display with data:', data);
-
                 // Update participant count
                 if (data.participants !== undefined) {
                     $('#participant-count').text(data.participants);
@@ -165,47 +662,67 @@ define(['jquery', 'core/notification'],
 
                 // Update question progress
                 if (data.currentquestion !== undefined && data.totalquestions !== undefined) {
-                    $('#question-progress').text((parseInt(data.currentquestion) + 1) + ' / ' + data.totalquestions);
+                    var newQuestion = parseInt(data.currentquestion);
+
+                    // Prevent flickering: only update if question number is same or newer
+                    if (newQuestion >= lastQuestionNumber) {
+                        lastQuestionNumber = newQuestion;
+                        $('#question-progress').text((newQuestion + 1) + ' / ' + data.totalquestions);
+                        $('#question-progress').data('total', data.totalquestions);
+                    }
                 }
 
                 // Update response count and participation rate
                 if (data.responses !== undefined) {
                     $('#response-count').text(data.responses + ' / ' + data.participants);
 
-                    // Update participation rate from server (participants / enrolled students)
                     if (data.participationrate !== undefined) {
                         $('#response-rate').text(data.participationrate + '%');
-
-                        // Update progress bar
                         $('#response-progress').css('width', data.participationrate + '%');
                         $('#response-progress').attr('aria-valuenow', data.participationrate);
                     }
                 }
 
+                // Update connection statistics (Requirement 5.5)
+                if (data.connected !== undefined) {
+                    this.updateAggregateStats({
+                        connected: data.connected,
+                        answered: data.answered,
+                        pending: data.pending
+                    });
+                }
+
                 // Update answer distribution
                 if (data.distribution) {
-                    // eslint-disable-next-line no-console
-                    console.log('Updating distribution:', data.distribution);
                     this.updateDistribution(data.distribution);
 
-                    // Update chart if available
                     if (chart) {
-                        // eslint-disable-next-line no-console
-                        console.log('Updating chart');
                         this.updateChart(data.distribution);
-                    } else {
-                        // eslint-disable-next-line no-console
-                        console.log('Chart not initialized');
                     }
                 }
 
                 // Update session status
                 if (data.status) {
-                    $('#session-status').text(data.status.charAt(0).toUpperCase() + data.status.slice(1));
+                    isPaused = (data.status === 'paused');
+
+                    var statusText = data.status.charAt(0).toUpperCase() + data.status.slice(1);
+                    $('#session-status').text(statusText);
+
+                    // Update pause/resume buttons
+                    if (isPaused) {
+                        $('#btn-pause-session').hide();
+                        $('#btn-resume-session').show();
+                        $('#session-status-badge').removeClass('badge-success').addClass('badge-warning');
+                    } else if (data.status === 'active') {
+                        $('#btn-resume-session').hide();
+                        $('#btn-pause-session').show();
+                        $('#session-status-badge').removeClass('badge-warning').addClass('badge-success');
+                    }
 
                     // Stop polling if session is completed
                     if (data.status === 'completed') {
                         this.stopPolling();
+                        this.stopStudentStatusPolling();
                     }
                 }
 
@@ -222,7 +739,11 @@ define(['jquery', 'core/notification'],
             updateTimeDisplay: function (data) {
                 var timeText = '--:--';
 
-                if (data.timelimit > 0) {
+                if (isPaused && data.timerremaining !== undefined) {
+                    // Show frozen time when paused
+                    timeText = this.formatTime(data.timerremaining);
+                    $('#time-display').addClass('text-warning');
+                } else if (data.timelimit > 0) {
                     // Show remaining time
                     var remaining = data.timeremaining !== undefined ? data.timeremaining : 0;
                     timeText = this.formatTime(remaining);
@@ -232,7 +753,7 @@ define(['jquery', 'core/notification'],
                     if (remaining < 10) {
                         timeDisplay.addClass('text-danger').addClass('font-weight-bold');
                     } else {
-                        timeDisplay.removeClass('text-danger').removeClass('font-weight-bold');
+                        timeDisplay.removeClass('text-danger').removeClass('font-weight-bold').removeClass('text-warning');
                     }
                 } else {
                     // Show elapsed time
@@ -260,32 +781,21 @@ define(['jquery', 'core/notification'],
              * Update the answer distribution table
              *
              * @param {Object} distribution Distribution data with A, B, C, D counts
-             * @param {string} distribution.correctanswer The correct answer option
-             * @param {number} distribution.total Total response count
              * @private
              */
             updateDistribution: function (distribution) {
                 var total = distribution.total || 0;
                 var correctAnswer = distribution.correctanswer || '';
 
-                // eslint-disable-next-line no-console
-                console.log('Distribution update - total:', total, 'correctAnswer:', correctAnswer);
-
                 ANSWER_OPTIONS.forEach(function (option) {
                     var count = distribution[option] || 0;
                     var percentage = total > 0 ? Math.round((count / total) * 100) : 0;
                     var isCorrect = option === correctAnswer.toUpperCase();
 
-                    // eslint-disable-next-line no-console
-                    console.log('Option', option, '- count:', count, 'percentage:', percentage);
-
                     // Update count
                     var countElem = $('#count-' + option);
                     if (countElem.length) {
                         countElem.text(count);
-                    } else {
-                        // eslint-disable-next-line no-console
-                        console.warn('Element #count-' + option + ' not found');
                     }
 
                     // Update percentage
@@ -321,30 +831,17 @@ define(['jquery', 'core/notification'],
              * @private
              */
             initChart: function () {
-                // eslint-disable-next-line no-console
-                console.log('initChart called');
-
                 var ctx = document.getElementById('responseChart');
                 if (!ctx) {
-                    // Chart element not found - gracefully degrade to table-only view
-                    // eslint-disable-next-line no-console
-                    console.log('responseChart element not found');
                     return;
                 }
 
-                // eslint-disable-next-line no-console
-                console.log('responseChart element found, checking for Chart.js');
-
-                // Check if Chart.js loaded successfully (loaded via script tag in PHP)
+                // Check if Chart.js loaded successfully
                 if (typeof window.Chart === 'undefined') {
-                    // Chart.js failed to load - log error and continue with table view
                     // eslint-disable-next-line no-console
                     console.error('Chart.js failed to load. Displaying table view only.');
                     return;
                 }
-
-                // eslint-disable-next-line no-console
-                console.log('Chart.js found, creating chart');
 
                 chart = new window.Chart(ctx, {
                     type: 'bar',
@@ -396,7 +893,6 @@ define(['jquery', 'core/notification'],
              * Update chart with new distribution data
              *
              * @param {Object} distribution Distribution data with A, B, C, D counts
-             * @param {string} distribution.correctanswer The correct answer option
              * @private
              */
             updateChart: function (distribution) {
@@ -422,17 +918,8 @@ define(['jquery', 'core/notification'],
                 chart.data.datasets[0].data = data;
                 chart.data.datasets[0].backgroundColor = colors;
                 chart.data.datasets[0].borderColor = borderColors;
-                chart.update('none'); // Update without animation for smoother real-time updates
+                chart.update('none');
             },
 
-            /**
-             * Stop the polling timer
-             */
-            stopPolling: function () {
-                if (pollingTimer) {
-                    clearInterval(pollingTimer);
-                    pollingTimer = null;
-                }
-            }
         };
     });

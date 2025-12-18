@@ -198,7 +198,8 @@ class session_manager {
         
         $session = $DB->get_record('classengage_sessions', array('id' => $sessionid), '*', MUST_EXIST);
         
-        if ($session->status !== 'active') {
+        // Return question for both active and paused sessions.
+        if ($session->status !== 'active' && $session->status !== 'paused') {
             return null;
         }
         
