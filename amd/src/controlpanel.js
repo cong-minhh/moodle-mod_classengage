@@ -16,8 +16,9 @@
 /**
  * JavaScript for real-time instructor control panel
  *
- * Provides real-time student status monitoring, session control (pause/resume),
- * and aggregate statistics display via SSE with polling fallback.
+ * SSE-only mode: Provides real-time student status monitoring, session control,
+ * and aggregate statistics display exclusively via Server-Sent Events.
+ * api.php is used only for write operations (pause/resume).
  *
  * Requirements: 1.3, 1.4, 1.5, 5.1, 5.4, 5.5
  *
@@ -29,28 +30,32 @@
 define(['jquery', 'core/notification', 'mod_classengage/connection_manager'],
     function ($, Notification, ConnectionManager) {
 
-        var pollingTimer = null;
-        var pollingInterval = 1000; // 1 second
+        // SSE-only mode: No polling timers needed
+        var pollingInterval = 1000; // Used only for SSE connection options
         var sessionId = null;
         var chart = null;
-        var consecutiveFailures = 0;
-        var warningDisplayed = false;
         var lastQuestionNumber = -1; // Track last known question to prevent stale updates
 
         // Constants
-        var MAX_CONSECUTIVE_FAILURES = 5;
-
         var ANSWER_OPTIONS = ['A', 'B', 'C', 'D'];
-        var STUDENT_STATUS_UPDATE_INTERVAL = 2000; // 2 seconds (Requirement 1.3)
 
         // Session state
         var isPaused = false;
 
-        // SSE connection state
-        var studentStatusTimer = null;
-
         // Connected students cache
         var connectedStudents = {};
+
+        // Student search filter
+        var searchTerm = '';
+
+        // Client-side timer state (local countdown)
+        var timerState = {
+            timeRemaining: 0,       // Current time remaining
+            timelimit: 0,           // Total time limit
+            clientStartTime: 0,     // When local countdown started
+            isRunning: false,       // Whether countdown is active
+            countdownTimer: null    // setInterval reference
+        };
 
         return {
             /**
@@ -66,14 +71,8 @@ define(['jquery', 'core/notification', 'mod_classengage/connection_manager'],
                 sessionId = sid;
                 pollingInterval = interval || 1000;
 
-                // Initialize connection manager for SSE
+                // Initialize SSE connection (SSE-only, no polling fallback for stats)
                 this.initSSEConnection();
-
-                // Start polling for updates (fallback and stats)
-                this.startPolling();
-
-                // Start student status polling
-                this.startStudentStatusPolling();
 
                 // Initialize chart
                 this.initChart();
@@ -86,12 +85,15 @@ define(['jquery', 'core/notification', 'mod_classengage/connection_manager'],
             },
 
             /**
-             * Initialize SSE connection for real-time updates
+             * Initialize SSE connection for real-time updates (SSE-ONLY MODE)
              *
              * @private
              */
             initSSEConnection: function () {
                 var self = this;
+
+                // Setup student search functionality
+                this.setupStudentSearch();
 
                 // Register event handlers before connecting
                 ConnectionManager.on('session_paused', function (data) {
@@ -114,45 +116,107 @@ define(['jquery', 'core/notification', 'mod_classengage/connection_manager'],
                     self.handleConnectionStatusChange(data);
                 });
 
+                // SSE-ONLY: Register handlers for stats and students updates
+                ConnectionManager.on('stats_update', function (data) {
+                    self.handleStatsUpdate(data);
+                });
+
+                ConnectionManager.on('students_update', function (data) {
+                    self.handleStudentsUpdate(data);
+                });
+
                 // Try to connect via SSE
                 ConnectionManager.init(sessionId, {
                     pollInterval: pollingInterval
                 }).then(function () {
+                    // Log actual transport being used
+                    var status = ConnectionManager.getInstance().getStatus();
                     // eslint-disable-next-line no-console
-                    console.log('SSE connection established for control panel');
-                    return null;
-                }).catch(function () {
-                    // eslint-disable-next-line no-console
-                    console.log('SSE not available, using polling fallback');
-                    // Ensure polling is active if SSE fails
-                    if (!pollingTimer) {
-                        self.startPolling();
+                    console.log('Connection established for control panel:', {
+                        transport: status.transport,
+                        status: status.status,
+                        connectionId: status.connectionId
+                    });
+
+                    if (status.transport === 'sse') {
+                        // eslint-disable-next-line no-console
+                        console.log('✓ SSE-ONLY mode active - No polling required!');
+                    } else {
+                        // eslint-disable-next-line no-console
+                        console.warn('⚠ SSE failed - Updates may not work correctly');
                     }
+                    return null;
+                }).catch(function (error) {
+                    // eslint-disable-next-line no-console
+                    console.error('SSE connection failed:', error);
                 });
             },
 
             /**
-             * Stop polling for session statistics
+             * Handle stats update from SSE (replaces AJAX polling)
              *
+             * @param {Object} data Stats data from SSE
              * @private
              */
-            stopPolling: function () {
-                if (pollingTimer) {
-                    clearInterval(pollingTimer);
-                    pollingTimer = null;
+            handleStatsUpdate: function (data) {
+                // Debug: Log received SSE stats data
+                // eslint-disable-next-line no-console
+                console.log('SSE stats_update received:', {
+                    currentquestion: data.currentquestion,
+                    responses: data.responses,
+                    distribution: data.distribution,
+                    hasChart: !!chart
+                });
+
+                // Sync local timer with server time (if changed significantly)
+                if (data.timelimit > 0 && data.timeremaining !== undefined) {
+                    this.syncLocalTimer(data.timelimit, data.timeremaining);
                 }
+
+                // Update display with ALL stats data from SSE
+                this.updateDisplay({
+                    currentquestion: data.currentquestion,
+                    totalquestions: data.totalquestions,
+                    responses: data.responses,
+                    participants: data.participants,
+                    participationrate: data.participationrate,
+                    status: data.status,
+                    timelimit: data.timelimit,
+                    timeremaining: data.timeremaining,
+                    distribution: data.distribution,
+                    connected: data.connected,
+                    answered: data.answered,
+                    pending: data.pending
+                });
             },
 
             /**
-             * Setup page unload handler to clean up polling timer
+             * Handle students update from SSE (replaces AJAX polling)
+             *
+             * @param {Object} data Students data from SSE
+             * @private
+             */
+            handleStudentsUpdate: function (data) {
+                // Update student list
+                if (data.students) {
+                    this.updateStudentList(data.students);
+                }
+                // Update aggregate stats
+                if (data.stats) {
+                    this.updateAggregateStats(data.stats);
+                }
+            },
+
+            // NOTE: stopPolling removed - SSE-only mode
+
+            /**
+             * Setup page unload handler to disconnect SSE
              *
              * @private
              */
             setupUnloadHandler: function () {
-                var self = this;
                 $(window).on('beforeunload', function () {
-                    self.stopPolling();
-                    self.stopStudentStatusPolling();
+                    // SSE-only: Just disconnect the connection manager
                     ConnectionManager.disconnect();
                 });
             },
@@ -181,6 +245,55 @@ define(['jquery', 'core/notification', 'mod_classengage/connection_manager'],
 
 
             /**
+             * Setup student search functionality with debouncing
+             *
+             * @private
+             */
+            setupStudentSearch: function () {
+                var self = this;
+                var searchTimer = null;
+
+                $('#student-search').on('input', function () {
+                    var value = $(this).val().toLowerCase().trim();
+
+                    // Debounce: wait 150ms before filtering
+                    if (searchTimer) {
+                        clearTimeout(searchTimer);
+                    }
+                    searchTimer = setTimeout(function () {
+                        searchTerm = value;
+                        self.filterStudentList();
+                    }, 150);
+                });
+            },
+
+            /**
+             * Filter and re-render student list based on search term
+             *
+             * @private
+             */
+            filterStudentList: function () {
+                var container = $('#student-list');
+                if (!container.length) {
+                    return;
+                }
+
+                // Get all students from cache
+                var students = Object.values(connectedStudents);
+
+                // Filter by search term
+                if (searchTerm) {
+                    students = students.filter(function (student) {
+                        var name = (student.fullname || '').toLowerCase();
+                        return name.indexOf(searchTerm) !== -1;
+                    });
+                }
+
+                // Re-render filtered list
+                this.renderStudentListHtml(students);
+            },
+
+            /**
              * Pause the current session
              *
              * Requirement: 1.4 - Freeze timer and prevent new submissions
@@ -190,7 +303,7 @@ define(['jquery', 'core/notification', 'mod_classengage/connection_manager'],
                 var self = this;
 
                 $.ajax({
-                    url: M.cfg.wwwroot + '/mod/classengage/ajax.php',
+                    url: M.cfg.wwwroot + '/mod/classengage/api.php',
                     method: 'POST',
                     data: {
                         action: 'pause',
@@ -231,7 +344,7 @@ define(['jquery', 'core/notification', 'mod_classengage/connection_manager'],
                 var self = this;
 
                 $.ajax({
-                    url: M.cfg.wwwroot + '/mod/classengage/ajax.php',
+                    url: M.cfg.wwwroot + '/mod/classengage/api.php',
                     method: 'POST',
                     data: {
                         action: 'resume',
@@ -271,24 +384,34 @@ define(['jquery', 'core/notification', 'mod_classengage/connection_manager'],
             handleSessionPaused: function (data) {
                 isPaused = true;
 
+                // Stop local timer and store remaining time
+                if (timerState.isRunning) {
+                    var clientElapsed = (Date.now() - timerState.clientStartTime) / 1000;
+                    timerState.timeRemaining = Math.max(0, timerState.timeRemaining - clientElapsed);
+                }
+                this.stopLocalCountdown();
+
                 // Update UI
                 $('#btn-pause-session').hide();
                 $('#btn-resume-session').show();
                 $('#session-status').text('Paused').addClass('text-warning');
                 $('#session-status-badge').removeClass('badge-success').addClass('badge-warning').text('Paused');
 
-                // Update timer display
+                // Update timer display with frozen time
                 if (data.timerremaining !== undefined) {
-                    $('#time-display').text(this.formatTime(data.timerremaining));
+                    timerState.timeRemaining = data.timerremaining;
+                    this.renderTimerDisplay(data.timerremaining);
                 }
+                $('#time-display').addClass('text-warning');
             },
 
             /**
              * Handle session resumed event
              *
+             * @param {Object} data Resume event data
              * @private
              */
-            handleSessionResumed: function () {
+            handleSessionResumed: function (data) {
                 isPaused = false;
 
                 // Update UI
@@ -296,6 +419,13 @@ define(['jquery', 'core/notification', 'mod_classengage/connection_manager'],
                 $('#btn-pause-session').show();
                 $('#session-status').text('Active').removeClass('text-warning');
                 $('#session-status-badge').removeClass('badge-warning').addClass('badge-success').text('Active');
+                $('#time-display').removeClass('text-warning');
+
+                // Resume timer with remaining time
+                var remaining = (data && data.timerremaining !== undefined) ? data.timerremaining : timerState.timeRemaining;
+                if (remaining > 0) {
+                    this.startLocalCountdown(remaining, timerState.timelimit);
+                }
             },
 
             /**
@@ -317,8 +447,12 @@ define(['jquery', 'core/notification', 'mod_classengage/connection_manager'],
                     $('#question-progress').text((newQuestion + 1) + ' / ' + total);
                 }
 
-                // Refresh stats
-                this.updateStats();
+                // Start fresh timer for new question
+                if (data.timelimit && data.timelimit > 0) {
+                    this.startLocalCountdown(data.timelimit, data.timelimit);
+                }
+
+                // NOTE: Stats will be pushed via SSE stats_update event - no manual refresh needed
             },
 
             /**
@@ -361,65 +495,7 @@ define(['jquery', 'core/notification', 'mod_classengage/connection_manager'],
                 }
             },
 
-            /**
-             * Start polling for student status updates
-             *
-             * Requirement: 1.3 - Display connected students count updated every 2 seconds
-             * @private
-             */
-            startStudentStatusPolling: function () {
-                var self = this;
-
-                // Poll for student status
-                studentStatusTimer = setInterval(function () {
-                    self.updateStudentStatus();
-                }, STUDENT_STATUS_UPDATE_INTERVAL);
-
-                // Get initial status
-                this.updateStudentStatus();
-            },
-
-            /**
-             * Stop student status polling
-             *
-             * @private
-             */
-            stopStudentStatusPolling: function () {
-                if (studentStatusTimer) {
-                    clearInterval(studentStatusTimer);
-                    studentStatusTimer = null;
-                }
-            },
-
-            /**
-             * Fetch and update student connection status
-             *
-             * Requirements: 5.1, 5.4, 5.5
-             * @private
-             */
-            updateStudentStatus: function () {
-                var self = this;
-
-                $.ajax({
-                    url: M.cfg.wwwroot + '/mod/classengage/ajax.php',
-                    method: 'POST',
-                    data: {
-                        action: 'getstudents',
-                        sessionid: sessionId,
-                        sesskey: M.cfg.sesskey
-                    },
-                    dataType: 'json',
-                    success: function (response) {
-                        if (response.success) {
-                            self.updateStudentList(response.students || []);
-                            self.updateAggregateStats(response.stats || {});
-                        }
-                    },
-                    error: function () {
-                        // Silent fail - stats polling will continue
-                    }
-                });
-            },
+            // NOTE: Student status polling removed - SSE provides students_update events now
 
             /**
              * Update the connected students list display
@@ -429,8 +505,7 @@ define(['jquery', 'core/notification', 'mod_classengage/connection_manager'],
              * @private
              */
             updateStudentList: function (students) {
-                var self = this;
-                var container = $('#connected-students-list');
+                var container = $('#student-list');
                 if (!container.length) {
                     return;
                 }
@@ -440,27 +515,53 @@ define(['jquery', 'core/notification', 'mod_classengage/connection_manager'],
                     connectedStudents[student.userid] = student;
                 });
 
-                // Build student list HTML
+                // Filter students based on search term
+                var filteredStudents = students;
+                if (searchTerm) {
+                    filteredStudents = students.filter(function (student) {
+                        var name = (student.fullname || '').toLowerCase();
+                        return name.indexOf(searchTerm) !== -1;
+                    });
+                }
+
+                // Render filtered list
+                this.renderStudentListHtml(filteredStudents);
+            },
+
+            /**
+             * Render student list HTML
+             *
+             * @param {Array} students Array of student objects to render
+             * @private
+             */
+            renderStudentListHtml: function (students) {
+                var self = this;
+                var container = $('#student-list');
+                if (!container.length) {
+                    return;
+                }
+
+                // Build simple student list HTML
                 var html = '';
                 if (students.length === 0) {
-                    html = '<div class="text-muted p-2">No students connected</div>';
+                    html = '<div class="text-muted p-3 text-center">' +
+                        (searchTerm ? 'No students match your search' : 'No students enrolled') + '</div>';
                 } else {
-                    html = '<ul class="list-group list-group-flush student-status-list">';
+                    html = '<ul class="list-group list-group-flush">';
                     students.forEach(function (student) {
-                        var statusClass = self.getStatusClass(student.status);
-                        var statusIcon = self.getStatusIcon(student.status, student.hasanswered);
-                        var answeredBadge = student.hasanswered ?
-                            '<span class="badge badge-success ml-2">Answered</span>' : '';
+                        // Icon: check for answered, circle for pending
+                        var icon = student.hasanswered ? 'fa-check-circle text-success' : 'fa-circle text-muted';
+                        var name = self.escapeHtml(student.fullname || 'User ' + student.userid);
 
-                        html += '<li class="list-group-item d-flex ' +
-                            'justify-content-between align-items-center py-2">';
-                        html += '<span class="student-name">' +
-                            self.escapeHtml(student.fullname || 'User ' + student.userid) + '</span>';
-                        html += '<span class="student-status">';
-                        html += '<i class="fa ' + statusIcon + ' ' + statusClass +
-                            '" title="' + student.status + '"></i>';
-                        html += answeredBadge;
-                        html += '</span>';
+                        // Visual distinction for non-connected students
+                        var isConnected = student.status !== 'not_connected';
+                        var nameClass = isConnected ? '' : 'text-muted';
+                        var itemClass = isConnected ? '' : 'bg-light';
+
+                        html += '<li class="list-group-item d-flex justify-content-between align-items-center py-2 ' +
+                            itemClass + '" data-userid="' + student.userid + '">';
+                        html += '<span class="' + nameClass + '">' + name + '</span>';
+                        html += '<i class="fa ' + icon + '"></i>';
                         html += '</li>';
                     });
                     html += '</ul>';
@@ -516,33 +617,13 @@ define(['jquery', 'core/notification', 'mod_classengage/connection_manager'],
             /**
              * Update aggregate statistics display
              *
-             * Requirement: 5.5 - Display aggregate statistics
              * @param {Object} stats Statistics object
              * @private
              */
             updateAggregateStats: function (stats) {
-                // Update connected count
-                if (stats.connected !== undefined) {
-                    $('#stat-connected').text(stats.connected);
-                    $('#connected-count').text(stats.connected);
-                }
-
-                // Update answered count
-                if (stats.answered !== undefined) {
-                    $('#stat-answered').text(stats.answered);
-                }
-
-                // Update pending count
-                if (stats.pending !== undefined) {
-                    $('#stat-pending').text(stats.pending);
-                }
-
-                // Update progress bar if available
-                if (stats.connected > 0 && stats.answered !== undefined) {
-                    var percentage = Math.round((stats.answered / stats.connected) * 100);
-                    $('#answered-progress').css('width', percentage + '%');
-                    $('#answered-progress').attr('aria-valuenow', percentage);
-                }
+                // Stats are now shown in the Participants card, not in the Students panel
+                // This function is kept for backwards compatibility but does nothing
+                void stats;
             },
 
             /**
@@ -551,18 +632,10 @@ define(['jquery', 'core/notification', 'mod_classengage/connection_manager'],
              * @private
              */
             resetStudentAnsweredStatus: function () {
-                // Clear answered badges in UI
-                $('.student-status-list .badge-success').remove();
-
                 // Reset cache
                 Object.keys(connectedStudents).forEach(function (userid) {
                     connectedStudents[userid].hasanswered = false;
                 });
-
-                // Reset aggregate stats
-                $('#stat-answered').text('0');
-                $('#stat-pending').text($('#stat-connected').text());
-                $('#answered-progress').css('width', '0%');
             },
 
             /**
@@ -578,75 +651,8 @@ define(['jquery', 'core/notification', 'mod_classengage/connection_manager'],
                 return div.innerHTML;
             },
 
-            /**
-             * Start polling for session statistics updates
-             */
-            startPolling: function () {
-                var self = this;
-
-                // Poll for current question stats
-                pollingTimer = setInterval(function () {
-                    self.updateStats();
-                }, pollingInterval);
-
-                // Get initial stats
-                this.updateStats();
-            },
-
-            /**
-             * Fetch and update session statistics via AJAX
-             *
-             * @private
-             */
-            updateStats: function () {
-                var self = this;
-
-                $.ajax({
-                    url: M.cfg.wwwroot + '/mod/classengage/ajax.php',
-                    method: 'POST',
-                    data: {
-                        action: 'getstats',
-                        sessionid: sessionId,
-                        sesskey: M.cfg.sesskey
-                    },
-                    dataType: 'json',
-                    success: function (response) {
-                        if (response.success) {
-                            // Reset failure counter on success
-                            consecutiveFailures = 0;
-                            warningDisplayed = false;
-                            self.updateDisplay(response.data);
-                        } else {
-                            // Server returned error
-                            self.handleError();
-                        }
-                    },
-                    error: function () {
-                        // Network or server error
-                        self.handleError();
-                    }
-                });
-            },
-
-            /**
-             * Handle AJAX errors with consecutive failure tracking
-             *
-             * @private
-             */
-            handleError: function () {
-                consecutiveFailures++;
-
-                // Display warning after threshold consecutive failures
-                if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES && !warningDisplayed) {
-                    Notification.addNotification({
-                        message: M.util.get_string('error:connectionissues', 'mod_classengage'),
-                        type: 'warning'
-                    });
-                    warningDisplayed = true;
-                }
-
-                // Continue polling - don't stop on errors
-            },
+            // NOTE: Stats polling removed - SSE provides stats_update events now
+            // NOTE: handleError removed - not needed in SSE-only mode
 
             /**
              * Update the display with new session data
@@ -655,10 +661,8 @@ define(['jquery', 'core/notification', 'mod_classengage/connection_manager'],
              * @private
              */
             updateDisplay: function (data) {
-                // Update participant count
-                if (data.participants !== undefined) {
-                    $('#participant-count').text(data.participants);
-                }
+                // NOTE: participant-count (denominator) is set on page load from enrolled students
+                // and should NOT be updated dynamically - it represents total enrolled students
 
                 // Update question progress
                 if (data.currentquestion !== undefined && data.totalquestions !== undefined) {
@@ -672,15 +676,10 @@ define(['jquery', 'core/notification', 'mod_classengage/connection_manager'],
                     }
                 }
 
-                // Update response count and participation rate
+                // Update response count (current/total format in participants card)
                 if (data.responses !== undefined) {
+                    $('#response-count-current').text(data.responses);
                     $('#response-count').text(data.responses + ' / ' + data.participants);
-
-                    if (data.participationrate !== undefined) {
-                        $('#response-rate').text(data.participationrate + '%');
-                        $('#response-progress').css('width', data.participationrate + '%');
-                        $('#response-progress').attr('aria-valuenow', data.participationrate);
-                    }
                 }
 
                 // Update connection statistics (Requirement 5.5)
@@ -731,37 +730,124 @@ define(['jquery', 'core/notification', 'mod_classengage/connection_manager'],
             },
 
             /**
-             * Update the time display
+             * Update the time display (uses local timer state)
              *
              * @param {Object} data Session data
              * @private
              */
             updateTimeDisplay: function (data) {
-                var timeText = '--:--';
-
-                if (isPaused && data.timerremaining !== undefined) {
-                    // Show frozen time when paused
-                    timeText = this.formatTime(data.timerremaining);
-                    $('#time-display').addClass('text-warning');
-                } else if (data.timelimit > 0) {
-                    // Show remaining time
+                // Local timer handles display updates via startLocalCountdown
+                // This method is called from updateDisplay but timer runs independently
+                if (data.timelimit > 0 && !timerState.isRunning && !isPaused) {
                     var remaining = data.timeremaining !== undefined ? data.timeremaining : 0;
-                    timeText = this.formatTime(remaining);
-
-                    // Add warning class if low time
-                    var timeDisplay = $('#time-display');
-                    if (remaining < 10) {
-                        timeDisplay.addClass('text-danger').addClass('font-weight-bold');
-                    } else {
-                        timeDisplay.removeClass('text-danger').removeClass('font-weight-bold').removeClass('text-warning');
+                    if (remaining > 0) {
+                        this.startLocalCountdown(remaining, data.timelimit);
                     }
-                } else {
-                    // Show elapsed time
-                    var elapsed = data.elapsed !== undefined ? data.elapsed : 0;
-                    timeText = this.formatTime(elapsed);
+                }
+            },
+
+            /**
+             * Sync local timer with server time
+             *
+             * @param {number} timelimit Total time limit
+             * @param {number} serverRemaining Server's time remaining
+             * @private
+             */
+            syncLocalTimer: function (timelimit, serverRemaining) {
+                if (!timerState.isRunning) {
+                    // Start timer if not running
+                    this.startLocalCountdown(serverRemaining, timelimit);
+                    return;
                 }
 
-                $('#time-display').text(timeText);
+                // Calculate client's remaining time
+                var clientElapsed = (Date.now() - timerState.clientStartTime) / 1000;
+                var clientRemaining = Math.max(0, timerState.timeRemaining - clientElapsed);
+
+                // Only sync if drift > 2 seconds
+                var drift = Math.abs(serverRemaining - clientRemaining);
+                if (drift > 2) {
+                    // eslint-disable-next-line no-console
+                    console.log('Timer drift correction:', drift.toFixed(1), 'seconds');
+                    timerState.timeRemaining = serverRemaining;
+                    timerState.clientStartTime = Date.now();
+                }
+            },
+
+            /**
+             * Start local countdown timer
+             *
+             * @param {number} seconds Initial seconds remaining
+             * @param {number} timelimit Total time limit
+             * @private
+             */
+            startLocalCountdown: function (seconds, timelimit) {
+                var self = this;
+
+                // Stop any existing countdown
+                this.stopLocalCountdown();
+
+                // Initialize timer state
+                timerState.timeRemaining = seconds;
+                timerState.timelimit = timelimit;
+                timerState.clientStartTime = Date.now();
+                timerState.isRunning = true;
+
+                // Update display immediately
+                this.renderTimerDisplay(seconds);
+
+                // Start client-side countdown (1 second interval for instructor panel)
+                timerState.countdownTimer = setInterval(function () {
+                    if (!timerState.isRunning || isPaused) {
+                        return;
+                    }
+
+                    // Calculate elapsed time on client
+                    var clientElapsed = (Date.now() - timerState.clientStartTime) / 1000;
+                    var remaining = Math.max(0, timerState.timeRemaining - clientElapsed);
+
+                    self.renderTimerDisplay(remaining);
+
+                    // Stop when timer reaches 0
+                    if (remaining <= 0) {
+                        self.stopLocalCountdown();
+                    }
+                }, 1000); // 1 second updates for instructor panel
+            },
+
+            /**
+             * Stop local countdown timer
+             * @private
+             */
+            stopLocalCountdown: function () {
+                if (timerState.countdownTimer) {
+                    clearInterval(timerState.countdownTimer);
+                    timerState.countdownTimer = null;
+                }
+                timerState.isRunning = false;
+            },
+
+            /**
+             * Render timer display
+             *
+             * @param {number} remaining Seconds remaining
+             * @private
+             */
+            renderTimerDisplay: function (remaining) {
+                var timeText = this.formatTime(remaining);
+                var timeDisplay = $('#time-display');
+
+                timeDisplay.text(timeText);
+
+                if (remaining <= 0) {
+                    timeDisplay.removeClass('text-warning').addClass('text-danger font-weight-bold');
+                } else if (remaining < 10) {
+                    timeDisplay.removeClass('text-warning').addClass('text-danger font-weight-bold');
+                } else if (remaining < 30) {
+                    timeDisplay.removeClass('text-danger font-weight-bold').addClass('text-warning');
+                } else {
+                    timeDisplay.removeClass('text-danger text-warning font-weight-bold');
+                }
             },
 
             /**

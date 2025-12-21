@@ -32,7 +32,8 @@ defined('MOODLE_INTERNAL') || die();
 /**
  * Response result class for single response submissions
  */
-class response_result {
+class response_result
+{
     /** @var bool Whether the submission was successful */
     public bool $success;
 
@@ -88,7 +89,8 @@ class response_result {
 /**
  * Batch result class for batch response submissions
  */
-class batch_result {
+class batch_result
+{
     /** @var bool Whether the batch was processed successfully */
     public bool $success;
 
@@ -131,7 +133,8 @@ class batch_result {
 /**
  * Validation result class for answer format validation
  */
-class validation_result {
+class validation_result
+{
     /** @var bool Whether the answer format is valid */
     public bool $valid;
 
@@ -144,7 +147,8 @@ class validation_result {
      * @param bool $valid
      * @param string|null $error
      */
-    public function __construct(bool $valid, ?string $error = null) {
+    public function __construct(bool $valid, ?string $error = null)
+    {
         $this->valid = $valid;
         $this->error = $error;
     }
@@ -158,7 +162,8 @@ class validation_result {
  *
  * Requirements: 2.1, 2.2, 2.3, 3.1, 3.5
  */
-class response_capture_engine {
+class response_capture_engine
+{
 
     /** @var int Maximum batch size for batch processing */
     const MAX_BATCH_SIZE = 100;
@@ -269,7 +274,8 @@ class response_capture_engine {
      * @param array $responses Array of response objects with sessionid, questionid, answer, userid, clienttimestamp
      * @return batch_result
      */
-    public function submit_batch(array $responses): batch_result {
+    public function submit_batch(array $responses): batch_result
+    {
         global $DB;
 
         if (empty($responses)) {
@@ -381,6 +387,21 @@ class response_capture_engine {
 
             $transaction->allow_commit();
 
+            // Update answered status in connection tracking for each user.
+            // This must be done after the transaction commits to ensure stats consistency.
+            if ($processedcount > 0) {
+                $statemanager = new session_state_manager();
+                foreach ($results as $index => $result) {
+                    if ($result->success) {
+                        $responsedata = (object) $responses[$index];
+                        $statemanager->mark_question_answered(
+                            $responsedata->sessionid,
+                            $responsedata->userid
+                        );
+                    }
+                }
+            }
+
             return new batch_result(true, $processedcount, $failedcount, $results);
 
         } catch (\Exception $e) {
@@ -396,7 +417,8 @@ class response_capture_engine {
      * @param string $questiontype The question type (multichoice, truefalse, shortanswer)
      * @return validation_result
      */
-    public function validate_response(string $answer, string $questiontype): validation_result {
+    public function validate_response(string $answer, string $questiontype): validation_result
+    {
         // Trim whitespace.
         $answer = trim($answer);
 
@@ -445,7 +467,8 @@ class response_capture_engine {
      * @param int $userid User ID
      * @return bool True if duplicate exists
      */
-    public function is_duplicate(int $sessionid, int $questionid, int $userid): bool {
+    public function is_duplicate(int $sessionid, int $questionid, int $userid): bool
+    {
         global $DB;
 
         return $DB->record_exists('classengage_responses', [
@@ -463,7 +486,8 @@ class response_capture_engine {
      * @param \stdClass $question The question object
      * @return bool True if correct
      */
-    protected function check_answer(string $answer, \stdClass $question): bool {
+    protected function check_answer(string $answer, \stdClass $question): bool
+    {
         $normalizedanswer = strtoupper(trim($answer));
         $correctanswer = strtoupper(trim($question->correctanswer));
 
@@ -497,7 +521,8 @@ class response_capture_engine {
      * @param int|null $clienttimestamp Optional client-side timestamp
      * @return bool True if late submission
      */
-    protected function is_late_submission(\stdClass $session, ?int $clienttimestamp = null): bool {
+    protected function is_late_submission(\stdClass $session, ?int $clienttimestamp = null): bool
+    {
         $now = time();
 
         // Calculate when the question timer expired.
@@ -518,7 +543,8 @@ class response_capture_engine {
      * @param array $responses Array of response data
      * @return array Associative array with keys "sessionid_questionid_userid" => true
      */
-    protected function get_existing_responses_batch(array $responses): array {
+    protected function get_existing_responses_batch(array $responses): array
+    {
         global $DB;
 
         if (empty($responses)) {
@@ -596,7 +622,8 @@ class response_capture_engine {
      * @param int $limit Maximum number of responses to process
      * @return batch_result
      */
-    public function process_queue(int $limit = 100): batch_result {
+    public function process_queue(int $limit = 100): batch_result
+    {
         global $DB;
 
         // Get unprocessed queue entries.

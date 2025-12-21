@@ -89,13 +89,19 @@ class control_panel_actions {
     /**
      * Handle next question action
      *
+     * Uses session_state_manager to properly reset current_question_answered
+     * for all connections when advancing to the next question.
+     *
      * @param int $sessionid Session ID
      * @return bool True on success
      * @throws \required_capability_exception If user lacks permission
      */
     private function handle_next_question($sessionid) {
         require_capability('mod/classengage:startquiz', $this->context);
-        $this->sessionmanager->next_question($sessionid);
+        // Use session_state_manager to ensure current_question_answered is reset
+        // This is required for accurate connected/answered/pending statistics.
+        $statemanager = new session_state_manager();
+        $statemanager->next_question($sessionid);
         return true;
     }
     

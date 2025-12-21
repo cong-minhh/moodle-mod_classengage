@@ -14,10 +14,11 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * JavaScript for real-time quiz participation
+ * Student quiz interface with real-time updates
  *
- * Enhanced with connection_manager for transport handling, client_cache for
- * offline support, offline indicator UI, and optimistic UI updates.
+ * SSE-only mode: Receives question broadcasts and session state updates
+ * exclusively via Server-Sent Events. api.php is used only for
+ * answer submissions and session operations.
  *
  * Requirements: 2.4, 4.5, 8.5
  *
@@ -33,7 +34,7 @@ define([
     'core/str',
     'mod_classengage/connection_manager',
     'mod_classengage/client_cache'
-], function($, Ajax, Notification, Str, ConnectionManager, ClientCache) {
+], function ($, Ajax, Notification, Str, ConnectionManager, ClientCache) {
 
     /**
      * Quiz state constants
@@ -60,6 +61,16 @@ define([
         pendingSubmission: null,
         strings: {},
 
+        // Client-side timer state (enterprise timer separation)
+        timerState: {
+            serverTimeRemaining: 0,    // Last known server time remaining
+            serverTimestamp: 0,        // Server timestamp when we received the sync
+            clientStartTime: 0,        // Client timestamp when countdown started
+            isRunning: false,          // Whether countdown is active
+            isPaused: false,           // Whether timer is paused
+            lastSyncTime: 0            // Last time we synced with server
+        },
+
         /**
          * Initialize the quiz module
          *
@@ -68,20 +79,20 @@ define([
          * @param {number} pollinginterval Polling interval in milliseconds
          * @return {Promise} Resolves when initialized
          */
-        init: function(cmid, sessionid, pollinginterval) {
+        init: function (cmid, sessionid, pollinginterval) {
             var self = this;
 
             this.cmid = cmid;
             this.sessionId = sessionid;
 
             // Load language strings
-            return this.loadStrings().then(function() {
+            return this.loadStrings().then(function () {
                 // Initialize client cache for offline support
                 return ClientCache.init({
                     maxRetries: 3,
                     retryDelay: 2000
                 });
-            }).then(function() {
+            }).then(function () {
                 // Set up connection manager for client cache
                 ClientCache.setConnectionManager(ConnectionManager.getInstance());
 
@@ -89,26 +100,26 @@ define([
                 return ConnectionManager.init(sessionid, {
                     pollInterval: pollinginterval || 2000
                 });
-            }).then(function() {
+            }).then(function () {
                 // Set up event handlers
                 self.setupEventHandlers();
                 self.setupConnectionHandlers();
                 self.setupOfflineIndicator();
 
                 // Handle answer submission
-                $(document).on('click', '.submit-answer-btn', function() {
+                $(document).on('click', '.submit-answer-btn', function () {
                     self.submitAnswer();
                 });
 
                 // Handle touch events for mobile
-                $(document).on('touchend', '.quiz-option', function(e) {
+                $(document).on('touchend', '.quiz-option', function (e) {
                     e.preventDefault();
                     $(this).find('input[type="radio"]').prop('checked', true);
                     $(this).addClass('selected').siblings().removeClass('selected');
                 });
 
                 return null;
-            }).catch(function(error) {
+            }).catch(function (error) {
                 // eslint-disable-next-line no-console
                 console.error('Quiz initialization error:', error);
                 // Fall back to legacy polling if connection manager fails
@@ -121,26 +132,26 @@ define([
          *
          * @return {Promise} Resolves when strings are loaded
          */
-        loadStrings: function() {
+        loadStrings: function () {
             var self = this;
             var stringKeys = [
-                {key: 'answersubmitted', component: 'mod_classengage'},
-                {key: 'correct', component: 'mod_classengage'},
-                {key: 'incorrect', component: 'mod_classengage'},
-                {key: 'correctanswer', component: 'mod_classengage'},
-                {key: 'waitingnextquestion', component: 'mod_classengage'},
-                {key: 'quizcompleted', component: 'mod_classengage'},
-                {key: 'alreadyanswered', component: 'mod_classengage'},
-                {key: 'selectanswer', component: 'mod_classengage'},
-                {key: 'error', component: 'core'},
-                {key: 'offline', component: 'mod_classengage'},
-                {key: 'reconnecting', component: 'mod_classengage'},
-                {key: 'connectionrestored', component: 'mod_classengage'},
-                {key: 'submittingoffline', component: 'mod_classengage'},
-                {key: 'pendingsubmissions', component: 'mod_classengage'}
+                { key: 'answersubmitted', component: 'mod_classengage' },
+                { key: 'correct', component: 'mod_classengage' },
+                { key: 'incorrect', component: 'mod_classengage' },
+                { key: 'correctanswer', component: 'mod_classengage' },
+                { key: 'waitingnextquestion', component: 'mod_classengage' },
+                { key: 'quizcompleted', component: 'mod_classengage' },
+                { key: 'alreadyanswered', component: 'mod_classengage' },
+                { key: 'selectanswer', component: 'mod_classengage' },
+                { key: 'error', component: 'core' },
+                { key: 'offline', component: 'mod_classengage' },
+                { key: 'reconnecting', component: 'mod_classengage' },
+                { key: 'connectionrestored', component: 'mod_classengage' },
+                { key: 'submittingoffline', component: 'mod_classengage' },
+                { key: 'pendingsubmissions', component: 'mod_classengage' }
             ];
 
-            return Str.get_strings(stringKeys).then(function(strings) {
+            return Str.get_strings(stringKeys).then(function (strings) {
                 self.strings = {
                     answersubmitted: strings[0],
                     correct: strings[1],
@@ -158,7 +169,7 @@ define([
                     pendingsubmissions: strings[13] || 'Pending submissions'
                 };
                 return null;
-            }).catch(function() {
+            }).catch(function () {
                 // Use fallback strings if loading fails
                 self.strings = {
                     answersubmitted: 'Answer submitted!',
@@ -182,53 +193,53 @@ define([
         /**
          * Set up connection manager event handlers
          */
-        setupConnectionHandlers: function() {
+        setupConnectionHandlers: function () {
             var self = this;
 
             // Handle connection status changes
-            ConnectionManager.on('statuschange', function(data) {
+            ConnectionManager.on('statuschange', function (data) {
                 self.handleConnectionStatusChange(data);
             });
 
             // Handle session state updates from server
-            ConnectionManager.on('state_update', function(data) {
+            ConnectionManager.on('state_update', function (data) {
                 self.handleStateUpdate(data);
             });
 
             // Handle question broadcasts
-            ConnectionManager.on('question_broadcast', function(data) {
+            ConnectionManager.on('question_broadcast', function (data) {
                 self.handleQuestionBroadcast(data);
             });
 
             // Handle session events
-            ConnectionManager.on('session_started', function(data) {
+            ConnectionManager.on('session_started', function (data) {
                 self.handleSessionStarted(data);
             });
 
-            ConnectionManager.on('session_paused', function(data) {
+            ConnectionManager.on('session_paused', function (data) {
                 self.handleSessionPaused(data);
             });
 
-            ConnectionManager.on('session_resumed', function(data) {
+            ConnectionManager.on('session_resumed', function (data) {
                 self.handleSessionResumed(data);
             });
 
-            ConnectionManager.on('session_completed', function(data) {
+            ConnectionManager.on('session_completed', function (data) {
                 self.handleSessionCompleted(data);
             });
 
-            // Handle timer sync
-            ConnectionManager.on('timer_sync', function(data) {
-                self.updateTimer(data.remaining);
+            // Handle timer sync from server (only for drift correction)
+            ConnectionManager.on('timer_sync', function (data) {
+                self.syncServerTime(data);
             });
 
             // Handle reconnection
-            ConnectionManager.on('reconnected', function() {
+            ConnectionManager.on('reconnected', function () {
                 self.handleReconnected();
             });
 
             // Handle disconnection
-            ConnectionManager.on('disconnected', function() {
+            ConnectionManager.on('disconnected', function () {
                 self.handleDisconnected();
             });
         },
@@ -236,22 +247,22 @@ define([
         /**
          * Set up client cache event handlers
          */
-        setupEventHandlers: function() {
+        setupEventHandlers: function () {
             var self = this;
 
             // Handle cached response submission
-            ClientCache.on('submitted', function(data) {
+            ClientCache.on('submitted', function (data) {
                 self.handleCachedResponseSubmitted(data);
             });
 
             // Handle retry events
-            ClientCache.on('retrying', function(data) {
+            ClientCache.on('retrying', function (data) {
                 self.showNotification('info', self.strings.pendingsubmissions + ': ' + data.count);
             });
 
             // Handle retry completion
-            ClientCache.on('retryComplete', function(data) {
-                var successCount = data.results.filter(function(r) {
+            ClientCache.on('retryComplete', function (data) {
+                var successCount = data.results.filter(function (r) {
                     return r.success;
                 }).length;
                 if (successCount > 0) {
@@ -263,7 +274,7 @@ define([
         /**
          * Set up offline indicator UI element
          */
-        setupOfflineIndicator: function() {
+        setupOfflineIndicator: function () {
             // Create offline indicator if it doesn't exist
             if ($('#offline-indicator').length === 0) {
                 var indicator = $('<div id="offline-indicator" class="offline-indicator" style="display: none;">' +
@@ -276,10 +287,10 @@ define([
 
             // Listen for online/offline events
             var self = this;
-            window.addEventListener('online', function() {
+            window.addEventListener('online', function () {
                 self.handleOnlineStatusChange(true);
             });
-            window.addEventListener('offline', function() {
+            window.addEventListener('offline', function () {
                 self.handleOnlineStatusChange(false);
             });
 
@@ -293,13 +304,13 @@ define([
          *
          * @param {boolean} online Whether we're online
          */
-        handleOnlineStatusChange: function(online) {
+        handleOnlineStatusChange: function (online) {
             this.isOnline = online;
             this.updateOfflineIndicator();
 
             if (online) {
                 // Try to reconnect
-                ConnectionManager.reconnect().catch(function() {
+                ConnectionManager.reconnect().catch(function () {
                     // Reconnection will be retried automatically
                 });
             }
@@ -310,7 +321,7 @@ define([
          *
          * @param {Object} data Status change data
          */
-        handleConnectionStatusChange: function(data) {
+        handleConnectionStatusChange: function (data) {
             var status = data.status;
             var transport = data.transport;
 
@@ -330,7 +341,7 @@ define([
         /**
          * Update offline indicator display
          */
-        updateOfflineIndicator: function() {
+        updateOfflineIndicator: function () {
             var indicator = $('#offline-indicator');
             var textSpan = indicator.find('.offline-text');
             var pendingSpan = indicator.find('.pending-count');
@@ -355,7 +366,7 @@ define([
         /**
          * Show reconnecting indicator
          */
-        showReconnectingIndicator: function() {
+        showReconnectingIndicator: function () {
             var indicator = $('#offline-indicator');
             indicator.find('.offline-text').text(this.strings.reconnecting);
             indicator.removeClass('offline').addClass('reconnecting').show();
@@ -366,7 +377,7 @@ define([
          *
          * @param {string} transport Transport type
          */
-        updateTransportIndicator: function(transport) {
+        updateTransportIndicator: function (transport) {
             var transportIndicator = $('#transport-indicator');
             if (transportIndicator.length === 0) {
                 transportIndicator = $('<span id="transport-indicator" class="transport-indicator"></span>');
@@ -385,7 +396,7 @@ define([
          *
          * @param {Object} data State update data
          */
-        handleStateUpdate: function(data) {
+        handleStateUpdate: function (data) {
             if (data.question) {
                 this.updateQuestionDisplay({
                     success: true,
@@ -406,10 +417,16 @@ define([
          *
          * @param {Object} data Question data
          */
-        handleQuestionBroadcast: function(data) {
+        handleQuestionBroadcast: function (data) {
             this.currentQuestion = data.question;
             this.displayQuestion(data.question);
-            this.updateTimer(data.question.timeremaining);
+
+            // Start local countdown timer with timelimit from server
+            // Timer is fully client-side - server validates on submission
+            var timelimit = data.timelimit || (data.question && data.question.timelimit) || 0;
+            if (timelimit > 0) {
+                this.startLocalCountdown(timelimit);
+            }
         },
 
         /**
@@ -417,7 +434,7 @@ define([
          *
          * @param {Object} data Session data
          */
-        handleSessionStarted: function(data) {
+        handleSessionStarted: function (data) {
             $('#quiz-status').removeClass('alert-warning').addClass('alert-info');
             if (data.question) {
                 this.currentQuestion = data.question;
@@ -430,7 +447,7 @@ define([
          *
          * @param {Object} data Session data
          */
-        handleSessionPaused: function(data) {
+        handleSessionPaused: function (data) {
             var container = $('#question-container');
             container.find('.submit-answer-btn').prop('disabled', true);
             this.showNotification('warning', 'Quiz paused by instructor');
@@ -439,6 +456,9 @@ define([
             if ($('.paused-overlay').length === 0) {
                 container.append('<div class="paused-overlay"><span>Quiz Paused</span></div>');
             }
+
+            // Pause local countdown
+            this.pauseLocalCountdown();
 
             // Store remaining time if provided
             if (data.timerRemaining !== undefined) {
@@ -451,15 +471,17 @@ define([
          *
          * @param {Object} data Session data
          */
-        handleSessionResumed: function(data) {
+        handleSessionResumed: function (data) {
             var container = $('#question-container');
             container.find('.submit-answer-btn').prop('disabled', false);
             container.find('.paused-overlay').remove();
             this.showNotification('info', 'Quiz resumed');
 
-            // Restore timer
+            // Resume local countdown
             if (data.timerRemaining !== undefined) {
-                this.updateTimer(data.timerRemaining);
+                this.resumeLocalCountdown(data.timerRemaining);
+            } else {
+                this.resumeLocalCountdown();
             }
         },
 
@@ -468,7 +490,7 @@ define([
          *
          * @param {Object} data Session data
          */
-        handleSessionCompleted: function(data) {
+        handleSessionCompleted: function (data) {
             var container = $('#question-container');
             var statusDiv = $('#quiz-status');
 
@@ -489,7 +511,7 @@ define([
         /**
          * Handle reconnection
          */
-        handleReconnected: function() {
+        handleReconnected: function () {
             this.isOnline = true;
             this.updateOfflineIndicator();
             this.showNotification('success', this.strings.connectionrestored);
@@ -497,12 +519,12 @@ define([
             // Request current state
             ConnectionManager.send('getstatus', {
                 sessionid: this.sessionId
-            }).then(function(response) {
+            }).then(function (response) {
                 if (response.success && response.session) {
                     this.handleStateUpdate(response.session);
                 }
                 return null;
-            }.bind(this)).catch(function() {
+            }.bind(this)).catch(function () {
                 // Ignore errors, state will sync on next update
             });
         },
@@ -510,7 +532,7 @@ define([
         /**
          * Handle disconnection
          */
-        handleDisconnected: function() {
+        handleDisconnected: function () {
             this.isOnline = false;
             this.updateOfflineIndicator();
         },
@@ -520,7 +542,7 @@ define([
          *
          * @param {Object} data Submission data
          */
-        handleCachedResponseSubmitted: function(data) {
+        handleCachedResponseSubmitted: function (data) {
             this.showNotification('success', 'Cached response submitted: ' + data.id);
             this.updateOfflineIndicator();
         },
@@ -528,7 +550,7 @@ define([
         /**
          * Submit answer with optimistic UI update
          */
-        submitAnswer: function() {
+        submitAnswer: function () {
             var self = this;
             var selectedAnswer = $('input[name="answer"]:checked').val();
 
@@ -563,10 +585,10 @@ define([
                 questionid: questionId,
                 answer: selectedAnswer,
                 clienttimestamp: clientTimestamp
-            }).then(function(response) {
+            }).then(function (response) {
                 self.handleSubmissionResponse(response);
                 return null;
-            }).catch(function(error) {
+            }).catch(function (error) {
                 // Network error - cache the response
                 self.submitOffline(questionId, selectedAnswer, clientTimestamp);
                 // eslint-disable-next-line no-console
@@ -577,7 +599,7 @@ define([
         /**
          * Show optimistic UI update before server confirmation (Requirement 8.5)
          */
-        showOptimisticSubmission: function() {
+        showOptimisticSubmission: function () {
             var container = $('#question-container');
 
             // Add submitting state
@@ -601,7 +623,7 @@ define([
          * @param {string} answer Selected answer
          * @param {number} clientTimestamp Client timestamp
          */
-        submitOffline: function(questionId, answer, clientTimestamp) {
+        submitOffline: function (questionId, answer, clientTimestamp) {
             var self = this;
 
             // Show offline submission feedback
@@ -612,14 +634,14 @@ define([
                 questionId: questionId,
                 answer: answer,
                 clientTimestamp: clientTimestamp
-            }).then(function() {
+            }).then(function () {
                 self.showOfflineSubmissionConfirmation();
                 self.updateOfflineIndicator();
                 return null;
-            }).catch(function(error) {
+            }).catch(function (error) {
                 // eslint-disable-next-line no-console
                 console.error('Failed to cache response:', error);
-                Notification.exception({message: 'Failed to save response offline'});
+                Notification.exception({ message: 'Failed to save response offline' });
                 $('.submit-answer-btn').prop('disabled', false);
             });
         },
@@ -627,7 +649,7 @@ define([
         /**
          * Show offline submission confirmation
          */
-        showOfflineSubmissionConfirmation: function() {
+        showOfflineSubmissionConfirmation: function () {
             var container = $('#question-container');
             container.removeClass('submitting');
             container.find('.optimistic-feedback').remove();
@@ -646,7 +668,7 @@ define([
          *
          * @param {Object} response Server response
          */
-        handleSubmissionResponse: function(response) {
+        handleSubmissionResponse: function (response) {
             var container = $('#question-container');
             container.removeClass('submitting');
             container.find('.optimistic-feedback').remove();
@@ -678,7 +700,7 @@ define([
                 if (response.error && response.error.indexOf('Duplicate') !== -1) {
                     container.html('<div class="alert alert-info">' + this.strings.alreadyanswered + '</div>');
                 } else {
-                    Notification.exception({message: response.error || 'Error submitting answer'});
+                    Notification.exception({ message: response.error || 'Error submitting answer' });
                     $('.submit-answer-btn').prop('disabled', false);
                 }
             }
@@ -689,7 +711,7 @@ define([
          *
          * @param {boolean} isCorrect Whether the answer was correct
          */
-        showVisualConfirmation: function(isCorrect) {
+        showVisualConfirmation: function (isCorrect) {
             var confirmationClass = isCorrect ? 'confirmation-correct' : 'confirmation-incorrect';
 
             // Create confirmation overlay
@@ -700,9 +722,9 @@ define([
             $('body').append(overlay);
 
             // Animate and remove
-            setTimeout(function() {
+            setTimeout(function () {
                 overlay.addClass('fade-out');
-                setTimeout(function() {
+                setTimeout(function () {
                     overlay.remove();
                 }, 300);
             }, 500);
@@ -714,7 +736,7 @@ define([
          * @param {string} type Notification type (success, info, warning, error)
          * @param {string} message Message to display
          */
-        showNotification: function(type, message) {
+        showNotification: function (type, message) {
             var notificationArea = $('#quiz-notifications');
             if (notificationArea.length === 0) {
                 notificationArea = $('<div id="quiz-notifications" class="quiz-notifications"></div>');
@@ -727,8 +749,8 @@ define([
             notificationArea.append(notification);
 
             // Auto-dismiss after 3 seconds
-            setTimeout(function() {
-                notification.fadeOut(function() {
+            setTimeout(function () {
+                notification.fadeOut(function () {
                     $(this).remove();
                 });
             }, 3000);
@@ -739,7 +761,7 @@ define([
          *
          * @param {Object} response Server response with question data
          */
-        updateQuestionDisplay: function(response) {
+        updateQuestionDisplay: function (response) {
             var container = $('#question-container');
             var statusDiv = $('#quiz-status');
 
@@ -782,7 +804,7 @@ define([
          *
          * @param {Object} question Question data
          */
-        displayQuestion: function(question) {
+        displayQuestion: function (question) {
             var html = '<div class="question-text mb-4">';
             html += '<h4>' + question.text + '</h4>';
             html += '</div>';
@@ -815,11 +837,11 @@ define([
         },
 
         /**
-         * Update timer display
+         * Update timer display (called by local countdown)
          *
          * @param {number} seconds Seconds remaining
          */
-        updateTimer: function(seconds) {
+        updateTimerDisplay: function (seconds) {
             var display = $('#timer-display');
 
             if (seconds <= 0) {
@@ -829,7 +851,7 @@ define([
             }
 
             var minutes = Math.floor(seconds / 60);
-            var secs = seconds % 60;
+            var secs = Math.floor(seconds % 60);
             var timeStr = minutes + ':' + (secs < 10 ? '0' : '') + secs;
 
             display.text(timeStr);
@@ -844,55 +866,172 @@ define([
         },
 
         /**
-         * Start legacy polling (fallback when connection manager fails)
+         * Start local countdown timer (enterprise timer separation)
+         * Client runs its own timer to reduce server SSE traffic.
          *
-         * @param {number} interval Polling interval
+         * @param {number} seconds Initial seconds remaining
          */
-        startLegacyPolling: function(interval) {
+        startLocalCountdown: function (seconds) {
             var self = this;
 
-            this.pollingTimer = setInterval(function() {
-                self.getCurrentQuestion();
-            }, interval || 2000);
+            // Stop any existing countdown
+            if (this.countdownTimer) {
+                clearInterval(this.countdownTimer);
+                this.countdownTimer = null;
+            }
 
-            this.getCurrentQuestion();
+            // Initialize timer state
+            this.timerState.serverTimeRemaining = seconds;
+            this.timerState.clientStartTime = Date.now();
+            this.timerState.isRunning = true;
+            this.timerState.isPaused = false;
+
+            // Update display immediately
+            this.updateTimerDisplay(seconds);
+
+            // Start client-side countdown (runs every 100ms for smooth updates)
+            this.countdownTimer = setInterval(function () {
+                if (!self.timerState.isRunning || self.timerState.isPaused) {
+                    return;
+                }
+
+                // Calculate elapsed time on client
+                var clientElapsed = (Date.now() - self.timerState.clientStartTime) / 1000;
+                var remaining = Math.max(0, self.timerState.serverTimeRemaining - clientElapsed);
+
+                self.updateTimerDisplay(remaining);
+
+                // Stop when timer reaches 0
+                if (remaining <= 0) {
+                    self.stopLocalCountdown();
+                }
+            }, 100); // 100ms for smooth visual updates
         },
 
         /**
-         * Get current question via legacy AJAX
+         * Stop local countdown timer
          */
-        getCurrentQuestion: function() {
+        stopLocalCountdown: function () {
+            if (this.countdownTimer) {
+                clearInterval(this.countdownTimer);
+                this.countdownTimer = null;
+            }
+            this.timerState.isRunning = false;
+        },
+
+        /**
+         * Pause local countdown timer
+         */
+        pauseLocalCountdown: function () {
+            this.timerState.isPaused = true;
+            // Store remaining time when paused
+            var clientElapsed = (Date.now() - this.timerState.clientStartTime) / 1000;
+            this.timerState.serverTimeRemaining = Math.max(0, this.timerState.serverTimeRemaining - clientElapsed);
+            this.timerState.clientStartTime = Date.now();
+        },
+
+        /**
+         * Resume local countdown timer
+         *
+         * @param {number} seconds Seconds remaining from server (optional)
+         */
+        resumeLocalCountdown: function (seconds) {
+            if (seconds !== undefined) {
+                this.timerState.serverTimeRemaining = seconds;
+            }
+            this.timerState.clientStartTime = Date.now();
+            this.timerState.isPaused = false;
+        },
+
+        /**
+         * Sync server time and correct client drift (enterprise timer separation)
+         * Called on timer_sync events from server (sent every ~30s or on key events)
+         *
+         * @param {Object} data Timer sync data from server
+         */
+        syncServerTime: function (data) {
+            var serverRemaining = data.timerremaining;
+            var serverTimestamp = data.timestamp;
+
+            // Calculate what client thinks the time should be
+            var clientElapsed = (Date.now() - this.timerState.clientStartTime) / 1000;
+            var clientRemaining = Math.max(0, this.timerState.serverTimeRemaining - clientElapsed);
+
+            // Calculate drift (difference between server and client)
+            var drift = Math.abs(serverRemaining - clientRemaining);
+
+            // Only correct if drift > 2 seconds (enterprise threshold)
+            if (drift > 2 || !this.timerState.isRunning) {
+                // eslint-disable-next-line no-console
+                console.log('Timer sync: correcting drift of', drift.toFixed(1), 'seconds');
+                this.timerState.serverTimeRemaining = serverRemaining;
+                this.timerState.clientStartTime = Date.now();
+                this.timerState.serverTimestamp = serverTimestamp;
+            }
+
+            this.timerState.lastSyncTime = Date.now();
+
+            // Start countdown if not running
+            if (!this.timerState.isRunning && serverRemaining > 0) {
+                this.startLocalCountdown(serverRemaining);
+            }
+        },
+
+        /**
+         * Update timer (legacy method - starts local countdown)
+         *
+         * @param {number} seconds Seconds remaining
+         */
+        updateTimer: function (seconds) {
+            if (seconds === undefined || seconds === null) {
+                return;
+            }
+            // Start or sync local countdown
+            if (!this.timerState.isRunning) {
+                this.startLocalCountdown(seconds);
+            } else {
+                // Sync with new value
+                this.syncServerTime({ timerremaining: seconds, timestamp: Date.now() / 1000 });
+            }
+        },
+
+        /**
+         * Get current question via SSE connection
+         * Legacy polling removed - all data now comes via SSE events
+         * This method is kept for initial state fetch on connect failures
+         */
+        startLegacyPolling: function () {
+            // SSE-only mode: No polling fallback
+            // Show connection error notification
+            this.showNotification('error',
+                'SSE connection required. Please ensure your browser supports Server-Sent Events.');
+        },
+
+        /**
+         * Get current question - now SSE-only
+         * This method is kept for backward compatibility but SSE events
+         * are the primary source for question data
+         */
+        getCurrentQuestion: function () {
             var self = this;
 
-            Ajax.call([{
-                methodname: 'mod_classengage_get_current_question',
-                args: {sessionid: this.sessionId},
-                done: function(response) {
-                    self.updateQuestionDisplay(response);
-                },
-                fail: function() {
-                    // Fallback to direct AJAX call
-                    $.ajax({
-                        url: M.cfg.wwwroot + '/mod/classengage/ajax.php',
-                        method: 'POST',
-                        data: {
-                            action: 'getcurrent',
-                            sessionid: self.sessionId,
-                            sesskey: M.cfg.sesskey
-                        },
-                        dataType: 'json',
-                        success: function(response) {
-                            self.updateQuestionDisplay(response);
-                        }
-                    });
+            // Try ConnectionManager send for state refresh
+            ConnectionManager.send('getstatus', {
+                sessionid: this.sessionId
+            }).then(function (response) {
+                if (response && response.success && response.session) {
+                    self.handleStateUpdate(response.session);
                 }
-            }]);
+                return null;
+            }).catch(function () {
+                // SSE events will provide the data, ignore errors
+            });
         },
 
         /**
          * Stop polling
          */
-        stopPolling: function() {
+        stopPolling: function () {
             if (this.pollingTimer) {
                 clearInterval(this.pollingTimer);
                 this.pollingTimer = null;
@@ -913,7 +1052,7 @@ define([
          * @param {number} pollinginterval Polling interval
          * @return {Promise} Resolves when initialized
          */
-        init: function(cmid, sessionid, pollinginterval) {
+        init: function (cmid, sessionid, pollinginterval) {
             return Quiz.init(cmid, sessionid, pollinginterval);
         }
     };

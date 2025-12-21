@@ -49,7 +49,10 @@ $sessionmanager = new \mod_classengage\session_manager($classengage->id, $contex
 
 // Handle actions
 if ($action === 'start' && $sessionid && confirm_sesskey()) {
-    $sessionmanager->start_session($sessionid);
+    // Use session_state_manager to properly initialize the session including resetting
+    // current_question_answered for any pre-existing connections.
+    $statemanager = new \mod_classengage\session_state_manager();
+    $statemanager->start_session($sessionid);
     
     $event = \mod_classengage\event\session_started::create(array(
         'objectid' => $sessionid,
@@ -89,7 +92,9 @@ if ($action === 'delete' && $sessionid && confirm_sesskey()) {
 }
 
 if ($action === 'nextquestion' && $sessionid && confirm_sesskey()) {
-    $sessionmanager->next_question($sessionid);
+    // Use session_state_manager to ensure current_question_answered is reset.
+    $statemanager = new \mod_classengage\session_state_manager();
+    $statemanager->next_question($sessionid);
     redirect(new moodle_url('/mod/classengage/controlpanel.php', array('id' => $cm->id, 'sessionid' => $sessionid)));
 }
 

@@ -16,9 +16,9 @@
 /**
  * Connection Manager for real-time quiz communication
  *
- * Provides dual-transport support with SSE (Server-Sent Events) as primary
- * and HTTP polling as fallback. Handles automatic reconnection, heartbeat
- * management, and transport switching.
+ * SSE-only mode: Uses Server-Sent Events exclusively for real-time data.
+ * api.php is used only for write operations (submit, pause, resume).
+ * Polling fallback has been removed to reduce server resource consumption.
  *
  * Requirements: 6.1, 6.2, 6.3, 6.4, 6.5
  *
@@ -27,7 +27,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-define(['jquery'], function($) {
+define(['jquery'], function ($) {
 
     /**
      * Connection status constants
@@ -56,10 +56,8 @@ define(['jquery'], function($) {
      */
     var DEFAULTS = {
         sseEndpoint: '/mod/classengage/sse_handler.php',
-        pollEndpoint: '/mod/classengage/ajax.php',
-        pollInterval: 2000, // 2 seconds max (Requirement 6.2)
-        sseRetryAttempts: 3, // 3 attempts before fallback (Requirement 6.3)
-        heartbeatInterval: 30000, // 30 seconds
+        apiEndpoint: '/mod/classengage/api.php', // Write-only endpoint (SSE-only mode)
+        sseRetryAttempts: 3, // 3 attempts before error (SSE required)
         reconnectDelay: 1000, // Initial reconnect delay
         maxReconnectDelay: 30000, // Max reconnect delay
         connectionTimeout: 10000 // Connection timeout
@@ -78,7 +76,6 @@ define(['jquery'], function($) {
         this.status = STATUS.DISCONNECTED;
         this.transport = TRANSPORT.OFFLINE;
         this.latency = 0;
-        this.lastHeartbeat = 0;
 
         // SSE connection
         this.eventSource = null;
@@ -87,9 +84,6 @@ define(['jquery'], function($) {
         // Polling
         this.pollingTimer = null;
         this.lastEventId = 0;
-
-        // Heartbeat
-        this.heartbeatTimer = null;
 
         // Reconnection
         this.reconnectTimer = null;
@@ -109,7 +103,7 @@ define(['jquery'], function($) {
      * @param {Object} options Configuration options
      * @return {Promise} Resolves when connected
      */
-    ConnectionManager.prototype.init = function(sessionId, options) {
+    ConnectionManager.prototype.init = function (sessionId, options) {
         var self = this;
 
         this.sessionId = sessionId;
@@ -117,11 +111,11 @@ define(['jquery'], function($) {
         this.connectionId = this.generateConnectionId();
 
         self.status = STATUS.CONNECTING;
-        self.emit('statuschange', {status: self.status});
+        self.emit('statuschange', { status: self.status });
 
         // Try SSE first (Requirement 6.3)
         return self.connectSSE()
-            .catch(function() {
+            .catch(function () {
                 // SSE failed, fall back to polling (Requirement 6.1)
                 return self.startPolling();
             });
@@ -133,7 +127,7 @@ define(['jquery'], function($) {
      * @return {string} Connection ID
      * @private
      */
-    ConnectionManager.prototype.generateConnectionId = function() {
+    ConnectionManager.prototype.generateConnectionId = function () {
         return 'conn_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
     };
 
@@ -143,10 +137,10 @@ define(['jquery'], function($) {
      * @return {Promise} Resolves when SSE connected
      * @private
      */
-    ConnectionManager.prototype.connectSSE = function() {
+    ConnectionManager.prototype.connectSSE = function () {
         var self = this;
 
-        return new Promise(function(resolve, reject) {
+        return new Promise(function (resolve, reject) {
             // Check if SSE is supported
             if (typeof EventSource === 'undefined') {
                 self.sseAttempts = self.options.sseRetryAttempts;
@@ -165,7 +159,7 @@ define(['jquery'], function($) {
                 self.eventSource = new EventSource(url);
             } catch (e) {
                 if (self.sseAttempts < self.options.sseRetryAttempts) {
-                    setTimeout(function() {
+                    setTimeout(function () {
                         self.connectSSE().then(resolve).catch(reject);
                     }, 1000);
                 } else {
@@ -174,7 +168,7 @@ define(['jquery'], function($) {
                 return;
             }
 
-            var connectionTimeout = setTimeout(function() {
+            var connectionTimeout = setTimeout(function () {
                 if (self.status !== STATUS.CONNECTED) {
                     self.closeSSE();
                     if (self.sseAttempts < self.options.sseRetryAttempts) {
@@ -185,16 +179,16 @@ define(['jquery'], function($) {
                 }
             }, self.options.connectionTimeout);
 
-            self.eventSource.onopen = function() {
+            self.eventSource.onopen = function () {
                 // Connection opened, wait for 'connected' event
             };
 
-            self.eventSource.onerror = function() {
+            self.eventSource.onerror = function () {
                 clearTimeout(connectionTimeout);
                 self.closeSSE();
 
                 if (self.sseAttempts < self.options.sseRetryAttempts) {
-                    setTimeout(function() {
+                    setTimeout(function () {
                         self.connectSSE().then(resolve).catch(reject);
                     }, 1000);
                 } else {
@@ -203,7 +197,7 @@ define(['jquery'], function($) {
             };
 
             // Handle connected event
-            self.eventSource.addEventListener('connected', function(event) {
+            self.eventSource.addEventListener('connected', function (event) {
                 clearTimeout(connectionTimeout);
                 var data = JSON.parse(event.data);
                 self.connectionId = data.connectionid;
@@ -213,8 +207,7 @@ define(['jquery'], function($) {
                 self.reconnectDelay = DEFAULTS.reconnectDelay;
                 self.lastEventId = parseInt(event.lastEventId) || 0;
 
-                self.startHeartbeat();
-                self.emit('statuschange', {status: self.status, transport: self.transport});
+                self.emit('statuschange', { status: self.status, transport: self.transport });
                 self.emit('connected', data);
                 resolve();
             });
@@ -229,7 +222,7 @@ define(['jquery'], function($) {
      *
      * @private
      */
-    ConnectionManager.prototype.registerSSEHandlers = function() {
+    ConnectionManager.prototype.registerSSEHandlers = function () {
         var self = this;
 
         if (!this.eventSource) {
@@ -245,13 +238,32 @@ define(['jquery'], function($) {
             'question_broadcast',
             'timer_sync',
             'reconnect',
-            'error'
+            // Note: 'error' removed - conflicts with native EventSource.onerror event
+            // Instructor-only events (SSE-only mode)
+            'stats_update',
+            'students_update'
         ];
 
-        events.forEach(function(eventType) {
-            self.eventSource.addEventListener(eventType, function(event) {
+        events.forEach(function (eventType) {
+            self.eventSource.addEventListener(eventType, function (event) {
                 self.lastEventId = parseInt(event.lastEventId) || self.lastEventId;
-                var data = JSON.parse(event.data);
+
+                // Validate event data exists before parsing
+                if (!event.data || event.data === 'undefined') {
+                    // eslint-disable-next-line no-console
+                    console.warn('SSE event received without valid data:', eventType, event);
+                    return;
+                }
+
+                var data;
+                try {
+                    data = JSON.parse(event.data);
+                } catch (e) {
+                    // eslint-disable-next-line no-console
+                    console.error('SSE JSON parse error for event:', eventType, 'data:', event.data, e);
+                    return;
+                }
+
                 self.emit(eventType, data);
 
                 // Handle reconnect request from server
@@ -272,7 +284,7 @@ define(['jquery'], function($) {
      *
      * @private
      */
-    ConnectionManager.prototype.closeSSE = function() {
+    ConnectionManager.prototype.closeSSE = function () {
         if (this.eventSource) {
             this.eventSource.close();
             this.eventSource = null;
@@ -280,141 +292,37 @@ define(['jquery'], function($) {
     };
 
     /**
-     * Start HTTP polling fallback
+     * SSE connection failed fallback - show error (SSE-only mode)
      *
-     * @return {Promise} Resolves when polling started
+     * @return {Promise} Rejects with error message
      * @private
      */
-    ConnectionManager.prototype.startPolling = function() {
+    ConnectionManager.prototype.startPolling = function () {
         var self = this;
 
-        return new Promise(function(resolve, reject) {
-            // First, do a reconnect call to register connection and get state
-            self.pollReconnect()
-                .then(function(response) {
-                    if (response.success) {
-                        self.connectionId = response.connectionid;
-                        self.status = STATUS.CONNECTED;
-                        self.transport = TRANSPORT.POLLING;
-                        self.reconnectDelay = DEFAULTS.reconnectDelay;
-
-                        self.startHeartbeat();
-                        self.startPollingLoop();
-
-                        self.emit('statuschange', {status: self.status, transport: self.transport});
-                        self.emit('connected', response);
-                        resolve();
-                    } else {
-                        reject(new Error(response.error || 'Polling connection failed'));
-                    }
-                    return null;
-                })
-                .catch(function(error) {
-                    reject(error);
-                });
-        });
-    };
-
-    /**
-     * Start the polling loop
-     *
-     * @private
-     */
-    ConnectionManager.prototype.startPollingLoop = function() {
-        var self = this;
-
-        this.stopPolling();
-
-        // Ensure polling interval doesn't exceed 2 seconds (Requirement 6.2)
-        var interval = Math.min(this.options.pollInterval, 2000);
-
-        this.pollingTimer = setInterval(function() {
-            self.poll();
-        }, interval);
-
-        // Do initial poll
-        this.poll();
-    };
-
-    /**
-     * Perform a single poll request
-     *
-     * @private
-     */
-    ConnectionManager.prototype.poll = function() {
-        var self = this;
-        var startTime = Date.now();
-
-        $.ajax({
-            url: M.cfg.wwwroot + this.options.pollEndpoint,
-            method: 'POST',
-            data: {
-                action: 'getstatus',
-                sessionid: this.sessionId,
-                connectionid: this.connectionId,
-                sesskey: M.cfg.sesskey
-            },
-            dataType: 'json',
-            timeout: this.options.connectionTimeout
-        })
-        .done(function(response) {
-            self.latency = Date.now() - startTime;
-
-            if (response.success) {
-                // Emit session state update
-                if (response.session) {
-                    self.emit('state_update', response.session);
-
-                    // Check for status changes
-                    if (response.session.status === 'completed') {
-                        self.emit('session_completed', response.session);
-                        self.disconnect();
-                    }
-                }
-            }
-        })
-        .fail(function() {
-            self.handleConnectionError();
-        });
-    };
-
-    /**
-     * Poll for reconnection
-     *
-     * @return {Promise} Resolves with reconnect response
-     * @private
-     */
-    ConnectionManager.prototype.pollReconnect = function() {
-        var self = this;
-
-        return new Promise(function(resolve, reject) {
-            $.ajax({
-                url: M.cfg.wwwroot + self.options.pollEndpoint,
-                method: 'POST',
-                data: {
-                    action: 'reconnect',
-                    sessionid: self.sessionId,
-                    connectionid: self.connectionId,
-                    sesskey: M.cfg.sesskey
-                },
-                dataType: 'json',
-                timeout: self.options.connectionTimeout
-            })
-            .done(function(response) {
-                resolve(response);
-            })
-            .fail(function(xhr, status, error) {
-                reject(new Error(error || 'Reconnect request failed'));
+        // SSE-only mode: No polling fallback
+        return new Promise(function (resolve, reject) {
+            self.status = STATUS.DISCONNECTED;
+            self.transport = TRANSPORT.OFFLINE;
+            self.emit('statuschange', { status: self.status, transport: self.transport });
+            self.emit('connection_error', {
+                message: 'SSE connection required. Polling fallback has been removed.',
+                reason: 'sse_required'
             });
+            reject(new Error('SSE connection required. Please ensure your browser supports Server-Sent Events.'));
         });
     };
+
+    // NOTE: startPollingLoop, poll, and pollReconnect have been removed (SSE-only mode)
+    // All real-time data is now pushed via Server-Sent Events
+    // Only write operations (submit, pause, resume) use api.php via send() method
 
     /**
      * Stop polling
      *
      * @private
      */
-    ConnectionManager.prototype.stopPolling = function() {
+    ConnectionManager.prototype.stopPolling = function () {
         if (this.pollingTimer) {
             clearInterval(this.pollingTimer);
             this.pollingTimer = null;
@@ -422,83 +330,18 @@ define(['jquery'], function($) {
     };
 
     /**
-     * Start heartbeat timer
-     *
-     * @private
-     */
-    ConnectionManager.prototype.startHeartbeat = function() {
-        var self = this;
-
-        this.stopHeartbeat();
-
-        this.heartbeatTimer = setInterval(function() {
-            self.sendHeartbeat();
-        }, this.options.heartbeatInterval);
-    };
-
-    /**
-     * Stop heartbeat timer
-     *
-     * @private
-     */
-    ConnectionManager.prototype.stopHeartbeat = function() {
-        if (this.heartbeatTimer) {
-            clearInterval(this.heartbeatTimer);
-            this.heartbeatTimer = null;
-        }
-    };
-
-    /**
-     * Send heartbeat to server
-     *
-     * @private
-     */
-    ConnectionManager.prototype.sendHeartbeat = function() {
-        var self = this;
-        var startTime = Date.now();
-
-        $.ajax({
-            url: M.cfg.wwwroot + this.options.pollEndpoint,
-            method: 'POST',
-            data: {
-                action: 'heartbeat',
-                sessionid: this.sessionId,
-                connectionid: this.connectionId,
-                sesskey: M.cfg.sesskey
-            },
-            dataType: 'json',
-            timeout: 5000
-        })
-        .done(function(response) {
-            self.latency = Date.now() - startTime;
-            self.lastHeartbeat = Date.now();
-
-            if (response.success) {
-                self.emit('heartbeat', {
-                    latency: self.latency,
-                    timestamp: response.servertimestamp
-                });
-            }
-        })
-        .fail(function() {
-            // Heartbeat failed, but don't trigger reconnect immediately
-            // The polling or SSE will handle connection issues
-        });
-    };
-
-    /**
      * Handle connection error
      *
      * @private
      */
-    ConnectionManager.prototype.handleConnectionError = function() {
+    ConnectionManager.prototype.handleConnectionError = function () {
         if (this.status === STATUS.DISCONNECTED) {
             return;
         }
 
         this.status = STATUS.RECONNECTING;
-        this.emit('statuschange', {status: this.status});
-        this.emit('disconnected', {reason: 'connection_error'});
+        this.emit('statuschange', { status: this.status });
+        this.emit('disconnected', { reason: 'connection_error' });
 
         this.scheduleReconnect();
     };
@@ -508,7 +351,7 @@ define(['jquery'], function($) {
      *
      * @private
      */
-    ConnectionManager.prototype.handleReconnectRequest = function() {
+    ConnectionManager.prototype.handleReconnectRequest = function () {
         this.closeSSE();
         this.stopPolling();
         this.scheduleReconnect();
@@ -519,14 +362,14 @@ define(['jquery'], function($) {
      *
      * @private
      */
-    ConnectionManager.prototype.scheduleReconnect = function() {
+    ConnectionManager.prototype.scheduleReconnect = function () {
         var self = this;
 
         if (this.reconnectTimer) {
             return;
         }
 
-        this.reconnectTimer = setTimeout(function() {
+        this.reconnectTimer = setTimeout(function () {
             self.reconnectTimer = null;
             self.reconnect();
         }, this.reconnectDelay);
@@ -543,7 +386,7 @@ define(['jquery'], function($) {
      *
      * @return {Promise} Resolves when reconnected
      */
-    ConnectionManager.prototype.reconnect = function() {
+    ConnectionManager.prototype.reconnect = function () {
         var self = this;
 
         // Clear any pending reconnect
@@ -555,28 +398,27 @@ define(['jquery'], function($) {
         // Close existing connections
         this.closeSSE();
         this.stopPolling();
-        this.stopHeartbeat();
 
         this.status = STATUS.RECONNECTING;
-        this.emit('statuschange', {status: this.status});
+        this.emit('statuschange', { status: this.status });
 
         // Reset SSE attempts for fresh reconnection
         this.sseAttempts = 0;
 
         // Try SSE first, then polling
         return self.connectSSE()
-            .then(function() {
-                self.emit('reconnected', {transport: self.transport});
+            .then(function () {
+                self.emit('reconnected', { transport: self.transport });
             })
-            .catch(function() {
+            .catch(function () {
                 return self.startPolling()
-                    .then(function() {
-                        self.emit('reconnected', {transport: self.transport});
+                    .then(function () {
+                        self.emit('reconnected', { transport: self.transport });
                     })
-                    .catch(function(error) {
+                    .catch(function (error) {
                         self.status = STATUS.DISCONNECTED;
                         self.transport = TRANSPORT.OFFLINE;
-                        self.emit('statuschange', {status: self.status, transport: self.transport});
+                        self.emit('statuschange', { status: self.status, transport: self.transport });
                         throw error;
                     });
             });
@@ -589,7 +431,7 @@ define(['jquery'], function($) {
      * @param {Object} data Message data
      * @return {Promise} Resolves with server response
      */
-    ConnectionManager.prototype.send = function(type, data) {
+    ConnectionManager.prototype.send = function (type, data) {
         var self = this;
         var startTime = Date.now();
         var requestId = this.generateConnectionId();
@@ -603,23 +445,23 @@ define(['jquery'], function($) {
             sesskey: M.cfg.sesskey
         }, data || {});
 
-        return new Promise(function(resolve, reject) {
+        return new Promise(function (resolve, reject) {
             $.ajax({
-                url: M.cfg.wwwroot + self.options.pollEndpoint,
+                url: M.cfg.wwwroot + self.options.apiEndpoint,
                 method: 'POST',
                 data: requestData,
                 dataType: 'json',
                 timeout: self.options.connectionTimeout
             })
-            .done(function(response) {
-                delete self.pendingRequests[requestId];
-                self.latency = Date.now() - startTime;
-                resolve(response);
-            })
-            .fail(function(xhr, status, error) {
-                delete self.pendingRequests[requestId];
-                reject(new Error(error || 'Request failed'));
-            });
+                .done(function (response) {
+                    delete self.pendingRequests[requestId];
+                    self.latency = Date.now() - startTime;
+                    resolve(response);
+                })
+                .fail(function (xhr, status, error) {
+                    delete self.pendingRequests[requestId];
+                    reject(new Error(error || 'Request failed'));
+                });
         });
     };
 
@@ -629,7 +471,7 @@ define(['jquery'], function($) {
      * @param {string} event Event name
      * @param {Function} callback Callback function
      */
-    ConnectionManager.prototype.on = function(event, callback) {
+    ConnectionManager.prototype.on = function (event, callback) {
         if (!this.eventHandlers[event]) {
             this.eventHandlers[event] = [];
         }
@@ -642,13 +484,13 @@ define(['jquery'], function($) {
      * @param {string} event Event name
      * @param {Function} callback Callback function to remove
      */
-    ConnectionManager.prototype.off = function(event, callback) {
+    ConnectionManager.prototype.off = function (event, callback) {
         if (!this.eventHandlers[event]) {
             return;
         }
 
         if (callback) {
-            this.eventHandlers[event] = this.eventHandlers[event].filter(function(cb) {
+            this.eventHandlers[event] = this.eventHandlers[event].filter(function (cb) {
                 return cb !== callback;
             });
         } else {
@@ -663,10 +505,10 @@ define(['jquery'], function($) {
      * @param {Object} data Event data
      * @private
      */
-    ConnectionManager.prototype.emit = function(event, data) {
+    ConnectionManager.prototype.emit = function (event, data) {
         var handlers = this.eventHandlers[event];
         if (handlers) {
-            handlers.forEach(function(callback) {
+            handlers.forEach(function (callback) {
                 try {
                     callback(data);
                 } catch (e) {
@@ -682,13 +524,12 @@ define(['jquery'], function($) {
      *
      * @return {Object} Connection status
      */
-    ConnectionManager.prototype.getStatus = function() {
+    ConnectionManager.prototype.getStatus = function () {
         return {
             connected: this.status === STATUS.CONNECTED,
             status: this.status,
             transport: this.transport,
             latency: this.latency,
-            lastHeartbeat: this.lastHeartbeat,
             connectionId: this.connectionId
         };
     };
@@ -698,7 +539,7 @@ define(['jquery'], function($) {
      *
      * @return {boolean} True if connected
      */
-    ConnectionManager.prototype.isConnected = function() {
+    ConnectionManager.prototype.isConnected = function () {
         return this.status === STATUS.CONNECTED;
     };
 
@@ -707,17 +548,16 @@ define(['jquery'], function($) {
      *
      * @return {string} Transport type
      */
-    ConnectionManager.prototype.getTransport = function() {
+    ConnectionManager.prototype.getTransport = function () {
         return this.transport;
     };
 
     /**
      * Graceful disconnect
      */
-    ConnectionManager.prototype.disconnect = function() {
+    ConnectionManager.prototype.disconnect = function () {
         this.closeSSE();
         this.stopPolling();
-        this.stopHeartbeat();
 
         if (this.reconnectTimer) {
             clearTimeout(this.reconnectTimer);
@@ -727,8 +567,8 @@ define(['jquery'], function($) {
         this.status = STATUS.DISCONNECTED;
         this.transport = TRANSPORT.OFFLINE;
 
-        this.emit('statuschange', {status: this.status, transport: this.transport});
-        this.emit('disconnected', {reason: 'user_disconnect'});
+        this.emit('statuschange', { status: this.status, transport: this.transport });
+        this.emit('disconnected', { reason: 'user_disconnect' });
     };
 
     // Export constants for external use
@@ -744,7 +584,7 @@ define(['jquery'], function($) {
          *
          * @return {ConnectionManager} Connection manager instance
          */
-        getInstance: function() {
+        getInstance: function () {
             if (!instance) {
                 instance = new ConnectionManager();
             }
@@ -758,7 +598,7 @@ define(['jquery'], function($) {
          * @param {Object} options Configuration options
          * @return {Promise} Resolves when connected
          */
-        init: function(sessionId, options) {
+        init: function (sessionId, options) {
             return this.getInstance().init(sessionId, options);
         },
 
@@ -769,7 +609,7 @@ define(['jquery'], function($) {
          * @param {Object} data Message data
          * @return {Promise} Resolves with response
          */
-        send: function(type, data) {
+        send: function (type, data) {
             return this.getInstance().send(type, data);
         },
 
@@ -779,7 +619,7 @@ define(['jquery'], function($) {
          * @param {string} event Event name
          * @param {Function} callback Callback function
          */
-        on: function(event, callback) {
+        on: function (event, callback) {
             this.getInstance().on(event, callback);
         },
 
@@ -789,7 +629,7 @@ define(['jquery'], function($) {
          * @param {string} event Event name
          * @param {Function} callback Callback function
          */
-        off: function(event, callback) {
+        off: function (event, callback) {
             this.getInstance().off(event, callback);
         },
 
@@ -798,7 +638,7 @@ define(['jquery'], function($) {
          *
          * @return {Object} Connection status
          */
-        getStatus: function() {
+        getStatus: function () {
             return this.getInstance().getStatus();
         },
 
@@ -807,14 +647,14 @@ define(['jquery'], function($) {
          *
          * @return {Promise} Resolves when reconnected
          */
-        reconnect: function() {
+        reconnect: function () {
             return this.getInstance().reconnect();
         },
 
         /**
          * Disconnect from server
          */
-        disconnect: function() {
+        disconnect: function () {
             this.getInstance().disconnect();
         },
 

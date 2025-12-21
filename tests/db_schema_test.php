@@ -33,12 +33,14 @@ defined('MOODLE_INTERNAL') || die();
  *
  * Requirements: 1.1, 1.2, 5.1, 5.2, 7.1, 7.2
  */
-class db_schema_test extends \advanced_testcase {
+class db_schema_test extends \advanced_testcase
+{
 
     /**
      * Test that classengage_connections table exists and has correct structure
      */
-    public function test_connections_table_exists(): void {
+    public function test_connections_table_exists(): void
+    {
         global $DB;
 
         $this->resetAfterTest(true);
@@ -52,7 +54,8 @@ class db_schema_test extends \advanced_testcase {
     /**
      * Test that classengage_response_queue table exists and has correct structure
      */
-    public function test_response_queue_table_exists(): void {
+    public function test_response_queue_table_exists(): void
+    {
         global $DB;
 
         $this->resetAfterTest(true);
@@ -66,7 +69,8 @@ class db_schema_test extends \advanced_testcase {
     /**
      * Test that classengage_session_log table exists and has correct structure
      */
-    public function test_session_log_table_exists(): void {
+    public function test_session_log_table_exists(): void
+    {
         global $DB;
 
         $this->resetAfterTest(true);
@@ -80,7 +84,8 @@ class db_schema_test extends \advanced_testcase {
     /**
      * Test that classengage_sessions table has new pause/resume fields
      */
-    public function test_sessions_table_has_pause_fields(): void {
+    public function test_sessions_table_has_pause_fields(): void
+    {
         global $DB;
 
         $this->resetAfterTest(true);
@@ -104,7 +109,8 @@ class db_schema_test extends \advanced_testcase {
     /**
      * Test inserting and retrieving connection records
      */
-    public function test_connection_crud_operations(): void {
+    public function test_connection_crud_operations(): void
+    {
         global $DB;
 
         $this->resetAfterTest(true);
@@ -125,7 +131,6 @@ class db_schema_test extends \advanced_testcase {
         $connection->connectionid = 'test-connection-' . uniqid();
         $connection->transport = 'polling';
         $connection->status = 'connected';
-        $connection->last_heartbeat = time();
         $connection->current_question_answered = 0;
         $connection->timecreated = time();
         $connection->timemodified = time();
@@ -144,7 +149,8 @@ class db_schema_test extends \advanced_testcase {
     /**
      * Test inserting and retrieving response queue records
      */
-    public function test_response_queue_crud_operations(): void {
+    public function test_response_queue_crud_operations(): void
+    {
         global $DB;
 
         $this->resetAfterTest(true);
@@ -184,7 +190,8 @@ class db_schema_test extends \advanced_testcase {
     /**
      * Test inserting and retrieving session log records
      */
-    public function test_session_log_crud_operations(): void {
+    public function test_session_log_crud_operations(): void
+    {
         global $DB;
 
         $this->resetAfterTest(true);
@@ -232,7 +239,8 @@ class db_schema_test extends \advanced_testcase {
     /**
      * Test session pause/resume fields work correctly
      */
-    public function test_session_pause_resume_fields(): void {
+    public function test_session_pause_resume_fields(): void
+    {
         global $DB;
 
         $this->resetAfterTest(true);
@@ -251,7 +259,7 @@ class db_schema_test extends \advanced_testcase {
         // Simulate pause.
         $pausetime = time();
         $timerremaining = 25;
-        $DB->update_record('classengage_sessions', (object)[
+        $DB->update_record('classengage_sessions', (object) [
             'id' => $session->id,
             'status' => 'paused',
             'paused_at' => $pausetime,
@@ -267,7 +275,7 @@ class db_schema_test extends \advanced_testcase {
 
         // Simulate resume.
         $pauseduration = 5;
-        $DB->update_record('classengage_sessions', (object)[
+        $DB->update_record('classengage_sessions', (object) [
             'id' => $session->id,
             'status' => 'active',
             'paused_at' => null,
@@ -286,7 +294,8 @@ class db_schema_test extends \advanced_testcase {
     /**
      * Test unique constraint on connectionid
      */
-    public function test_connection_unique_constraint(): void {
+    public function test_connection_unique_constraint(): void
+    {
         global $DB;
 
         $this->resetAfterTest(true);
@@ -308,7 +317,6 @@ class db_schema_test extends \advanced_testcase {
         $connection1->connectionid = $connectionid;
         $connection1->transport = 'polling';
         $connection1->status = 'connected';
-        $connection1->last_heartbeat = time();
         $connection1->current_question_answered = 0;
         $connection1->timecreated = time();
         $connection1->timemodified = time();
@@ -330,7 +338,8 @@ class db_schema_test extends \advanced_testcase {
      * for cross-database compatibility. This test verifies the relationship works correctly
      * through proper data setup.
      */
-    public function test_connections_foreign_key_sessionid(): void {
+    public function test_connections_foreign_key_sessionid(): void
+    {
         global $DB;
 
         $this->resetAfterTest(true);
@@ -350,7 +359,6 @@ class db_schema_test extends \advanced_testcase {
         $connection->connectionid = 'fk-test-' . uniqid();
         $connection->transport = 'sse';
         $connection->status = 'connected';
-        $connection->last_heartbeat = time();
         $connection->current_question_answered = 0;
         $connection->timecreated = time();
         $connection->timemodified = time();
@@ -373,7 +381,8 @@ class db_schema_test extends \advanced_testcase {
     /**
      * Test foreign key constraint on response_queue table - references sessions, questions, and users
      */
-    public function test_response_queue_foreign_keys(): void {
+    public function test_response_queue_foreign_keys(): void
+    {
         global $DB;
 
         $this->resetAfterTest(true);
@@ -420,7 +429,8 @@ class db_schema_test extends \advanced_testcase {
     /**
      * Test foreign key constraint on session_log table - references sessions and users
      */
-    public function test_session_log_foreign_keys(): void {
+    public function test_session_log_foreign_keys(): void
+    {
         global $DB;
 
         $this->resetAfterTest(true);
@@ -461,7 +471,8 @@ class db_schema_test extends \advanced_testcase {
     /**
      * Test session_log allows null userid for system events
      */
-    public function test_session_log_null_userid(): void {
+    public function test_session_log_null_userid(): void
+    {
         global $DB;
 
         $this->resetAfterTest(true);
@@ -498,7 +509,8 @@ class db_schema_test extends \advanced_testcase {
      * This test verifies that the upgrade steps are defined in the correct order
      * and that each step creates the expected database structures.
      */
-    public function test_upgrade_version_progression(): void {
+    public function test_upgrade_version_progression(): void
+    {
         global $DB;
 
         $this->resetAfterTest(true);
@@ -529,7 +541,8 @@ class db_schema_test extends \advanced_testcase {
     /**
      * Test that indexes exist on new tables for performance
      */
-    public function test_table_indexes_exist(): void {
+    public function test_table_indexes_exist(): void
+    {
         global $DB;
 
         $this->resetAfterTest(true);
@@ -544,7 +557,7 @@ class db_schema_test extends \advanced_testcase {
         $index = new \xmldb_index('sessionid_status', XMLDB_INDEX_NOTUNIQUE, ['sessionid', 'status']);
         $this->assertTrue($dbman->index_exists($table, $index));
 
-        $index = new \xmldb_index('last_heartbeat', XMLDB_INDEX_NOTUNIQUE, ['last_heartbeat']);
+        $index = new \xmldb_index('timemodified', XMLDB_INDEX_NOTUNIQUE, ['timemodified']);
         $this->assertTrue($dbman->index_exists($table, $index));
 
         // Test response_queue table indexes.
@@ -564,7 +577,8 @@ class db_schema_test extends \advanced_testcase {
     /**
      * Test connections table supports all transport types
      */
-    public function test_connections_transport_types(): void {
+    public function test_connections_transport_types(): void
+    {
         global $DB;
 
         $this->resetAfterTest(true);
@@ -586,7 +600,6 @@ class db_schema_test extends \advanced_testcase {
             $connection->connectionid = 'transport-test-' . $transport . '-' . uniqid();
             $connection->transport = $transport;
             $connection->status = 'connected';
-            $connection->last_heartbeat = time();
             $connection->current_question_answered = 0;
             $connection->timecreated = time();
             $connection->timemodified = time();
@@ -602,7 +615,8 @@ class db_schema_test extends \advanced_testcase {
     /**
      * Test connections table supports all status types
      */
-    public function test_connections_status_types(): void {
+    public function test_connections_status_types(): void
+    {
         global $DB;
 
         $this->resetAfterTest(true);
@@ -624,7 +638,6 @@ class db_schema_test extends \advanced_testcase {
             $connection->connectionid = 'status-test-' . $status . '-' . uniqid();
             $connection->transport = 'polling';
             $connection->status = $status;
-            $connection->last_heartbeat = time();
             $connection->current_question_answered = 0;
             $connection->timecreated = time();
             $connection->timemodified = time();

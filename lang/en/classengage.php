@@ -511,7 +511,7 @@ $string['sessionpaused'] = 'Session paused';
 $string['sessionresumed'] = 'Session resumed';
 $string['connectionregistered'] = 'Connection registered';
 $string['connectiondisconnected'] = 'Connection disconnected';
-$string['heartbeatprocessed'] = 'Heartbeat processed';
+
 $string['reconnected'] = 'Reconnected to session';
 $string['batchsubmitted'] = 'Batch submitted';
 $string['invalidresponsesformat'] = 'Invalid responses format';
@@ -532,8 +532,29 @@ $string['submitanswer'] = 'Submit Answer';
 $string['pause'] = 'Pause';
 $string['resume'] = 'Resume';
 $string['connectedstudents'] = 'Connected Students';
+$string['students'] = 'Students';
 $string['loadingstudents'] = 'Loading students...';
 $string['sessionstatistics'] = 'Session Statistics';
 $string['connected'] = 'Connected';
 $string['answered'] = 'Answered';
 $string['nostudentsconnected'] = 'No students connected';
+$string['searchstudents'] = 'Search students...';
+
+// Enterprise optimization: Scheduled tasks
+$string['task:cleanupstaleconnections'] = 'Clean up stale connections';
+$string['task:processresponsequeue'] = 'Process response queue';
+$string['task:aggregateanalytics'] = 'Aggregate analytics data';
+$string['task:cleanupsessionlogs'] = 'Clean up old session logs';
+
+// Enterprise optimization: Rate limiting
+$string['error:ratelimitexceeded'] = 'Rate limit exceeded. Please wait {$a} seconds before trying again.';
+
+// Enterprise optimization: Health check
+$string['healthcheck'] = 'Health Check';
+$string['healthcheck:database'] = 'Database connectivity';
+$string['healthcheck:cache'] = 'Cache system';
+$string['healthcheck:sse'] = 'SSE capability';
+$string['healthcheck:tables'] = 'Database tables';
+$string['healthcheck:diskspace'] = 'Disk space';
+$string['healthcheck:memory'] = 'Memory usage';
+

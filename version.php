@@ -25,8 +25,8 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'mod_classengage';
-$plugin->version = 2025120505;  // YYYYMMDDXX format - Real-time quiz engine tables
+$plugin->version = 2025122004;  // YYYYMMDDXX format - Enterprise optimization
 $plugin->requires = 2022041900; // Moodle 4.0 or later
-$plugin->maturity = MATURITY_ALPHA;
-$plugin->release = 'v1.2.0-alpha';
+$plugin->maturity = MATURITY_BETA;
+$plugin->release = 'v1.3.0-beta';
 

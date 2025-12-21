@@ -35,7 +35,8 @@ defined('MOODLE_INTERNAL') || die();
 /**
  * Session state class representing the current state of a quiz session
  */
-class session_state {
+class session_state
+{
     /** @var int Session ID */
     public int $sessionid;
 
@@ -89,7 +90,8 @@ class session_state {
 /**
  * Question broadcast class for broadcasting questions to clients
  */
-class question_broadcast {
+class question_broadcast
+{
     /** @var int Session ID */
     public int $sessionid;
 
@@ -130,7 +132,8 @@ class question_broadcast {
 /**
  * Client session state for reconnecting clients
  */
-class client_session_state {
+class client_session_state
+{
     /** @var int Session ID */
     public int $sessionid;
 
@@ -189,7 +192,8 @@ class client_session_state {
 /**
  * Connected student information
  */
-class connected_student {
+class connected_student
+{
     /** @var int User ID */
     public int $userid;
 
@@ -199,8 +203,8 @@ class connected_student {
     /** @var bool Whether user has answered current question */
     public bool $hasanswered;
 
-    /** @var int Last heartbeat timestamp */
-    public int $lastheartbeat;
+    /** @var int Last activity timestamp */
+    public int $lastactivity;
 
     /** @var string Transport type (websocket, polling, sse) */
     public string $transport;
@@ -211,20 +215,20 @@ class connected_student {
      * @param int $userid
      * @param string $status
      * @param bool $hasanswered
-     * @param int $lastheartbeat
+     * @param int $lastactivity
      * @param string $transport
      */
     public function __construct(
         int $userid,
         string $status,
         bool $hasanswered,
-        int $lastheartbeat,
+        int $lastactivity,
         string $transport
     ) {
         $this->userid = $userid;
         $this->status = $status;
         $this->hasanswered = $hasanswered;
-        $this->lastheartbeat = $lastheartbeat;
+        $this->lastactivity = $lastactivity;
         $this->transport = $transport;
     }
 }
@@ -238,10 +242,11 @@ class connected_student {
  *
  * Requirements: 1.1, 1.2, 1.4, 1.5, 4.4, 5.1, 5.2, 5.3
  */
-class session_state_manager {
+class session_state_manager
+{
 
-    /** @var int Heartbeat timeout in seconds for marking connections as stale */
-    const HEARTBEAT_TIMEOUT = 10;
+    /** @var int Connection stale timeout in seconds for marking connections as stale */
+    const CONNECTION_STALE_TIMEOUT = 10;
 
     /** @var int Broadcast latency target in milliseconds */
     const BROADCAST_LATENCY_TARGET_MS = 500;
@@ -258,7 +263,8 @@ class session_state_manager {
     /**
      * Constructor
      */
-    public function __construct() {
+    public function __construct()
+    {
         $this->sessioncache = \cache::make('mod_classengage', 'session_state');
         $this->connectioncache = \cache::make('mod_classengage', 'connection_status');
         $this->broadcastcache = \cache::make('mod_classengage', 'question_broadcast');
@@ -273,7 +279,8 @@ class session_state_manager {
      * @param int $sessionid Session ID
      * @return session_state
      */
-    public function start_session(int $sessionid): session_state {
+    public function start_session(int $sessionid): session_state
+    {
         global $DB;
 
         $starttime = microtime(true);
@@ -342,7 +349,8 @@ class session_state_manager {
      * @param int $sessionid Session ID
      * @return session_state
      */
-    public function pause_session(int $sessionid): session_state {
+    public function pause_session(int $sessionid): session_state
+    {
         global $DB;
 
         $session = $DB->get_record('classengage_sessions', ['id' => $sessionid], '*', MUST_EXIST);
@@ -395,7 +403,8 @@ class session_state_manager {
      * @param int $sessionid Session ID
      * @return session_state
      */
-    public function resume_session(int $sessionid): session_state {
+    public function resume_session(int $sessionid): session_state
+    {
         global $DB;
 
         $session = $DB->get_record('classengage_sessions', ['id' => $sessionid], '*', MUST_EXIST);
@@ -454,7 +463,8 @@ class session_state_manager {
      * @param int $sessionid Session ID
      * @return question_broadcast
      */
-    public function next_question(int $sessionid): question_broadcast {
+    public function next_question(int $sessionid): question_broadcast
+    {
         global $DB;
 
         $starttime = microtime(true);
@@ -530,7 +540,8 @@ class session_state_manager {
      * @param string $transport Transport type (websocket, polling, sse)
      * @return void
      */
-    public function register_connection(int $sessionid, int $userid, string $connectionid, string $transport = 'polling'): void {
+    public function register_connection(int $sessionid, int $userid, string $connectionid, string $transport = 'polling'): void
+    {
         global $DB;
 
         $now = time();
@@ -541,7 +552,7 @@ class session_state_manager {
         if ($existing) {
             // Update existing connection.
             $existing->status = 'connected';
-            $existing->last_heartbeat = $now;
+            $existing->timemodified = $now;
             $existing->transport = $transport;
             $existing->timemodified = $now;
             $DB->update_record('classengage_connections', $existing);
@@ -567,7 +578,6 @@ class session_state_manager {
             $connection->connectionid = $connectionid;
             $connection->transport = $transport;
             $connection->status = 'connected';
-            $connection->last_heartbeat = $now;
             $connection->current_question_answered = 0;
             $connection->timecreated = $now;
             $connection->timemodified = $now;
@@ -575,12 +585,13 @@ class session_state_manager {
             $DB->insert_record('classengage_connections', $connection);
         }
 
-        // Update cache.
-        $this->connectioncache->set("conn_{$connectionid}", [
+        // Update cache. Sanitize connectionid to remove dots (simple key requirement).
+        $cachekey = 'conn_' . str_replace('.', '_', $connectionid);
+        $this->connectioncache->set($cachekey, [
             'sessionid' => $sessionid,
             'userid' => $userid,
             'status' => 'connected',
-            'last_heartbeat' => $now,
+            'timestamp' => $now,
         ]);
 
         // Log the event.
@@ -598,7 +609,8 @@ class session_state_manager {
      * @param string $connectionid Connection identifier
      * @return void
      */
-    public function handle_disconnect(string $connectionid): void {
+    public function handle_disconnect(string $connectionid): void
+    {
         global $DB;
 
         $connection = $DB->get_record('classengage_connections', ['connectionid' => $connectionid]);
@@ -614,8 +626,9 @@ class session_state_manager {
 
         $DB->update_record('classengage_connections', $connection);
 
-        // Update cache.
-        $this->connectioncache->delete("conn_{$connectionid}");
+        // Update cache. Sanitize connectionid to remove dots (simple key requirement).
+        $cachekey = 'conn_' . str_replace('.', '_', $connectionid);
+        $this->connectioncache->delete($cachekey);
 
         // Log the event.
         $this->log_event($connection->sessionid, $connection->userid, 'connection_disconnect', [
@@ -631,91 +644,48 @@ class session_state_manager {
      * @param int $sessionid Session ID
      * @return connected_student[]
      */
-    public function get_connected_students(int $sessionid): array {
+    public function get_connected_students(int $sessionid): array
+    {
         global $DB;
 
+        // Include students who are either:
+        // 1. Currently connected, OR
+        // 2. Had recent activity (within 60 second grace period) to avoid flicker.
+        $gracePeriod = 60; // seconds
+        $cutoffTime = time() - $gracePeriod;
+
         // Fetch connections joined with user info.
-        // Order by status to prioritize connected/answering in the loop logic below if needed,
-        // but explicit merging is safer.
+        // Order by status (connected first) then by timemodified DESC.
         $sql = "SELECT c.*, u.firstname, u.lastname
                   FROM {classengage_connections} c
                   JOIN {user} u ON c.userid = u.id
                  WHERE c.sessionid = :sessionid
-              ORDER BY c.timemodified DESC";
-        
-        $connections = $DB->get_records_sql($sql, ['sessionid' => $sessionid]);
+                   AND (c.status = 'connected' OR c.timemodified >= :cutoff)
+              ORDER BY 
+                  CASE WHEN c.status = 'connected' THEN 0 ELSE 1 END,
+                  c.timemodified DESC";
+
+        $connections = $DB->get_records_sql($sql, [
+            'sessionid' => $sessionid,
+            'cutoff' => $cutoffTime,
+        ]);
 
         $unique_students = [];
 
         foreach ($connections as $conn) {
             // If user not already added, add them.
+            // First seen entry is prioritized (connected status comes first due to ORDER BY).
             if (!isset($unique_students[$conn->userid])) {
                 $unique_students[$conn->userid] = new connected_student(
                     $conn->userid,
                     $conn->status,
                     (bool) $conn->current_question_answered,
-                    $conn->last_heartbeat,
+                    $conn->timemodified,
                     $conn->transport
                 );
-                // Attach name for display if needed (though connected_student class might not have name property in earlier definition,
-                // the JS seems to expect it in the response? 
-                // Wait, the previous code didn't add name to connected_student object, 
-                // but the JS `updateStudentList` uses `student.fullname`. 
-                // The AJAX `getstudents` returns `students` array. 
-                // Let's check `ajax.php`.
-                // For now, I'll stick to the original object structure but just deduplicate.
-                // Actually, I need to make sure I add the name if the AJAX relies on it.
-                // The previous code:
-                /*
-                foreach ($connections as $conn) {
-                    $students[] = new connected_student(
-                        $conn->userid,
-                        ...
-                    );
-                }
-                */
-                // `connected_student` class definition (lines 192-230) does NOT have name.
-                // However, `ajax.php` might be enriching it?
-                // Or `controlpanel.js` line 465: `student.fullname`.
-                // If `connected_student` doesn't have name, how did it work before?
-                // Ah, `get_records` on `classengage_connections` returns object with fields.
-                // `connected_student` class only has IDs.
-                // Let's check `ajax.php` to see how it constructs the response. 
-                // If `ajax.php` calls `get_connected_students` and returns the array directly, then the specific class fields are what's returned (serialized).
-                // If the class `connected_student` doesn't have `fullname`, then JS wouldn't see it.
-                // But the user said it shows "Admin admin", so it MUST be getting the name.
-                // Let me check `connected_student` class definition again in Step 163.
-                // It does NOT have fullname.
-                // Maybe `ajax.php` does the join?
-            } else {
-                // If we already have this user, check if we need to update status.
-                // We iterated by timemodified DESC, so the first one we see is the latest one.
-                // The latest one should be the correct status.
-                // So we just skip duplicates.
             }
         }
-        
-        // Wait, I need to verify how `fullname` gets there.
-        // If I use `connected_student` class, it sanitizes the output.
-        // If `ajax.php` enriches it, I'm fine.
-        // Let me check `ajax.php` quickly or safe bet is to just let me deduce.
-        // Actually, if I look at `get_connected_students` implementation in Step 163:
-        /*
-        $students = [];
-        foreach ($connections as $conn) {
-            $students[] = new connected_student(...)
-        }
-        return $students;
-        */
-        // And `connected_student` constructor only takes userid, status, etc.
-        // So `fullname` must be missing? 
-        // Then how does "Admin admin" appear?
-        // JS: `self.escapeHtml(student.fullname || 'User ' + student.userid)`
-        // Maybe it was falling back to 'User ID'? But user said "Admin admin".
-        // This implies `student.fullname` IS present.
-        // Does `connected_student` have magic `__get`? No.
-        // Does `ajax.php` modify the result?
-        
+
         return array_values($unique_students);
     }
 
@@ -729,7 +699,8 @@ class session_state_manager {
      * @param int $userid User ID
      * @return client_session_state
      */
-    public function get_client_state(int $sessionid, int $userid): client_session_state {
+    public function get_client_state(int $sessionid, int $userid): client_session_state
+    {
         global $DB;
 
         $session = $DB->get_record('classengage_sessions', ['id' => $sessionid], '*', MUST_EXIST);
@@ -789,7 +760,8 @@ class session_state_manager {
      * @param int $sessionid Session ID
      * @return session_state|null
      */
-    public function get_session_state(int $sessionid): ?session_state {
+    public function get_session_state(int $sessionid): ?session_state
+    {
         // Try cache first.
         $cached = $this->sessioncache->get("session_{$sessionid}");
         if ($cached !== false) {
@@ -834,20 +806,48 @@ class session_state_manager {
      * Mark user as having answered current question
      *
      * Updates status to "answered" for instructor panel (Requirement 5.4).
+     * Updates all connection records for the user regardless of connection status
+     * to ensure accurate statistics even if SSE connection was dropped/reconnecting.
      *
      * @param int $sessionid Session ID
      * @param int $userid User ID
      * @return void
      */
-    public function mark_question_answered(int $sessionid, int $userid): void {
+    public function mark_question_answered(int $sessionid, int $userid): void
+    {
         global $DB;
 
+        // First, check if user has any connection record for this session.
+        $hasconnection = $DB->record_exists('classengage_connections', [
+            'sessionid' => $sessionid,
+            'userid' => $userid,
+        ]);
+
+        // If no connection record exists, create one so the answer is tracked.
+        // This handles cases where student submits via API without SSE connection.
+        if (!$hasconnection) {
+            $now = time();
+            $connection = new \stdClass();
+            $connection->sessionid = $sessionid;
+            $connection->userid = $userid;
+            $connection->connectionid = 'api_' . $userid . '_' . $now;
+            $connection->transport = 'api';
+            $connection->status = 'connected';
+            $connection->current_question_answered = 1;
+            $connection->timecreated = $now;
+            $connection->timemodified = $now;
+            $DB->insert_record('classengage_connections', $connection);
+            return;
+        }
+
+        // Update all connection records for this user, not just 'connected' ones.
+        // This ensures stats are accurate even if SSE connection was dropped mid-quiz.
         $DB->set_field_select(
             'classengage_connections',
             'current_question_answered',
             1,
-            'sessionid = :sessionid AND userid = :userid AND status = :status',
-            ['sessionid' => $sessionid, 'userid' => $userid, 'status' => 'connected']
+            'sessionid = :sessionid AND userid = :userid',
+            ['sessionid' => $sessionid, 'userid' => $userid]
         );
     }
 
@@ -859,7 +859,8 @@ class session_state_manager {
      * @param int $sessionid Session ID
      * @return array
      */
-    public function get_session_statistics(int $sessionid): array {
+    public function get_session_statistics(int $sessionid): array
+    {
         global $DB;
 
         $connected = $DB->count_records('classengage_connections', [
@@ -888,7 +889,8 @@ class session_state_manager {
      * @param int $sessionid Session ID
      * @return int
      */
-    protected function get_connected_count(int $sessionid): int {
+    protected function get_connected_count(int $sessionid): int
+    {
         global $DB;
 
         return $DB->count_records('classengage_connections', [
@@ -904,7 +906,8 @@ class session_state_manager {
      * @param int $position Question position (0-based)
      * @return \stdClass|null
      */
-    protected function get_question_at_position(int $sessionid, int $position): ?\stdClass {
+    protected function get_question_at_position(int $sessionid, int $position): ?\stdClass
+    {
         global $DB;
 
         $sql = "SELECT q.*
@@ -930,7 +933,8 @@ class session_state_manager {
      * @param array $eventdata Additional event data
      * @return void
      */
-    protected function log_event(int $sessionid, ?int $userid, string $eventtype, array $eventdata = []): void {
+    protected function log_event(int $sessionid, ?int $userid, string $eventtype, array $eventdata = []): void
+    {
         global $DB;
 
         $log = new \stdClass();
@@ -950,7 +954,8 @@ class session_state_manager {
      * @param int $sessionid Session ID
      * @return void
      */
-    public function invalidate_cache(int $sessionid): void {
+    public function invalidate_cache(int $sessionid): void
+    {
         $this->sessioncache->delete("session_{$sessionid}");
         $this->broadcastcache->delete("broadcast_{$sessionid}");
     }

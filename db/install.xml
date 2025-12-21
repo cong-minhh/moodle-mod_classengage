@@ -169,7 +169,6 @@
         <FIELD NAME="connectionid" TYPE="char" LENGTH="64" NOTNULL="true" SEQUENCE="false" COMMENT="Unique connection identifier"/>
         <FIELD NAME="transport" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="polling" SEQUENCE="false" COMMENT="Transport type: websocket, polling, sse"/>
         <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="connected" SEQUENCE="false" COMMENT="Status: connected, disconnected, answering"/>
-        <FIELD NAME="last_heartbeat" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Timestamp of last heartbeat"/>
         <FIELD NAME="current_question_answered" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Whether user answered current question"/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
@@ -183,7 +182,7 @@
         <INDEX NAME="connectionid" UNIQUE="true" FIELDS="connectionid"/>
         <INDEX NAME="sessionid_status" UNIQUE="false" FIELDS="sessionid, status"/>
         <INDEX NAME="sessionid_userid" UNIQUE="false" FIELDS="sessionid, userid"/>
-        <INDEX NAME="last_heartbeat" UNIQUE="false" FIELDS="last_heartbeat"/>
+        <INDEX NAME="timemodified" UNIQUE="false" FIELDS="timemodified"/>
       </INDEXES>
     </TABLE>
     <TABLE NAME="classengage_response_queue" COMMENT="Temporary queue for batch processing responses under high load">

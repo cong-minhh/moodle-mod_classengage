@@ -31,7 +31,8 @@ use Behat\Mink\Exception\ExpectationException;
 /**
  * ClassEngage Behat step definitions
  */
-class behat_mod_classengage extends behat_base {
+class behat_mod_classengage extends behat_base
+{
 
     /**
      * Creates a question for the current ClassEngage activity.
@@ -39,7 +40,8 @@ class behat_mod_classengage extends behat_base {
      * @Given /^I create a classengage question with:$/
      * @param TableNode $data Question data
      */
-    public function i_create_a_classengage_question_with(TableNode $data) {
+    public function i_create_a_classengage_question_with(TableNode $data)
+    {
         global $DB;
 
         $questiondata = $data->getRowsHash();
@@ -84,7 +86,8 @@ class behat_mod_classengage extends behat_base {
      * @Given /^I create a classengage session with:$/
      * @param TableNode $data Session data
      */
-    public function i_create_a_classengage_session_with(TableNode $data) {
+    public function i_create_a_classengage_session_with(TableNode $data)
+    {
         global $DB, $USER;
 
         $sessiondata = $data->getRowsHash();
@@ -145,7 +148,8 @@ class behat_mod_classengage extends behat_base {
      * @Given /^I start the classengage session "([^"]*)"$/
      * @param string $sessionname Session name
      */
-    public function i_start_the_classengage_session($sessionname) {
+    public function i_start_the_classengage_session($sessionname)
+    {
         global $DB;
 
         $session = $DB->get_record('classengage_sessions', ['name' => $sessionname], '*', MUST_EXIST);
@@ -166,7 +170,8 @@ class behat_mod_classengage extends behat_base {
      * @Given /^I pause the classengage session "([^"]*)"$/
      * @param string $sessionname Session name
      */
-    public function i_pause_the_classengage_session($sessionname) {
+    public function i_pause_the_classengage_session($sessionname)
+    {
         global $DB;
 
         $session = $DB->get_record('classengage_sessions', ['name' => $sessionname], '*', MUST_EXIST);
@@ -190,7 +195,8 @@ class behat_mod_classengage extends behat_base {
      * @Given /^I resume the classengage session "([^"]*)"$/
      * @param string $sessionname Session name
      */
-    public function i_resume_the_classengage_session($sessionname) {
+    public function i_resume_the_classengage_session($sessionname)
+    {
         global $DB;
 
         $session = $DB->get_record('classengage_sessions', ['name' => $sessionname], '*', MUST_EXIST);
@@ -214,7 +220,8 @@ class behat_mod_classengage extends behat_base {
      * @Given /^I advance to the next question in session "([^"]*)"$/
      * @param string $sessionname Session name
      */
-    public function i_advance_to_next_question_in_session($sessionname) {
+    public function i_advance_to_next_question_in_session($sessionname)
+    {
         global $DB;
 
         $session = $DB->get_record('classengage_sessions', ['name' => $sessionname], '*', MUST_EXIST);
@@ -232,17 +239,18 @@ class behat_mod_classengage extends behat_base {
      *
      * @Given /^I wait for the quiz question to load$/
      */
-    public function i_wait_for_the_quiz_question_to_load() {
+    public function i_wait_for_the_quiz_question_to_load()
+    {
         // Wait for the page to be ready first.
         $this->execute('behat_general::wait_until_the_page_is_ready');
 
         // Wait for the question container to appear (with timeout).
         $this->spin(
-            function($context) {
+            function ($context) {
                 $page = $context->getSession()->getPage();
                 return $page->find('css', '.quiz-question') !== null ||
-                       $page->find('css', '.quiz-container') !== null ||
-                       $page->find('css', '#quiz-content') !== null;
+                    $page->find('css', '.quiz-container') !== null ||
+                    $page->find('css', '#quiz-content') !== null;
             },
             [],
             10,
@@ -261,7 +269,8 @@ class behat_mod_classengage extends behat_base {
      * @param string $element Element text
      * @param string $selectortype Selector type
      */
-    public function the_element_should_be_disabled($element, $selectortype) {
+    public function the_element_should_be_disabled($element, $selectortype)
+    {
         $node = $this->find($selectortype, $element);
 
         if (!$node->hasAttribute('disabled') && !$node->hasClass('disabled')) {
@@ -278,7 +287,8 @@ class behat_mod_classengage extends behat_base {
      * @Then /^I should see "([^"]*)" in the connected students list$/
      * @param string $studentname Student name
      */
-    public function i_should_see_student_in_connected_list($studentname) {
+    public function i_should_see_student_in_connected_list($studentname)
+    {
         $this->execute('behat_general::assert_element_contains_text', [
             $studentname,
             '#connected-students-list',
@@ -293,7 +303,8 @@ class behat_mod_classengage extends behat_base {
      * @param string $studentname Student name
      * @param string $status Expected status
      */
-    public function student_should_have_status($studentname, $status) {
+    public function student_should_have_status($studentname, $status)
+    {
         $xpath = "//div[@id='connected-students-list']//div[contains(., '$studentname')]//span[contains(@class, 'status-$status')]";
 
         try {
@@ -312,7 +323,8 @@ class behat_mod_classengage extends behat_base {
      * @Then /^the session statistics should show "([^"]*)" connected$/
      * @param string $count Expected count
      */
-    public function session_statistics_should_show_connected($count) {
+    public function session_statistics_should_show_connected($count)
+    {
         $this->execute('behat_general::assert_element_contains_text', [
             $count,
             '#stat-connected',
@@ -326,7 +338,8 @@ class behat_mod_classengage extends behat_base {
      * @Given /^student "([^"]*)" joins the active session$/
      * @param string $username Student username
      */
-    public function student_joins_active_session($username) {
+    public function student_joins_active_session($username)
+    {
         global $DB;
 
         $user = $DB->get_record('user', ['username' => $username], '*', MUST_EXIST);
@@ -341,7 +354,6 @@ class behat_mod_classengage extends behat_base {
         $connection->connectionid = uniqid('behat_' . $user->id . '_', true);
         $connection->transport = 'polling';
         $connection->status = 'connected';
-        $connection->last_heartbeat = time();
         $connection->current_question_answered = 0;
         $connection->timecreated = time();
         $connection->timemodified = time();
@@ -355,7 +367,8 @@ class behat_mod_classengage extends behat_base {
      * @Given /^student "([^"]*)" disconnects from the session$/
      * @param string $username Student username
      */
-    public function student_disconnects_from_session($username) {
+    public function student_disconnects_from_session($username)
+    {
         global $DB;
 
         $user = $DB->get_record('user', ['username' => $username], '*', MUST_EXIST);
@@ -369,7 +382,8 @@ class behat_mod_classengage extends behat_base {
      *
      * @Given /^I wait for the control panel to update$/
      */
-    public function i_wait_for_control_panel_to_update() {
+    public function i_wait_for_control_panel_to_update()
+    {
         // Wait for the page to be ready.
         $this->execute('behat_general::wait_until_the_page_is_ready');
 
@@ -383,7 +397,8 @@ class behat_mod_classengage extends behat_base {
      * @When /^I navigate to the control panel for session "([^"]*)"$/
      * @param string $sessionname Session name
      */
-    public function i_navigate_to_control_panel_for_session($sessionname) {
+    public function i_navigate_to_control_panel_for_session($sessionname)
+    {
         global $DB;
 
         $session = $DB->get_record('classengage_sessions', ['name' => $sessionname], '*', MUST_EXIST);
@@ -405,7 +420,8 @@ class behat_mod_classengage extends behat_base {
      * @Then /^I should see "([^"]*)" in the page$/
      * @param string $text Text to find
      */
-    public function i_should_see_text_in_page($text) {
+    public function i_should_see_text_in_page($text)
+    {
         $this->execute('behat_general::assert_page_contains_text', [$text]);
     }
 }

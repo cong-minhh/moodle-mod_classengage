@@ -31,7 +31,8 @@ defined('MOODLE_INTERNAL') || die();
  *
  * Requirements: 1.1, 1.4, 1.5, 5.1
  */
-class session_state_manager_test extends \advanced_testcase {
+class session_state_manager_test extends \advanced_testcase
+{
 
     /** @var \stdClass Course for testing */
     protected $course;
@@ -48,7 +49,8 @@ class session_state_manager_test extends \advanced_testcase {
     /**
      * Set up test fixtures
      */
-    protected function setUp(): void {
+    protected function setUp(): void
+    {
         parent::setUp();
         $this->resetAfterTest(true);
 
@@ -66,7 +68,8 @@ class session_state_manager_test extends \advanced_testcase {
      * @param int $numquestions Number of questions to create
      * @return \stdClass Session object
      */
-    protected function create_session_with_questions(array $sessionparams = [], int $numquestions = 5): \stdClass {
+    protected function create_session_with_questions(array $sessionparams = [], int $numquestions = 5): \stdClass
+    {
         global $DB;
 
         $defaults = [
@@ -107,7 +110,8 @@ class session_state_manager_test extends \advanced_testcase {
      *
      * @covers \mod_classengage\session_state_manager::start_session
      */
-    public function test_start_session_transitions_to_active(): void {
+    public function test_start_session_transitions_to_active(): void
+    {
         global $DB;
 
         $session = $this->create_session_with_questions(['status' => 'ready']);
@@ -131,7 +135,8 @@ class session_state_manager_test extends \advanced_testcase {
      *
      * @covers \mod_classengage\session_state_manager::start_session
      */
-    public function test_start_session_logs_event(): void {
+    public function test_start_session_logs_event(): void
+    {
         global $DB;
 
         $session = $this->create_session_with_questions(['status' => 'ready']);
@@ -156,7 +161,8 @@ class session_state_manager_test extends \advanced_testcase {
      *
      * @covers \mod_classengage\session_state_manager::start_session
      */
-    public function test_start_session_stops_other_active_sessions(): void {
+    public function test_start_session_stops_other_active_sessions(): void
+    {
         global $DB;
 
         // Create first session and start it.
@@ -188,7 +194,8 @@ class session_state_manager_test extends \advanced_testcase {
      *
      * @covers \mod_classengage\session_state_manager::pause_session
      */
-    public function test_pause_session_freezes_timer(): void {
+    public function test_pause_session_freezes_timer(): void
+    {
         global $DB;
 
         $timelimit = 60;
@@ -219,7 +226,8 @@ class session_state_manager_test extends \advanced_testcase {
      *
      * @covers \mod_classengage\session_state_manager::pause_session
      */
-    public function test_pause_session_logs_event(): void {
+    public function test_pause_session_logs_event(): void
+    {
         global $DB;
 
         $session = $this->create_session_with_questions([
@@ -249,7 +257,8 @@ class session_state_manager_test extends \advanced_testcase {
      *
      * @covers \mod_classengage\session_state_manager::pause_session
      */
-    public function test_pause_session_throws_for_non_active(): void {
+    public function test_pause_session_throws_for_non_active(): void
+    {
         $session = $this->create_session_with_questions(['status' => 'ready']);
         $manager = new session_state_manager();
 
@@ -265,7 +274,8 @@ class session_state_manager_test extends \advanced_testcase {
      *
      * @covers \mod_classengage\session_state_manager::resume_session
      */
-    public function test_resume_session_restores_timer(): void {
+    public function test_resume_session_restores_timer(): void
+    {
         global $DB;
 
         $timelimit = 60;
@@ -300,7 +310,8 @@ class session_state_manager_test extends \advanced_testcase {
      *
      * @covers \mod_classengage\session_state_manager::resume_session
      */
-    public function test_resume_session_logs_event(): void {
+    public function test_resume_session_logs_event(): void
+    {
         global $DB;
 
         $session = $this->create_session_with_questions([
@@ -332,7 +343,8 @@ class session_state_manager_test extends \advanced_testcase {
      *
      * @covers \mod_classengage\session_state_manager::resume_session
      */
-    public function test_resume_session_throws_for_non_paused(): void {
+    public function test_resume_session_throws_for_non_paused(): void
+    {
         $session = $this->create_session_with_questions(['status' => 'active', 'questionstarttime' => time()]);
         $manager = new session_state_manager();
 
@@ -349,7 +361,8 @@ class session_state_manager_test extends \advanced_testcase {
      *
      * @covers \mod_classengage\session_state_manager::register_connection
      */
-    public function test_register_connection_creates_record(): void {
+    public function test_register_connection_creates_record(): void
+    {
         global $DB;
 
         $session = $this->create_session_with_questions([
@@ -371,7 +384,7 @@ class session_state_manager_test extends \advanced_testcase {
         $this->assertEquals($student->id, $connection->userid);
         $this->assertEquals('connected', $connection->status);
         $this->assertEquals('polling', $connection->transport);
-        $this->assertNotNull($connection->last_heartbeat);
+        $this->assertNotNull($connection->timemodified);
     }
 
     /**
@@ -379,7 +392,8 @@ class session_state_manager_test extends \advanced_testcase {
      *
      * @covers \mod_classengage\session_state_manager::register_connection
      */
-    public function test_register_connection_updates_existing(): void {
+    public function test_register_connection_updates_existing(): void
+    {
         global $DB;
 
         $session = $this->create_session_with_questions([
@@ -410,7 +424,8 @@ class session_state_manager_test extends \advanced_testcase {
      *
      * @covers \mod_classengage\session_state_manager::register_connection
      */
-    public function test_register_connection_disconnects_old_connection(): void {
+    public function test_register_connection_disconnects_old_connection(): void
+    {
         global $DB;
 
         $session = $this->create_session_with_questions([
@@ -445,7 +460,8 @@ class session_state_manager_test extends \advanced_testcase {
      *
      * @covers \mod_classengage\session_state_manager::register_connection
      */
-    public function test_register_connection_logs_event(): void {
+    public function test_register_connection_logs_event(): void
+    {
         global $DB;
 
         $session = $this->create_session_with_questions([
@@ -478,7 +494,8 @@ class session_state_manager_test extends \advanced_testcase {
      *
      * @covers \mod_classengage\session_state_manager::handle_disconnect
      */
-    public function test_handle_disconnect_updates_status(): void {
+    public function test_handle_disconnect_updates_status(): void
+    {
         global $DB;
 
         $session = $this->create_session_with_questions([
@@ -505,7 +522,8 @@ class session_state_manager_test extends \advanced_testcase {
      *
      * @covers \mod_classengage\session_state_manager::handle_disconnect
      */
-    public function test_handle_disconnect_logs_event(): void {
+    public function test_handle_disconnect_logs_event(): void
+    {
         global $DB;
 
         $session = $this->create_session_with_questions([
@@ -538,7 +556,8 @@ class session_state_manager_test extends \advanced_testcase {
      *
      * @covers \mod_classengage\session_state_manager::handle_disconnect
      */
-    public function test_handle_disconnect_nonexistent_connection(): void {
+    public function test_handle_disconnect_nonexistent_connection(): void
+    {
         $manager = new session_state_manager();
 
         // Should not throw exception.
@@ -556,7 +575,8 @@ class session_state_manager_test extends \advanced_testcase {
      *
      * @covers \mod_classengage\session_state_manager::get_connected_students
      */
-    public function test_get_connected_students_returns_list(): void {
+    public function test_get_connected_students_returns_list(): void
+    {
         $session = $this->create_session_with_questions([
             'status' => 'active',
             'questionstarttime' => time(),
@@ -591,7 +611,8 @@ class session_state_manager_test extends \advanced_testcase {
      *
      * @covers \mod_classengage\session_state_manager::get_connected_students
      */
-    public function test_get_connected_students_includes_disconnected(): void {
+    public function test_get_connected_students_includes_disconnected(): void
+    {
         $session = $this->create_session_with_questions([
             'status' => 'active',
             'questionstarttime' => time(),
@@ -627,7 +648,8 @@ class session_state_manager_test extends \advanced_testcase {
      *
      * @covers \mod_classengage\session_state_manager::get_session_statistics
      */
-    public function test_get_session_statistics(): void {
+    public function test_get_session_statistics(): void
+    {
         global $DB;
 
         $session = $this->create_session_with_questions([
@@ -662,7 +684,8 @@ class session_state_manager_test extends \advanced_testcase {
      *
      * @covers \mod_classengage\session_state_manager::next_question
      */
-    public function test_next_question_advances(): void {
+    public function test_next_question_advances(): void
+    {
         global $DB;
 
         $session = $this->create_session_with_questions([
@@ -689,7 +712,8 @@ class session_state_manager_test extends \advanced_testcase {
      *
      * @covers \mod_classengage\session_state_manager::next_question
      */
-    public function test_next_question_resets_answered_status(): void {
+    public function test_next_question_resets_answered_status(): void
+    {
         global $DB;
 
         $session = $this->create_session_with_questions([
@@ -724,7 +748,8 @@ class session_state_manager_test extends \advanced_testcase {
      *
      * @covers \mod_classengage\session_state_manager::next_question
      */
-    public function test_next_question_completes_session(): void {
+    public function test_next_question_completes_session(): void
+    {
         global $DB;
 
         $session = $this->create_session_with_questions([
@@ -749,7 +774,8 @@ class session_state_manager_test extends \advanced_testcase {
      *
      * @covers \mod_classengage\session_state_manager::get_client_state
      */
-    public function test_get_client_state_returns_correct_state(): void {
+    public function test_get_client_state_returns_correct_state(): void
+    {
         $session = $this->create_session_with_questions([
             'status' => 'active',
             'questionstarttime' => time(),
@@ -777,7 +803,8 @@ class session_state_manager_test extends \advanced_testcase {
      *
      * @covers \mod_classengage\session_state_manager::get_session_state
      */
-    public function test_get_session_state_returns_state(): void {
+    public function test_get_session_state_returns_state(): void
+    {
         $session = $this->create_session_with_questions([
             'status' => 'active',
             'questionstarttime' => time(),
@@ -800,7 +827,8 @@ class session_state_manager_test extends \advanced_testcase {
      *
      * @covers \mod_classengage\session_state_manager::get_session_state
      */
-    public function test_get_session_state_returns_null_for_nonexistent(): void {
+    public function test_get_session_state_returns_null_for_nonexistent(): void
+    {
         $manager = new session_state_manager();
         $state = $manager->get_session_state(99999);
 
@@ -812,7 +840,8 @@ class session_state_manager_test extends \advanced_testcase {
      *
      * @covers \mod_classengage\session_state_manager::invalidate_cache
      */
-    public function test_invalidate_cache(): void {
+    public function test_invalidate_cache(): void
+    {
         $session = $this->create_session_with_questions([
             'status' => 'active',
             'questionstarttime' => time(),

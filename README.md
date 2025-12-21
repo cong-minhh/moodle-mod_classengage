@@ -56,32 +56,126 @@ Gain actionable insights with our comprehensive analytics dashboard:
 
 ### Clicker Integration Setup
 
-To enable physical clicker support, you must configure Moodle Web Services.
+To enable physical clicker support (or to use the Web Services API for testing), you must configure Moodle Web Services. Follow these steps **in order**.
 
-#### 1. Enable Web Services
-1. Go to **Site Administration > Advanced features**.
-2. Enable **Enable web services** and save.
-3. Go to **Site Administration > Server > Web services > Manage protocols**.
-4. Enable **REST protocol**.
+> **Note**: This setup is **only required** if you are using physical clicker devices or testing the API directly. Students using the web interface do not need this configuration.
 
-#### 2. Create Service User and Role
-1. Go to **Site Administration > Users > Add a new user**.
-2. Create a user (e.g., `clicker_hub`) with a strong password.
-3. Go to **Site Administration > Users > Define roles > Add new role**.
-4. Name it "Clicker Hub Service".
-5. Allow the following capabilities:
-   - `mod/classengage:submitclicker`
-   - `mod/classengage:takequiz`
-   - `mod/classengage:view`
-   - `webservice/rest:use`
+#### Step 1: Enable Web Services Globally
 
-#### 3. Generate Token
-1. Go to **Site Administration > Server > Web services > External services**.
-2. Find **ClassEngage Clicker Service** and click **Enable**.
-3. Add the `clicker_hub` user to **Authorised users**.
-4. Go to **Site Administration > Server > Web services > Manage tokens**.
-5. Add a token for the `clicker_hub` user for the **ClassEngage Clicker Service**.
-6. Copy this token for use in your clicker hub software.
+1. Go to **Site Administration > Advanced features**
+2. Find **Enable web services** and check the box ☑️
+3. Click **Save changes**
+
+#### Step 2: Enable REST Protocol
+
+1. Go to **Site Administration > Server > Web services > Manage protocols**
+2. Click the 👁️ eye icon next to **REST protocol** to enable it (the eye should become open/visible)
+3. The REST protocol row should now show as enabled
+
+#### Step 3: Create the Service User
+
+1. Go to **Site Administration > Users > Accounts > Add a new user**
+2. Fill in the required fields:
+   - **Username**: `clicker_hub` (or any name you prefer)
+   - **Password**: Choose a strong password
+   - **First name**: `Clicker`
+   - **Last name**: `Hub`
+   - **Email**: `clicker@example.com` (can be any valid email format)
+3. Click **Create user**
+
+#### Step 4: Create a Custom Role (Optional but Recommended)
+
+This step creates a minimal-permission role for security. You can skip this if the user has admin rights.
+
+1. Go to **Site Administration > Users > Permissions > Define roles**
+2. Click **Add a new role**
+3. Choose **Use role or archetype**: Select "No role" and click **Continue**
+4. Fill in:
+   - **Short name**: `clickerhub`
+   - **Custom full name**: `Clicker Hub Service`
+   - **Role archetype**: Leave as "None"
+   - **Context types**: Check ☑️ **System**
+5. In the **Capabilities** section, search for and allow (set to ✅ Allow):
+   - `webservice/rest:use` — Use REST protocol
+   - `mod/classengage:view` — View ClassEngage activity
+   - `mod/classengage:takequiz` — Take quiz (submit responses)
+   - `mod/classengage:submitclicker` — Submit clicker responses
+6. Click **Create this role**
+
+#### Step 5: Assign the Role to the Service User
+
+1. Go to **Site Administration > Users > Permissions > Assign system roles**
+2. Click on **Clicker Hub Service** (the role you just created)
+3. Find `clicker_hub` in the "Potential users" list and add them to "Existing users"
+4. Click **Add** to assign the role
+
+#### Step 6: Enable the ClassEngage External Service
+
+1. Go to **Site Administration > Server > Web services > External services**
+2. Find **ClassEngage Clicker Service** in the list
+3. If the "Enabled" column shows ❌ or is unchecked:
+   - Click on the service name to edit it
+   - Check ☑️ **Enabled**
+   - Click **Save changes**
+4. Click on the service name **ClassEngage Clicker Service**
+5. Scroll down to **Authorised users**
+6. Click **Add** and select the `clicker_hub` user
+7. Click **Add** to authorize this user
+
+#### Step 7: Generate an API Token
+
+1. Go to **Site Administration > Server > Web services > Manage tokens**
+2. Click **Create token** (or **Add**)
+3. Fill in:
+   - **User**: Search for and select `clicker_hub`
+   - **Service**: Select **ClassEngage Clicker Service**
+   - **Valid until**: Leave empty for no expiration, or set a date
+   - **IP restriction**: Leave empty (or restrict to specific IPs for security)
+4. Click **Save changes**
+5. **Copy the generated token** — you will need this for your clicker hub software or API testing
+
+   > ⚠️ **Important**: The token is only shown once! Copy it immediately and store it securely.
+
+#### Step 8: Verify the Setup
+
+Test that your token works by running this command (replace `YOUR_TOKEN` with your actual token):
+
+```bash
+curl -X POST "http://localhost:8000/webservice/rest/server.php" \
+  -d "wstoken=YOUR_TOKEN" \
+  -d "wsfunction=core_webservice_get_site_info" \
+  -d "moodlewsrestformat=json"
+```
+
+**Expected response** (success):
+```json
+{"sitename":"Your Moodle Site","username":"clicker_hub",...}
+```
+
+**If you get an error**, see the troubleshooting section below.
+
+#### Troubleshooting
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| `HTTP 403 Forbidden` | Token invalid or web services not enabled | Re-check Steps 1, 2, 6, and 7 |
+| `HTTP 303 Redirect` | URL mismatch with `$CFG->wwwroot` | Use the exact URL from your Moodle config |
+| `accessexception` | User not authorized or service not enabled | Re-check Steps 5 and 6 (role assignment and authorized users) |
+| `invalidtoken` | Token doesn't exist or is expired | Generate a new token in Step 7 |
+| `servicenotavailable` | External service not enabled | Enable the service in Step 6 |
+| `webabortnoresult` | Function not found in service | Reinstall the plugin or check service functions |
+
+#### Quick Checklist
+
+Before testing, verify all of these are complete:
+
+- [ ] **Advanced features**: "Enable web services" is ON
+- [ ] **Manage protocols**: REST protocol is enabled
+- [ ] **Service user**: `clicker_hub` user exists
+- [ ] **Role assigned**: User has the `clickerhub` role at system level
+- [ ] **External service**: "ClassEngage Clicker Service" is enabled
+- [ ] **Authorized user**: `clicker_hub` is added to the service's authorized users
+- [ ] **Token created**: A valid token exists for the user + service combination
 
 ## Usage Workflow
 
@@ -154,7 +248,6 @@ php mod/classengage/tests/load_test_api.php --action=cleanup --prefix=loadtest
 | `answer` | Simulate single answer submissions (legacy API) |
 | `batch` | Test batch response submission endpoint |
 | `sse` | Test SSE connection handling |
-| `heartbeat` | Test heartbeat endpoint under load |
 | `concurrent` | Simulate 200+ concurrent users for scalability testing |
 | `cleanup` | Delete test users |
 | `all` | Run create, enroll, and answer actions sequentially |

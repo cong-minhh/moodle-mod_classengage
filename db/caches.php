@@ -58,4 +58,31 @@ $definitions = array(
         'staticacceleration' => true,
         'staticaccelerationsize' => 20,
     ),
+    // Enterprise optimization: Analytics summary cache.
+    'analytics_summary' => array(
+        'mode' => cache_store::MODE_APPLICATION,
+        'simplekeys' => true,
+        'simpledata' => false,
+        'ttl' => 30, // 30 seconds for analytics summaries
+        'staticacceleration' => true,
+        'staticaccelerationsize' => 50,
+    ),
+    // Enterprise optimization: Question data cache (questions rarely change during session).
+    'question_data' => array(
+        'mode' => cache_store::MODE_APPLICATION,
+        'simplekeys' => true,
+        'simpledata' => false,
+        'ttl' => 3600, // 1 hour - questions rarely change during session
+        'staticacceleration' => true,
+        'staticaccelerationsize' => 100,
+    ),
+    // Enterprise optimization: Rate limiting cache for abuse prevention.
+    'rate_limiting' => array(
+        'mode' => cache_store::MODE_APPLICATION,
+        'simplekeys' => true,
+        'simpledata' => true,
+        'ttl' => 60, // 1 minute sliding window
+        'staticacceleration' => true,
+        'staticaccelerationsize' => 500, // Support higher concurrent users
+    ),
 );

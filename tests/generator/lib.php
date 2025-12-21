@@ -27,7 +27,8 @@ defined('MOODLE_INTERNAL') || die();
 /**
  * ClassEngage module data generator class
  */
-class mod_classengage_generator extends testing_module_generator {
+class mod_classengage_generator extends testing_module_generator
+{
 
     /**
      * Create new classengage module instance
@@ -35,8 +36,9 @@ class mod_classengage_generator extends testing_module_generator {
      * @param array $options
      * @return stdClass activity record with extra cmid field
      */
-    public function create_instance($record = null, array $options = null) {
-        $record = (object)(array)$record;
+    public function create_instance($record = null, array $options = null)
+    {
+        $record = (object) (array) $record;
 
         $defaultsettings = array(
             'name' => 'Test ClassEngage',
@@ -51,7 +53,7 @@ class mod_classengage_generator extends testing_module_generator {
             }
         }
 
-        return parent::create_instance($record, (array)$options);
+        return parent::create_instance($record, (array) $options);
     }
 
     /**
@@ -61,7 +63,8 @@ class mod_classengage_generator extends testing_module_generator {
      * @param array $record
      * @return stdClass
      */
-    public function create_question($classengageid, $record = array()) {
+    public function create_question($classengageid, $record = array())
+    {
         global $DB;
 
         $defaults = array(
@@ -80,7 +83,7 @@ class mod_classengage_generator extends testing_module_generator {
             'timemodified' => time(),
         );
 
-        $record = (object)array_merge($defaults, $record);
+        $record = (object) array_merge($defaults, $record);
         $record->id = $DB->insert_record('classengage_questions', $record);
 
         return $record;
@@ -94,7 +97,8 @@ class mod_classengage_generator extends testing_module_generator {
      * @param array $record
      * @return stdClass
      */
-    public function create_session($classengageid, $createdby, $record = array()) {
+    public function create_session($classengageid, $createdby, $record = array())
+    {
         global $DB;
 
         $defaults = array(
@@ -111,7 +115,7 @@ class mod_classengage_generator extends testing_module_generator {
             'timemodified' => time(),
         );
 
-        $record = (object)array_merge($defaults, $record);
+        $record = (object) array_merge($defaults, $record);
         $record->id = $DB->insert_record('classengage_sessions', $record);
 
         return $record;
@@ -125,7 +129,8 @@ class mod_classengage_generator extends testing_module_generator {
      * @param array $record
      * @return stdClass
      */
-    public function create_connection($sessionid, $userid, $record = array()) {
+    public function create_connection($sessionid, $userid, $record = array())
+    {
         global $DB;
 
         $defaults = array(
@@ -134,13 +139,12 @@ class mod_classengage_generator extends testing_module_generator {
             'connectionid' => uniqid('test_' . $userid . '_', true),
             'transport' => 'polling',
             'status' => 'connected',
-            'last_heartbeat' => time(),
             'current_question_answered' => 0,
             'timecreated' => time(),
             'timemodified' => time(),
         );
 
-        $record = (object)array_merge($defaults, $record);
+        $record = (object) array_merge($defaults, $record);
         $record->id = $DB->insert_record('classengage_connections', $record);
 
         return $record;
@@ -156,7 +160,8 @@ class mod_classengage_generator extends testing_module_generator {
      * @param array $record
      * @return stdClass
      */
-    public function create_response($sessionid, $questionid, $classengageid, $userid, $record = array()) {
+    public function create_response($sessionid, $questionid, $classengageid, $userid, $record = array())
+    {
         global $DB;
 
         // Get the question to check correct answer.
@@ -176,7 +181,7 @@ class mod_classengage_generator extends testing_module_generator {
             'timecreated' => time(),
         );
 
-        $record = (object)array_merge($defaults, $record);
+        $record = (object) array_merge($defaults, $record);
         $record->id = $DB->insert_record('classengage_responses', $record);
 
         return $record;
@@ -189,7 +194,8 @@ class mod_classengage_generator extends testing_module_generator {
      * @param array $questionids Array of question IDs
      * @return void
      */
-    public function link_questions_to_session($sessionid, $questionids) {
+    public function link_questions_to_session($sessionid, $questionids)
+    {
         global $DB;
 
         $order = 1;
@@ -209,7 +215,8 @@ class mod_classengage_generator extends testing_module_generator {
      * @param int $sessionid
      * @return stdClass Updated session record
      */
-    public function start_session($sessionid) {
+    public function start_session($sessionid)
+    {
         global $DB;
 
         $session = $DB->get_record('classengage_sessions', ['id' => $sessionid], '*', MUST_EXIST);

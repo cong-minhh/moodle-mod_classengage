@@ -39,7 +39,8 @@ defined('MOODLE_INTERNAL') || die();
  *
  * **Validates: Requirements 8.3**
  */
-class bandwidth_efficiency_property_test extends \advanced_testcase {
+class bandwidth_efficiency_property_test extends \advanced_testcase
+{
 
     /** @var int Number of iterations for property tests */
     const PROPERTY_TEST_ITERATIONS = 100;
@@ -57,14 +58,53 @@ class bandwidth_efficiency_property_test extends \advanced_testcase {
      * @param int $maxlength Maximum length
      * @return string
      */
-    protected function generate_random_question_text(int $minlength = 10, int $maxlength = 500): string {
+    protected function generate_random_question_text(int $minlength = 10, int $maxlength = 500): string
+    {
         $words = [
-            'What', 'Which', 'How', 'Why', 'When', 'Where', 'is', 'are', 'was', 'were',
-            'the', 'a', 'an', 'of', 'in', 'to', 'for', 'with', 'on', 'at',
-            'correct', 'answer', 'following', 'statement', 'true', 'false',
-            'best', 'describes', 'example', 'definition', 'concept', 'theory',
-            'method', 'process', 'result', 'effect', 'cause', 'relationship',
-            'primary', 'secondary', 'main', 'important', 'significant', 'key',
+            'What',
+            'Which',
+            'How',
+            'Why',
+            'When',
+            'Where',
+            'is',
+            'are',
+            'was',
+            'were',
+            'the',
+            'a',
+            'an',
+            'of',
+            'in',
+            'to',
+            'for',
+            'with',
+            'on',
+            'at',
+            'correct',
+            'answer',
+            'following',
+            'statement',
+            'true',
+            'false',
+            'best',
+            'describes',
+            'example',
+            'definition',
+            'concept',
+            'theory',
+            'method',
+            'process',
+            'result',
+            'effect',
+            'cause',
+            'relationship',
+            'primary',
+            'secondary',
+            'main',
+            'important',
+            'significant',
+            'key',
         ];
 
         $length = rand($minlength, $maxlength);
@@ -84,14 +124,45 @@ class bandwidth_efficiency_property_test extends \advanced_testcase {
      * @param int $maxlength Maximum length
      * @return string
      */
-    protected function generate_random_option_text(int $minlength = 5, int $maxlength = 200): string {
+    protected function generate_random_option_text(int $minlength = 5, int $maxlength = 200): string
+    {
         $words = [
-            'The', 'A', 'An', 'This', 'That', 'These', 'Those',
-            'answer', 'option', 'choice', 'solution', 'result',
-            'is', 'are', 'was', 'were', 'will', 'would', 'could',
-            'correct', 'incorrect', 'true', 'false', 'valid', 'invalid',
-            'first', 'second', 'third', 'fourth', 'primary', 'secondary',
-            'important', 'significant', 'relevant', 'applicable', 'appropriate',
+            'The',
+            'A',
+            'An',
+            'This',
+            'That',
+            'These',
+            'Those',
+            'answer',
+            'option',
+            'choice',
+            'solution',
+            'result',
+            'is',
+            'are',
+            'was',
+            'were',
+            'will',
+            'would',
+            'could',
+            'correct',
+            'incorrect',
+            'true',
+            'false',
+            'valid',
+            'invalid',
+            'first',
+            'second',
+            'third',
+            'fourth',
+            'primary',
+            'secondary',
+            'important',
+            'significant',
+            'relevant',
+            'applicable',
+            'appropriate',
         ];
 
         $length = rand($minlength, $maxlength);
@@ -184,7 +255,8 @@ class bandwidth_efficiency_property_test extends \advanced_testcase {
      * @param int $remaining Seconds remaining
      * @return array
      */
-    protected function build_timer_sync_payload(int $remaining): array {
+    protected function build_timer_sync_payload(int $remaining): array
+    {
         return [
             'event' => 'timer_sync',
             'remaining' => $remaining,
@@ -193,11 +265,12 @@ class bandwidth_efficiency_property_test extends \advanced_testcase {
     }
 
     /**
-     * Build a heartbeat response payload
+     * Build a keepalive response payload
      *
      * @return array
      */
-    protected function build_heartbeat_response_payload(): array {
+    protected function build_keepalive_response_payload(): array
+    {
         return [
             'success' => true,
             'servertimestamp' => time(),
@@ -242,7 +315,8 @@ class bandwidth_efficiency_property_test extends \advanced_testcase {
      *
      * @covers \mod_classengage\session_state_manager::next_question
      */
-    public function test_property_question_broadcast_payload_size(): void {
+    public function test_property_question_broadcast_payload_size(): void
+    {
         for ($i = 0; $i < self::PROPERTY_TEST_ITERATIONS; $i++) {
             $this->resetAfterTest(true);
 
@@ -319,7 +393,8 @@ class bandwidth_efficiency_property_test extends \advanced_testcase {
      *
      * @covers \mod_classengage\session_state_manager::get_client_state
      */
-    public function test_property_update_payload_size(): void {
+    public function test_property_update_payload_size(): void
+    {
         for ($i = 0; $i < self::PROPERTY_TEST_ITERATIONS; $i++) {
             // Generate random update payloads.
             $updatetype = rand(0, 3);
@@ -353,9 +428,9 @@ class bandwidth_efficiency_property_test extends \advanced_testcase {
                     break;
 
                 case 3:
-                    // Heartbeat response.
-                    $payload = $this->build_heartbeat_response_payload();
-                    $payloadtype = 'heartbeat';
+                    // Keepalive response.
+                    $payload = $this->build_keepalive_response_payload();
+                    $payloadtype = 'keepalive';
                     break;
 
                 default:
@@ -385,7 +460,8 @@ class bandwidth_efficiency_property_test extends \advanced_testcase {
      *
      * @covers \mod_classengage\response_capture_engine::submit_response
      */
-    public function test_property_submission_response_payload_size(): void {
+    public function test_property_submission_response_payload_size(): void
+    {
         for ($i = 0; $i < self::PROPERTY_TEST_ITERATIONS; $i++) {
             // Generate random submission response.
             $success = (bool) rand(0, 1);
@@ -421,11 +497,12 @@ class bandwidth_efficiency_property_test extends \advanced_testcase {
      *
      * **Validates: Requirements 8.3**
      */
-    public function test_property_cumulative_update_efficiency(): void {
+    public function test_property_cumulative_update_efficiency(): void
+    {
         for ($i = 0; $i < self::PROPERTY_TEST_ITERATIONS; $i++) {
             // Simulate a session with multiple updates.
             $numquestions = rand(5, 20);
-            $updatesperquestion = rand(5, 15); // Timer syncs, heartbeats, etc.
+            $updatesperquestion = rand(5, 15); // Timer syncs, keepalives, etc.
             $totalupdates = $numquestions * $updatesperquestion;
 
             $totalpayloadsize = 0;
@@ -439,7 +516,7 @@ class bandwidth_efficiency_property_test extends \advanced_testcase {
                         $payload = $this->build_timer_sync_payload(rand(0, 300));
                         break;
                     case 1:
-                        $payload = $this->build_heartbeat_response_payload();
+                        $payload = $this->build_keepalive_response_payload();
                         break;
                     case 2:
                         $payload = $this->build_status_update_payload('active', rand(0, 300), false);
@@ -480,7 +557,8 @@ class bandwidth_efficiency_property_test extends \advanced_testcase {
      *
      * **Validates: Requirements 8.3**
      */
-    public function test_property_sse_event_size(): void {
+    public function test_property_sse_event_size(): void
+    {
         for ($i = 0; $i < self::PROPERTY_TEST_ITERATIONS; $i++) {
             // Generate random SSE event types.
             $eventtypes = [
@@ -490,7 +568,7 @@ class bandwidth_efficiency_property_test extends \advanced_testcase {
                 'session_resumed',
                 'session_completed',
                 'timer_sync',
-                'heartbeat',
+                'keepalive',
             ];
 
             $eventtype = $eventtypes[array_rand($eventtypes)];
@@ -539,7 +617,7 @@ class bandwidth_efficiency_property_test extends \advanced_testcase {
                     ];
                     break;
 
-                case 'heartbeat':
+                case 'keepalive':
                     $data = [
                         'timestamp' => time(),
                         'latency' => rand(10, 100),
@@ -574,7 +652,8 @@ class bandwidth_efficiency_property_test extends \advanced_testcase {
      *
      * **Validates: Requirements 8.3**
      */
-    public function test_property_reconnection_payload_size(): void {
+    public function test_property_reconnection_payload_size(): void
+    {
         for ($i = 0; $i < self::PROPERTY_TEST_ITERATIONS; $i++) {
             $this->resetAfterTest(true);
 
@@ -618,7 +697,7 @@ class bandwidth_efficiency_property_test extends \advanced_testcase {
                 'question' => [
                     'id' => $question->id,
                     'text' => $questiontext,
-                    'options' => array_map(function($key, $text) {
+                    'options' => array_map(function ($key, $text) {
                         return ['key' => $key, 'text' => $text];
                     }, array_keys($options), array_values($options)),
                     'answered' => (bool) rand(0, 1),

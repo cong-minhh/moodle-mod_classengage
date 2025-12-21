@@ -22,8 +22,8 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-require(__DIR__.'/../../config.php');
-require_once(__DIR__.'/lib.php');
+require(__DIR__ . '/../../config.php');
+require_once(__DIR__ . '/lib.php');
 
 use mod_classengage\session_manager;
 use mod_classengage\analytics_engine;
@@ -78,13 +78,15 @@ $renderer = new control_panel_renderer();
 if (!empty($action)) {
     try {
         $actionhandler->execute($action, $sessionid);
-        
+
         // Redirect based on action.
         if ($action === constants::ACTION_STOP) {
-            redirect(new moodle_url('/mod/classengage/sessions.php', array('id' => $cm->id)),
+            redirect(
+                new moodle_url('/mod/classengage/sessions.php', array('id' => $cm->id)),
                 get_string('sessionstopped', 'mod_classengage'),
                 null,
-                \core\output\notification::NOTIFY_SUCCESS);
+                \core\output\notification::NOTIFY_SUCCESS
+            );
         } else {
             redirect($PAGE->url);
         }
@@ -140,9 +142,9 @@ echo html_writer::start_div('mod-classengage-controlpanel');
 // Displays real-time session metrics: question progress, status, participants
 // ============================================================================
 
-// Get participant count from analytics engine (uses caching).
-$sessionstats = $analyticsengine->get_session_summary($sessionid);
-$participantcount = isset($sessionstats->total_participants) ? $sessionstats->total_participants : 0;
+// Get enrolled students count (students who can take the quiz).
+$enrolledstudents = get_enrolled_users($context, 'mod/classengage:takequiz', 0, 'u.id', null, 0, 0, true);
+$participantcount = count($enrolledstudents);
 
 // Render status cards using renderer.
 echo $renderer->render_status_cards($session, $participantcount);
@@ -169,9 +171,6 @@ if ($session->status === constants::SESSION_STATUS_ACTIVE || $session->status ==
             // Display response distribution (table and chart).
             echo $renderer->render_response_distribution($currentq);
 
-            // Display overall response rate progress bar.
-            echo $renderer->render_response_rate_progress();
-
             // Display control buttons (including pause/resume).
             echo $renderer->render_control_buttons($session, $cm->id, $sessionid);
 
@@ -180,11 +179,8 @@ if ($session->status === constants::SESSION_STATUS_ACTIVE || $session->status ==
             // Sidebar column (right) - Student status and statistics.
             echo html_writer::start_div('col-lg-4');
 
-            // Session statistics panel (Requirement 5.5).
-            echo $renderer->render_session_statistics_panel();
-
-            // Connected students panel (Requirement 5.1).
-            echo $renderer->render_connected_students_panel();
+            // Student panel - simple list of students with answered status.
+            echo $renderer->render_student_panel();
 
             echo html_writer::end_div(); // col-lg-4.
 
@@ -209,14 +205,17 @@ if ($session->status === constants::SESSION_STATUS_ACTIVE || $session->status ==
     } else if ($session->status === constants::SESSION_STATUS_PAUSED) {
         $statusmessage = get_string('sessionpaused', 'mod_classengage');
     }
-    
+
     echo html_writer::div($statusmessage, 'alert alert-warning');
-    
+
     // Provide link back to sessions page.
     $sessionsurl = new moodle_url('/mod/classengage/sessions.php', array('id' => $cm->id));
     echo html_writer::div(
-        html_writer::link($sessionsurl, get_string('backtosessions', 'mod_classengage'), 
-            array('class' => 'btn btn-secondary')),
+        html_writer::link(
+            $sessionsurl,
+            get_string('backtosessions', 'mod_classengage'),
+            array('class' => 'btn btn-secondary')
+        ),
         'text-center mt-3'
     );
 }

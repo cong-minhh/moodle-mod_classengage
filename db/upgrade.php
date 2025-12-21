@@ -30,14 +30,15 @@ defined('MOODLE_INTERNAL') || die();
  * @param int $oldversion
  * @return bool
  */
-function xmldb_classengage_upgrade($oldversion) {
+function xmldb_classengage_upgrade($oldversion)
+{
     global $DB;
 
     $dbman = $DB->get_manager();
 
     // Add clicker devices table for Web Services integration
     if ($oldversion < 2025110301) {
-        
+
         // Define table classengage_clicker_devices to be created.
         $table = new xmldb_table('classengage_clicker_devices');
 
@@ -196,6 +197,46 @@ function xmldb_classengage_upgrade($oldversion) {
 
         // Classengage savepoint reached.
         upgrade_mod_savepoint(true, 2025120504, 'classengage');
+    }
+
+    // Enterprise optimization: Purge caches to register new cache definitions.
+    if ($oldversion < 2025122001) {
+        // Purge caches to ensure new cache definitions are registered.
+        cache_helper::purge_all();
+
+        // Set default configuration for enterprise features.
+        if (!get_config('mod_classengage', 'log_retention_days')) {
+            set_config('log_retention_days', 90, 'mod_classengage');
+        }
+
+        // Classengage savepoint reached.
+        upgrade_mod_savepoint(true, 2025122001, 'classengage');
+    }
+
+    // Remove heartbeat functionality - drop last_heartbeat field and add timemodified index.
+    if ($oldversion < 2025122004) {
+        $table = new xmldb_table('classengage_connections');
+
+        // Drop the last_heartbeat index first.
+        $index = new xmldb_index('last_heartbeat', XMLDB_INDEX_NOTUNIQUE, ['last_heartbeat']);
+        if ($dbman->index_exists($table, $index)) {
+            $dbman->drop_index($table, $index);
+        }
+
+        // Drop the last_heartbeat field.
+        $field = new xmldb_field('last_heartbeat');
+        if ($dbman->field_exists($table, $field)) {
+            $dbman->drop_field($table, $field);
+        }
+
+        // Add timemodified index for cleanup queries.
+        $index = new xmldb_index('timemodified', XMLDB_INDEX_NOTUNIQUE, ['timemodified']);
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+        // Classengage savepoint reached.
+        upgrade_mod_savepoint(true, 2025122004, 'classengage');
     }
 
     return true;

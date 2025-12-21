@@ -33,38 +33,39 @@ defined('MOODLE_INTERNAL') || die();
  * engagement and comprehension data.
  * Results are cached for 5 minutes to improve performance.
  */
-class teaching_recommender {
-    
+class teaching_recommender
+{
+
     /** @var int Maximum number of recommendations to generate */
     const MAX_RECOMMENDATIONS = 5;
-    
+
     /** @var float Low engagement threshold for pacing recommendation */
     const LOW_ENGAGEMENT_THRESHOLD = 40.0;
-    
+
     /** @var float High engagement threshold for interactive activities */
     const HIGH_ENGAGEMENT_THRESHOLD = 75.0;
-    
+
     /** @var float Low comprehension threshold for additional examples */
     const LOW_COMPREHENSION_THRESHOLD = 50.0;
-    
+
     /** @var float Engagement drop threshold percentage */
     const ENGAGEMENT_DROP_THRESHOLD = 30.0;
-    
+
     /** @var int Cache duration in seconds (5 minutes) */
     const CACHE_DURATION = 300;
-    
+
     /** @var int Session ID */
     protected $sessionid;
-    
+
     /** @var object Engagement data */
     protected $engagement;
-    
+
     /** @var object Comprehension data */
     protected $comprehension;
-    
+
     /** @var \cache_application Cache instance */
     protected $cache;
-    
+
     /**
      * Constructor
      *
@@ -72,11 +73,12 @@ class teaching_recommender {
      * @param object $engagement Engagement data from engagement_calculator
      * @param object $comprehension Comprehension data from comprehension_analyzer
      */
-    public function __construct($sessionid, $engagement, $comprehension) {
+    public function __construct($sessionid, $engagement, $comprehension)
+    {
         $this->sessionid = $sessionid;
         $this->engagement = $engagement;
         $this->comprehension = $comprehension;
-        
+
         // Initialize cache for performance optimization.
         try {
             $this->cache = \cache::make('mod_classengage', 'response_stats');
@@ -85,7 +87,7 @@ class teaching_recommender {
             $this->cache = null;
         }
     }
-    
+
     /**
      * Generate teaching recommendations
      *
@@ -94,7 +96,8 @@ class teaching_recommender {
      *
      * @return array Array of recommendation objects, max 5, prioritized by impact
      */
-    public function generate_recommendations() {
+    public function generate_recommendations()
+    {
         // Try to get from cache first.
         $cachekey = "recommendations_{$this->sessionid}";
         if ($this->cache) {
@@ -103,12 +106,14 @@ class teaching_recommender {
                 return $cached;
             }
         }
-        
+
         $recommendations = array();
-        
+
         // Priority 1: Low engagement + low comprehension.
-        if ($this->engagement->percentage < self::LOW_ENGAGEMENT_THRESHOLD &&
-            $this->comprehension->avg_correctness < self::LOW_COMPREHENSION_THRESHOLD) {
+        if (
+            $this->engagement->percentage < self::LOW_ENGAGEMENT_THRESHOLD &&
+            $this->comprehension->avg_correctness < self::LOW_COMPREHENSION_THRESHOLD
+        ) {
             $recommendations[] = $this->create_recommendation(
                 1,
                 'pacing',
@@ -117,10 +122,12 @@ class teaching_recommender {
                 get_string('comprehensionweak', 'mod_classengage')
             );
         }
-        
+
         // Priority 2: High engagement + low comprehension.
-        if ($this->engagement->percentage >= self::HIGH_ENGAGEMENT_THRESHOLD &&
-            $this->comprehension->avg_correctness < self::LOW_COMPREHENSION_THRESHOLD) {
+        if (
+            $this->engagement->percentage >= self::HIGH_ENGAGEMENT_THRESHOLD &&
+            $this->comprehension->avg_correctness < self::LOW_COMPREHENSION_THRESHOLD
+        ) {
             $recommendations[] = $this->create_recommendation(
                 2,
                 'comprehension',
@@ -129,10 +136,12 @@ class teaching_recommender {
                 'but ' . get_string('comprehensionweak', 'mod_classengage')
             );
         }
-        
+
         // Priority 3: High engagement with good comprehension - highlight interactive activities.
-        if ($this->engagement->percentage >= self::HIGH_ENGAGEMENT_THRESHOLD &&
-            $this->comprehension->avg_correctness >= self::LOW_COMPREHENSION_THRESHOLD) {
+        if (
+            $this->engagement->percentage >= self::HIGH_ENGAGEMENT_THRESHOLD &&
+            $this->comprehension->avg_correctness >= self::LOW_COMPREHENSION_THRESHOLD
+        ) {
             $recommendations[] = $this->create_recommendation(
                 3,
                 'engagement',
@@ -141,14 +150,14 @@ class teaching_recommender {
                 get_string('comprehensionstrong', 'mod_classengage')
             );
         }
-        
+
         // Priority 4: Specific difficult concepts.
         if (!empty($this->comprehension->confused_topics)) {
             foreach ($this->comprehension->confused_topics as $topic) {
                 if (count($recommendations) >= self::MAX_RECOMMENDATIONS) {
                     break;
                 }
-                
+
                 $recommendations[] = $this->create_recommendation(
                     4,
                     'comprehension',
@@ -157,18 +166,18 @@ class teaching_recommender {
                 );
             }
         }
-        
+
         // Priority 5: Engagement drops in timeline (early intervals).
         $timelinedrops = $this->detect_engagement_drops();
         if (!empty($timelinedrops)) {
             // Check if drop occurred in early intervals (first 25% of session).
-            $earlydrops = array_filter($timelinedrops, function($drop) {
+            $earlydrops = array_filter($timelinedrops, function ($drop) {
                 // Extract minute number from time string.
                 preg_match('/\d+/', $drop['time'], $matches);
-                $minute = isset($matches[0]) ? (int)$matches[0] : 0;
+                $minute = isset($matches[0]) ? (int) $matches[0] : 0;
                 return $minute <= 5; // Consider first 5 minutes as "early".
             });
-            
+
             if (!empty($earlydrops)) {
                 $recommendations[] = $this->create_recommendation(
                     5,
@@ -178,7 +187,7 @@ class teaching_recommender {
                 );
             }
         }
-        
+
         // Priority 6: Quiet periods detected.
         if ($this->has_quiet_periods()) {
             $recommendations[] = $this->create_recommendation(
@@ -188,36 +197,37 @@ class teaching_recommender {
                 'Some quiet periods detected during session'
             );
         }
-        
+
         // Sort by priority and limit to max recommendations.
-        usort($recommendations, function($a, $b) {
+        usort($recommendations, function ($a, $b) {
             return $a->priority - $b->priority;
         });
-        
+
         $result = array_slice($recommendations, 0, self::MAX_RECOMMENDATIONS);
-        
+
         // Cache for 5 minutes.
         if ($this->cache) {
             $this->cache->set($cachekey, $result);
         }
-        
+
         return $result;
     }
-    
+
     /**
      * Invalidate cache for this session
      *
      * Should be called when new responses are submitted.
      */
-    public function invalidate_cache() {
+    public function invalidate_cache()
+    {
         if (!$this->cache) {
             return;
         }
-        
+
         // Invalidate all cache keys related to this session.
         $this->cache->delete("recommendations_{$this->sessionid}");
     }
-    
+
     /**
      * Create a recommendation object
      *
@@ -227,16 +237,17 @@ class teaching_recommender {
      * @param string $evidence Data supporting the recommendation
      * @return object Recommendation object
      */
-    private function create_recommendation($priority, $category, $message, $evidence) {
+    private function create_recommendation($priority, $category, $message, $evidence)
+    {
         $recommendation = new \stdClass();
         $recommendation->priority = $priority;
         $recommendation->category = $category;
         $recommendation->message = $message;
         $recommendation->evidence = $evidence;
-        
+
         return $recommendation;
     }
-    
+
     /**
      * Detect engagement drops in timeline
      *
@@ -244,9 +255,10 @@ class teaching_recommender {
      *
      * @return array Array of drop points with time and magnitude
      */
-    private function detect_engagement_drops() {
+    private function detect_engagement_drops()
+    {
         global $DB;
-        
+
         // Get response counts over time intervals.
         $sql = "SELECT 
                     FLOOR((timecreated - (SELECT MIN(timecreated) FROM {classengage_responses} 
@@ -256,27 +268,27 @@ class teaching_recommender {
                  WHERE sessionid = :sessionid
               GROUP BY interval_minute
               ORDER BY interval_minute";
-        
+
         $intervals = $DB->get_records_sql($sql, array(
             'sessionid' => $this->sessionid,
             'sessionid2' => $this->sessionid
         ));
-        
+
         if (count($intervals) < 3) {
             return array(); // Not enough data to detect drops.
         }
-        
+
         $drops = array();
         $intervalarray = array_values($intervals);
-        
+
         // Look for drops > 30% from previous interval.
         for ($i = 1; $i < count($intervalarray); $i++) {
-            $previous = (int)$intervalarray[$i - 1]->response_count;
-            $current = (int)$intervalarray[$i]->response_count;
-            
+            $previous = (int) $intervalarray[$i - 1]->response_count;
+            $current = (int) $intervalarray[$i]->response_count;
+
             if ($previous > 0) {
                 $droppercentage = (($previous - $current) / $previous) * 100;
-                
+
                 if ($droppercentage > self::ENGAGEMENT_DROP_THRESHOLD) {
                     $drops[] = array(
                         'time' => 'minute ' . $intervalarray[$i]->interval_minute,
@@ -285,10 +297,10 @@ class teaching_recommender {
                 }
             }
         }
-        
+
         return $drops;
     }
-    
+
     /**
      * Check if session has quiet periods
      *
@@ -296,20 +308,22 @@ class teaching_recommender {
      *
      * @return bool True if quiet periods detected
      */
-    private function has_quiet_periods() {
+    private function has_quiet_periods()
+    {
         global $DB;
-        
+
         // Check if there are gaps in response times > 2 minutes.
         $sql = "SELECT 
+                    id,
                     timecreated,
                     LAG(timecreated) OVER (ORDER BY timecreated) as prev_time
                   FROM {classengage_responses}
                  WHERE sessionid = :sessionid
               ORDER BY timecreated";
-        
+
         try {
             $times = $DB->get_records_sql($sql, array('sessionid' => $this->sessionid));
-            
+
             foreach ($times as $time) {
                 if ($time->prev_time !== null) {
                     $gap = $time->timecreated - $time->prev_time;
@@ -323,36 +337,37 @@ class teaching_recommender {
             // Fall back to simpler check.
             return $this->has_quiet_periods_fallback();
         }
-        
+
         return false;
     }
-    
+
     /**
      * Fallback method to detect quiet periods (database-agnostic)
      *
      * @return bool True if quiet periods detected
      */
-    private function has_quiet_periods_fallback() {
+    private function has_quiet_periods_fallback()
+    {
         global $DB;
-        
+
         $sql = "SELECT timecreated
                   FROM {classengage_responses}
                  WHERE sessionid = :sessionid
               ORDER BY timecreated";
-        
+
         $times = $DB->get_fieldset_sql($sql, array('sessionid' => $this->sessionid));
-        
+
         if (count($times) < 2) {
             return false;
         }
-        
+
         for ($i = 1; $i < count($times); $i++) {
             $gap = $times[$i] - $times[$i - 1];
             if ($gap > 120) { // 2 minutes gap.
                 return true;
             }
         }
-        
+
         return false;
     }
 }
