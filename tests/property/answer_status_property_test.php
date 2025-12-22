@@ -15,7 +15,10 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Property-based tests for answer status update in instructor control panel
+ * Property-based tests
+ *
+ * @group mod_classengage
+ * @group mod_classengage_property for answer status update in instructor control panel
  *
  * These tests verify that student answer status is correctly updated
  * in the instructor control panel after successful response submission.
@@ -30,7 +33,10 @@ namespace mod_classengage;
 defined('MOODLE_INTERNAL') || die();
 
 /**
- * Property-based tests for answer status update
+ * Property-based tests
+ *
+ * @group mod_classengage
+ * @group mod_classengage_property for answer status update
  *
  * Uses PHPUnit data providers to simulate property-based testing with random inputs.
  * Each property test runs a minimum of 100 iterations as specified in the design document.

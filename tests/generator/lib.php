@@ -198,8 +198,22 @@ class mod_classengage_generator extends testing_module_generator
     {
         global $DB;
 
-        $order = 1;
+        // Get existing question orders for this session to avoid duplicates.
+        $existingorders = $DB->get_records('classengage_session_questions', ['sessionid' => $sessionid], '', 'questionid, questionorder');
+        $maxorder = 0;
+        foreach ($existingorders as $existing) {
+            if ($existing->questionorder > $maxorder) {
+                $maxorder = $existing->questionorder;
+            }
+        }
+
+        $order = $maxorder + 1;
         foreach ($questionids as $questionid) {
+            // Skip if already linked.
+            if (isset($existingorders[$questionid])) {
+                continue;
+            }
+
             $sq = new stdClass();
             $sq->sessionid = $sessionid;
             $sq->questionid = $questionid;

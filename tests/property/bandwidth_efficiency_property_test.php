@@ -15,7 +15,10 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Property-based tests for bandwidth efficiency
+ * Property-based tests
+ *
+ * @group mod_classengage
+ * @group mod_classengage_property for bandwidth efficiency
  *
  * These tests verify that quiz interface payloads remain within size limits
  * to support low-connectivity environments.
@@ -30,7 +33,10 @@ namespace mod_classengage;
 defined('MOODLE_INTERNAL') || die();
 
 /**
- * Property-based tests for bandwidth efficiency
+ * Property-based tests
+ *
+ * @group mod_classengage
+ * @group mod_classengage_property for bandwidth efficiency
  *
  * **Feature: realtime-quiz-engine, Property 18: Bandwidth Efficiency**
  *

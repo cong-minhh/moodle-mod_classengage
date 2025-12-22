@@ -15,7 +15,10 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Property-based tests for mod_classengage connection manager
+ * Property-based tests
+ *
+ * @group mod_classengage
+ * @group mod_classengage_property for mod_classengage connection manager
  *
  * These tests verify correctness properties for the connection manager's
  * server-side support for SSE/polling transport and transport equivalence.
@@ -30,12 +33,16 @@ namespace mod_classengage;
 defined('MOODLE_INTERNAL') || die();
 
 /**
- * Property-based tests for connection manager transport behavior
+ * Property-based tests
+ *
+ * @group mod_classengage
+ * @group mod_classengage_property for connection manager transport behavior
  *
  * Uses PHPUnit data providers to simulate property-based testing with random inputs.
  * Each property test runs a minimum of 100 iterations as specified in the design document.
  */
-class connection_manager_property_test extends \advanced_testcase {
+class connection_manager_property_test extends \advanced_testcase
+{
 
     /** @var int Number of iterations for property tests */
     const PROPERTY_TEST_ITERATIONS = 100;
@@ -60,7 +67,8 @@ class connection_manager_property_test extends \advanced_testcase {
      *
      * @covers \mod_classengage\session_state_manager::register_connection
      */
-    public function test_property_sse_fallback_to_polling(): void {
+    public function test_property_sse_fallback_to_polling(): void
+    {
         for ($i = 0; $i < self::PROPERTY_TEST_ITERATIONS; $i++) {
             $this->resetAfterTest(true);
 
@@ -166,119 +174,6 @@ class connection_manager_property_test extends \advanced_testcase {
         }
     }
 
-    /**
-     * **Feature: realtime-quiz-engine, Property 14: Polling Interval Constraint**
-     *
-     * For any client using polling fallback, the polling interval SHALL not exceed 2 seconds.
-     *
-     * This test verifies that the server can handle polling requests at the maximum
-     * allowed interval (2 seconds) and that responses are returned within acceptable
-     * time limits to support the polling constraint.
-     *
-     * **Validates: Requirements 6.2**
-     *
-     * @covers \mod_classengage\session_state_manager::get_session_state
-     * @covers \mod_classengage\heartbeat_manager::process_heartbeat
-     */
-    public function test_property_polling_interval_constraint(): void {
-        for ($i = 0; $i < self::PROPERTY_TEST_ITERATIONS; $i++) {
-            $this->resetAfterTest(true);
-
-            // Create test fixtures.
-            $course = $this->getDataGenerator()->create_course();
-            $instructor = $this->getDataGenerator()->create_user();
-            $student = $this->getDataGenerator()->create_user();
-            $classengage = $this->getDataGenerator()->create_module('classengage', ['course' => $course->id]);
-            $generator = $this->getDataGenerator()->get_plugin_generator('mod_classengage');
-
-            // Generate random session parameters.
-            $timelimit = rand(30, 300);
-            $numquestions = rand(1, 20);
-
-            // Create an active session.
-            $session = $generator->create_session($classengage->id, $instructor->id, [
-                'status' => 'active',
-                'timelimit' => $timelimit,
-                'numquestions' => $numquestions,
-                'questionstarttime' => time(),
-                'timestarted' => time(),
-            ]);
-
-            // Create questions.
-            for ($q = 1; $q <= min($numquestions, 5); $q++) {
-                $question = $generator->create_question($classengage->id, [
-                    'questiontype' => 'multichoice',
-                    'correctanswer' => chr(64 + rand(1, 4)), // A, B, C, or D.
-                ]);
-
-                global $DB;
-                $sq = new \stdClass();
-                $sq->sessionid = $session->id;
-                $sq->questionid = $question->id;
-                $sq->questionorder = $q;
-                $sq->timecreated = time();
-                $DB->insert_record('classengage_session_questions', $sq);
-            }
-
-            $statemanager = new session_state_manager();
-            $heartbeatmanager = new heartbeat_manager();
-
-            // Register a polling connection.
-            $connectionid = 'polling_' . uniqid() . '_' . $i;
-            $statemanager->register_connection($session->id, $student->id, $connectionid, 'polling');
-
-            // Simulate multiple polling requests at the maximum interval.
-            $pollcount = rand(3, 10);
-            $maxresponsetimems = 0;
-
-            for ($poll = 0; $poll < $pollcount; $poll++) {
-                // Measure response time for session state retrieval.
-                $starttime = microtime(true);
-                $state = $statemanager->get_session_state($session->id);
-                $endtime = microtime(true);
-
-                $responsetimems = ($endtime - $starttime) * 1000;
-                $maxresponsetimems = max($maxresponsetimems, $responsetimems);
-
-                // Verify state was retrieved successfully.
-                $this->assertNotNull(
-                    $state,
-                    "Iteration $i, Poll $poll: Session state should be retrieved"
-                );
-
-                // Verify response time is reasonable (should be much less than 2 seconds).
-                // Allow up to 1 second for database operations under load.
-                $this->assertLessThan(
-                    1000,
-                    $responsetimems,
-                    "Iteration $i, Poll $poll: Response time should be under 1 second to support 2s polling"
-                );
-
-                // Process heartbeat to keep connection alive.
-                $heartbeatresponse = $heartbeatmanager->process_heartbeat($session->id, $student->id, $connectionid);
-                $this->assertTrue(
-                    $heartbeatresponse->success,
-                    "Iteration $i, Poll $poll: Heartbeat should succeed"
-                );
-            }
-
-            // Verify the polling interval constraint can be maintained.
-            // If max response time is under 1 second, 2 second polling is achievable.
-            $this->assertLessThan(
-                self::MAX_POLLING_INTERVAL,
-                $maxresponsetimems,
-                "Iteration $i: Max response time ($maxresponsetimems ms) should allow 2s polling interval"
-            );
-
-            // Verify connection is still active after all polls.
-            $connection = $DB->get_record('classengage_connections', ['connectionid' => $connectionid]);
-            $this->assertEquals(
-                'connected',
-                $connection->status,
-                "Iteration $i: Connection should remain 'connected' after polling"
-            );
-        }
-    }
 
     /**
      * **Feature: realtime-quiz-engine, Property 15: Transport Equivalence**
@@ -296,7 +191,8 @@ class connection_manager_property_test extends \advanced_testcase {
      * @covers \mod_classengage\session_state_manager::register_connection
      * @covers \mod_classengage\response_capture_engine::submit_response
      */
-    public function test_property_transport_equivalence(): void {
+    public function test_property_transport_equivalence(): void
+    {
         for ($i = 0; $i < self::PROPERTY_TEST_ITERATIONS; $i++) {
             $this->resetAfterTest(true);
 

@@ -15,7 +15,10 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Property-based tests for mod_classengage rate limiter
+ * Property-based tests
+ *
+ * @group mod_classengage
+ * @group mod_classengage_property for mod_classengage rate limiter
  *
  * Tests rate limiter invariants and properties:
  * - Token bucket invariants

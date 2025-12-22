@@ -38,13 +38,18 @@ defined('MOODLE_INTERNAL') || die();
 
 /**
  * Health checker unit tests
+ *
+ * @group mod_classengage
+ * @group mod_classengage_unit
  */
-class health_checker_test extends \advanced_testcase {
+class health_checker_test extends \advanced_testcase
+{
 
     /**
      * Test health check result object construction
      */
-    public function test_health_check_result_construction(): void {
+    public function test_health_check_result_construction(): void
+    {
         $result = new health_check_result(
             'database',
             true,
@@ -63,7 +68,8 @@ class health_checker_test extends \advanced_testcase {
     /**
      * Test health check result to_array method
      */
-    public function test_health_check_result_to_array(): void {
+    public function test_health_check_result_to_array(): void
+    {
         $result = new health_check_result(
             'cache',
             false,
@@ -87,7 +93,8 @@ class health_checker_test extends \advanced_testcase {
     /**
      * Test database health check passes with valid connection
      */
-    public function test_check_database_healthy(): void {
+    public function test_check_database_healthy(): void
+    {
         $this->resetAfterTest(true);
 
         $checker = new health_checker();
@@ -103,7 +110,8 @@ class health_checker_test extends \advanced_testcase {
     /**
      * Test cache health check with all cache definitions
      */
-    public function test_check_cache_healthy(): void {
+    public function test_check_cache_healthy(): void
+    {
         $this->resetAfterTest(true);
 
         $checker = new health_checker();
@@ -125,7 +133,8 @@ class health_checker_test extends \advanced_testcase {
     /**
      * Test SSE capability check
      */
-    public function test_check_sse_capability(): void {
+    public function test_check_sse_capability(): void
+    {
         $this->resetAfterTest(true);
 
         $checker = new health_checker();
@@ -145,7 +154,8 @@ class health_checker_test extends \advanced_testcase {
     /**
      * Test table existence check
      */
-    public function test_check_tables(): void {
+    public function test_check_tables(): void
+    {
         $this->resetAfterTest(true);
 
         $checker = new health_checker();
@@ -175,7 +185,8 @@ class health_checker_test extends \advanced_testcase {
     /**
      * Test disk space check
      */
-    public function test_check_disk_space(): void {
+    public function test_check_disk_space(): void
+    {
         $this->resetAfterTest(true);
 
         $checker = new health_checker();
@@ -196,7 +207,8 @@ class health_checker_test extends \advanced_testcase {
     /**
      * Test memory check
      */
-    public function test_check_memory(): void {
+    public function test_check_memory(): void
+    {
         $this->resetAfterTest(true);
 
         $checker = new health_checker();
@@ -220,7 +232,8 @@ class health_checker_test extends \advanced_testcase {
     /**
      * Test run_all_checks returns all expected checks
      */
-    public function test_run_all_checks(): void {
+    public function test_run_all_checks(): void
+    {
         $this->resetAfterTest(true);
 
         $checker = new health_checker();
@@ -248,7 +261,8 @@ class health_checker_test extends \advanced_testcase {
     /**
      * Test get_metrics returns expected structure
      */
-    public function test_get_metrics(): void {
+    public function test_get_metrics(): void
+    {
         $this->resetAfterTest(true);
 
         $checker = new health_checker();
@@ -271,7 +285,8 @@ class health_checker_test extends \advanced_testcase {
     /**
      * Test get_metrics with activity ID includes activity metrics
      */
-    public function test_get_metrics_with_activity(): void {
+    public function test_get_metrics_with_activity(): void
+    {
         $this->resetAfterTest(true);
 
         // Create test data.
@@ -293,7 +308,8 @@ class health_checker_test extends \advanced_testcase {
     /**
      * Test export_report generates valid JSON
      */
-    public function test_export_report(): void {
+    public function test_export_report(): void
+    {
         $this->resetAfterTest(true);
 
         $checker = new health_checker();
@@ -318,7 +334,8 @@ class health_checker_test extends \advanced_testcase {
     /**
      * Test export_report overall_healthy reflects component statuses
      */
-    public function test_export_report_overall_healthy(): void {
+    public function test_export_report_overall_healthy(): void
+    {
         $this->resetAfterTest(true);
 
         $checker = new health_checker();
@@ -339,7 +356,8 @@ class health_checker_test extends \advanced_testcase {
     /**
      * Test health checker with populated test data
      */
-    public function test_metrics_with_test_data(): void {
+    public function test_metrics_with_test_data(): void
+    {
         global $DB;
         $this->resetAfterTest(true);
 

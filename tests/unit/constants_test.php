@@ -37,6 +37,9 @@ defined('MOODLE_INTERNAL') || die();
 
 /**
  * Constants unit tests
+ *
+ * @group mod_classengage
+ * @group mod_classengage_unit
  */
 class constants_test extends \advanced_testcase
 {

@@ -15,7 +15,10 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Property-based tests for mod_classengage response capture engine
+ * Property-based tests
+ *
+ * @group mod_classengage
+ * @group mod_classengage_property for mod_classengage response capture engine
  *
  * These tests verify correctness properties that should hold across all valid inputs.
  * Each test runs multiple iterations with randomly generated inputs.
@@ -30,7 +33,10 @@ namespace mod_classengage;
 defined('MOODLE_INTERNAL') || die();
 
 /**
- * Property-based tests for response capture engine
+ * Property-based tests
+ *
+ * @group mod_classengage
+ * @group mod_classengage_property for response capture engine
  *
  * Uses PHPUnit data providers to simulate property-based testing with random inputs.
  * Each property test runs a minimum of 100 iterations as specified in the design document.

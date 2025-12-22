@@ -31,13 +31,18 @@ require_once($CFG->dirroot . '/mod/classengage/lib.php');
 
 /**
  * Unit tests for lib.php
+ *
+ * @group mod_classengage
+ * @group mod_classengage_unit
  */
-class lib_test extends \advanced_testcase {
+class lib_test extends \advanced_testcase
+{
 
     /**
      * Test classengage_supports function
      */
-    public function test_classengage_supports() {
+    public function test_classengage_supports()
+    {
         $this->assertTrue(classengage_supports(FEATURE_MOD_INTRO));
         $this->assertTrue(classengage_supports(FEATURE_BACKUP_MOODLE2));
         $this->assertTrue(classengage_supports(FEATURE_SHOW_DESCRIPTION));
@@ -48,7 +53,8 @@ class lib_test extends \advanced_testcase {
     /**
      * Test adding a classengage instance
      */
-    public function test_classengage_add_instance() {
+    public function test_classengage_add_instance()
+    {
         global $DB;
 
         $this->resetAfterTest(true);
@@ -77,7 +83,8 @@ class lib_test extends \advanced_testcase {
     /**
      * Test updating a classengage instance
      */
-    public function test_classengage_update_instance() {
+    public function test_classengage_update_instance()
+    {
         global $DB;
 
         $this->resetAfterTest(true);
@@ -103,7 +110,8 @@ class lib_test extends \advanced_testcase {
     /**
      * Test deleting a classengage instance
      */
-    public function test_classengage_delete_instance() {
+    public function test_classengage_delete_instance()
+    {
         global $DB;
 
         $this->resetAfterTest(true);
@@ -121,7 +129,8 @@ class lib_test extends \advanced_testcase {
     /**
      * Test grade item update
      */
-    public function test_classengage_grade_item_update() {
+    public function test_classengage_grade_item_update()
+    {
         $this->resetAfterTest(true);
 
         $course = $this->getDataGenerator()->create_course();

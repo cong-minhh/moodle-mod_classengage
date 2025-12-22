@@ -41,7 +41,7 @@
 
 define('CLI_SCRIPT', true);
 
-require(__DIR__ . '/../../../config.php');
+require(__DIR__ . '/../../../../config.php');
 require_once($CFG->libdir . '/clilib.php');
 require_once($CFG->dirroot . '/user/lib.php');
 require_once($CFG->dirroot . '/lib/enrollib.php');
@@ -191,7 +191,7 @@ if ($action === 'batch') {
     if (!$sessionid) {
         cli_error('Session ID is required for batch action');
     }
-    perform_batch_submission($sessionid, $prefix, $percent, $batchsize, $verbose);
+    perform_batch_submission($sessionid, $prefix, $percent, $batchsize, $verbose, $baseurl);
 }
 
 if ($action === 'sse') {
@@ -217,6 +217,67 @@ exit(0);
 
 // --- Functions ---
 
+/**
+ * Generate or retrieve an API token for webservice authentication
+ *
+ * @param bool $verbose Show detailed output
+ * @return string|false Token string on success, false on failure
+ */
+function get_api_token($verbose = false)
+{
+    global $DB;
+
+    $admin = get_admin();
+
+    // Try to find a suitable service.
+    $servicename = 'classengage_clicker';
+    $service = $DB->get_record('external_services', array('shortname' => $servicename));
+
+    if (!$service) {
+        // Fallback to mobile app service.
+        $servicename = 'moodle_mobile_app';
+        $service = $DB->get_record('external_services', array('shortname' => $servicename));
+    }
+
+    if (!$service) {
+        echo "Error: Could not find 'classengage_clicker' or 'moodle_mobile_app' service.\n";
+        return false;
+    }
+
+    // If service is restricted, ensure admin is allowed.
+    if ($service->restrictedusers) {
+        $allowed = $DB->get_record('external_services_users', array(
+            'externalserviceid' => $service->id,
+            'userid' => $admin->id
+        ));
+
+        if (!$allowed) {
+            $esu = new stdClass();
+            $esu->externalserviceid = $service->id;
+            $esu->userid = $admin->id;
+            $esu->timecreated = time();
+            $DB->insert_record('external_services_users', $esu);
+            if ($verbose) {
+                echo "Added admin user to restricted service '{$service->shortname}'\n";
+            }
+        }
+    }
+
+    $token = external_generate_token(
+        EXTERNAL_TOKEN_PERMANENT,
+        $service,
+        $admin->id,
+        context_system::instance(),
+        0,
+        ''
+    );
+
+    if ($verbose) {
+        echo "Generated API token for service: {$servicename}\n";
+    }
+
+    return $token;
+}
 
 /**
  * Create test users for load testing
@@ -522,21 +583,21 @@ function perform_answer_questions($sessionid, $prefix, $percent, $delay, $verbos
  *
  * Requirements: 3.1, 3.5
  *
- * This function tests the batch response submission capabilities by directly
- * calling the response_capture_engine from CLI. Since CLI scripts cannot
- * authenticate via web sessions/sesskey, we bypass the HTTP API and test
- * the underlying engine directly.
+ * This function tests the batch response submission capabilities by making
+ * actual HTTP API calls to the webservice REST endpoint. This provides a
+ * realistic test of the API under load, including network and authentication overhead.
  *
  * @param int $sessionid Session ID
  * @param string $prefix Username prefix
  * @param int $percent Percentage of users to simulate
  * @param int $batchsize Number of responses per batch
  * @param bool $verbose Show detailed output
+ * @param string $baseurl Base URL for Docker networking (optional)
  */
-function perform_batch_submission($sessionid, $prefix, $percent, $batchsize, $verbose)
+function perform_batch_submission($sessionid, $prefix, $percent, $batchsize, $verbose, $baseurl = '')
 {
-    global $DB, $CFG, $USER;
-    cli_heading('Testing Batch Submission');
+    global $DB, $CFG;
+    cli_heading('Testing Batch Submission via API');
 
     // Get Session & Question.
     $session = $DB->get_record('classengage_sessions', array('id' => $sessionid), '*', MUST_EXIST);
@@ -584,10 +645,17 @@ function perform_batch_submission($sessionid, $prefix, $percent, $batchsize, $ve
         'latencies' => array(),
     );
 
-    $starttime = microtime(true);
+    // Generate API token for authentication.
+    $token = get_api_token($verbose);
+    if (!$token) {
+        cli_error('Failed to generate API token');
+    }
 
-    // Initialize the response capture engine.
-    $engine = new \mod_classengage\response_capture_engine();
+    // Use baseurl if provided, otherwise use wwwroot.
+    $serverurl = ($baseurl ?: $CFG->wwwroot) . '/webservice/rest/server.php';
+    echo "API endpoint: {$serverurl}\n";
+
+    $starttime = microtime(true);
 
     // Group users into batches.
     $userbatches = array_chunk($testusers, $batchsize);
@@ -595,14 +663,14 @@ function perform_batch_submission($sessionid, $prefix, $percent, $batchsize, $ve
     foreach ($userbatches as $batchindex => $batch) {
         // Build batch of responses - each response from a different user.
         $responses = array();
-        foreach ($batch as $user) {
+        foreach ($batch as $idx => $user) {
             $randomval = rand(1, 100);
             $answer = ($randomval <= 60) ? $currentquestion->correctanswer : $answers[array_rand($answers)];
+            $clickerid = 'BATCH-' . $user->id;
 
             $responses[] = array(
-                'sessionid' => $sessionid,
-                'questionid' => $currentquestion->id,
                 'userid' => $user->id,
+                'clickerid' => $clickerid,
                 'answer' => $answer,
                 'timestamp' => time(),
             );
@@ -610,33 +678,74 @@ function perform_batch_submission($sessionid, $prefix, $percent, $batchsize, $ve
 
         $batchstarttime = microtime(true);
 
-        // Directly call the response capture engine (bypasses HTTP/session auth).
-        try {
-            $result = $engine->submit_batch($responses);
+        // Make HTTP API call to submit_bulk_responses.
+        $params = array(
+            'wstoken' => $token,
+            'moodlewsrestformat' => 'json',
+            'wsfunction' => 'mod_classengage_submit_bulk_responses',
+            'sessionid' => $sessionid,
+        );
 
-            $batchlatency = (microtime(true) - $batchstarttime) * 1000;
-            $results['latencies'][] = $batchlatency;
-            $results['batches_sent']++;
+        // Add responses array parameters.
+        foreach ($responses as $idx => $resp) {
+            $params["responses[{$idx}][userid]"] = $resp['userid'];
+            $params["responses[{$idx}][clickerid]"] = $resp['clickerid'];
+            $params["responses[{$idx}][answer]"] = $resp['answer'];
+            $params["responses[{$idx}][timestamp]"] = $resp['timestamp'];
+        }
 
-            if ($result->success) {
-                $results['responses_processed'] += $result->processedcount;
-                $results['responses_failed'] += $result->failedcount;
-                if ($verbose) {
-                    echo "Batch {$batchindex}: processed={$result->processedcount}, failed={$result->failedcount}, latency=" . number_format($batchlatency, 2) . "ms\n";
-                }
-            } else {
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $serverurl);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($params, '', '&', PHP_QUERY_RFC1738));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 60);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_POSTREDIR, CURL_REDIR_POST_ALL);
+
+        // Resolve localhost:8000 to the container IP when using Docker internal networking.
+        if ($baseurl) {
+            $host = preg_replace('#^https?://#', '', $baseurl);
+            curl_setopt($ch, CURLOPT_RESOLVE, array("localhost:8000:{$host}", "localhost:80:{$host}"));
+        }
+
+        $response = curl_exec($ch);
+        $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlerror = curl_error($ch);
+        curl_close($ch);
+
+        $batchlatency = (microtime(true) - $batchstarttime) * 1000;
+        $results['latencies'][] = $batchlatency;
+        $results['batches_sent']++;
+
+        if ($httpcode == 200 && $response) {
+            $data = json_decode($response, true);
+
+            if (isset($data['exception'])) {
+                // Webservice exception.
                 $results['responses_failed'] += count($responses);
                 if ($verbose) {
-                    echo "Batch {$batchindex} failed: " . ($result->error ?? 'Unknown error') . "\n";
+                    echo "Batch {$batchindex} API error: " . ($data['message'] ?? $data['exception']) . "\n";
+                }
+            } else if (isset($data['processed'])) {
+                // Successful response.
+                $results['responses_processed'] += $data['processed'];
+                $results['responses_failed'] += $data['failed'];
+                if ($verbose) {
+                    echo "Batch {$batchindex}: processed={$data['processed']}, failed={$data['failed']}, latency=" . number_format($batchlatency, 2) . "ms\n";
+                }
+            } else {
+                // Unknown response format.
+                $results['responses_failed'] += count($responses);
+                if ($verbose) {
+                    echo "Batch {$batchindex} unknown response: " . substr($response, 0, 200) . "\n";
                 }
             }
-        } catch (Exception $e) {
-            $batchlatency = (microtime(true) - $batchstarttime) * 1000;
-            $results['latencies'][] = $batchlatency;
-            $results['batches_sent']++;
+        } else {
             $results['responses_failed'] += count($responses);
             if ($verbose) {
-                echo "Batch {$batchindex} exception: " . $e->getMessage() . "\n";
+                $error = $curlerror ?: "HTTP {$httpcode}";
+                echo "Batch {$batchindex} HTTP error: {$error}\n";
             }
         }
     }
@@ -649,7 +758,7 @@ function perform_batch_submission($sessionid, $prefix, $percent, $batchsize, $ve
     $p95index = (int) (count($results['latencies']) * 0.95);
     $p95latency = $results['latencies'][$p95index] ?? $avglatency;
 
-    echo "\n--- Batch Submission Results ---\n";
+    echo "\n--- Batch Submission Results (via API) ---\n";
     echo "Total batches sent: {$results['batches_sent']}\n";
     echo "Responses processed: {$results['responses_processed']}\n";
     echo "Responses failed: {$results['responses_failed']}\n";
@@ -791,21 +900,21 @@ function perform_sse_test($sessionid, $prefix, $duration, $verbose)
  *
  * Requirements: 3.1, 3.2, 3.3
  *
- * This function tests scalability by directly calling the response capture engine,
- * bypassing HTTP authentication (which doesn't work in CLI context).
- * This approach accurately tests the engine's ability to handle concurrent load.
+ * This function tests scalability by making concurrent HTTP API calls using
+ * curl_multi. This provides a realistic test of the API under concurrent load,
+ * including network, authentication, and webservice overhead.
  *
  * @param int $sessionid Session ID
  * @param string $prefix Username prefix
  * @param int $numusers Number of concurrent users to simulate
  * @param bool $verbose Show detailed output
  * @param bool $report Generate detailed performance report
- * @param string $baseurl Base URL for Docker networking (unused in direct mode)
+ * @param string $baseurl Base URL for Docker networking (optional)
  */
 function perform_concurrent_simulation($sessionid, $prefix, $numusers, $verbose, $report, $baseurl = '')
 {
     global $DB, $CFG;
-    cli_heading('Concurrent User Simulation');
+    cli_heading('Concurrent User Simulation via API');
 
     // Get Session & Question.
     $session = $DB->get_record('classengage_sessions', array('id' => $sessionid), '*', MUST_EXIST);
@@ -835,8 +944,18 @@ function perform_concurrent_simulation($sessionid, $prefix, $numusers, $verbose,
         echo "Warning: Only {$actualusers} users available (requested {$numusers})\n";
     }
 
-    echo "Simulating {$actualusers} concurrent users\n";
+    echo "Simulating {$actualusers} concurrent users via API\n";
     echo "Question: " . substr($currentquestion->questiontext, 0, 50) . "...\n";
+
+    // Generate API token for authentication.
+    $token = get_api_token($verbose);
+    if (!$token) {
+        cli_error('Failed to generate API token');
+    }
+
+    // Use baseurl if provided, otherwise use wwwroot.
+    $serverurl = ($baseurl ?: $CFG->wwwroot) . '/webservice/rest/server.php';
+    echo "API endpoint: {$serverurl}\n";
 
     $answers = array('A', 'B', 'C', 'D');
 
@@ -868,80 +987,146 @@ function perform_concurrent_simulation($sessionid, $prefix, $numusers, $verbose,
 
     echo "Connections registered: {$connectionsregistered}/{$actualusers}\n";
 
-    // Phase 2: Submit all answers simultaneously using the response capture engine.
-    echo "\nPhase 2: Submitting answers simultaneously...\n";
-    $engine = new \mod_classengage\response_capture_engine();
+    // Phase 2: Submit all answers simultaneously using concurrent HTTP requests.
+    echo "\nPhase 2: Submitting answers via concurrent API calls...\n";
     $submissionstart = microtime(true);
 
-    // Build all responses first.
-    $allresponses = array();
-    foreach ($allusers as $user) {
-        $randomval = rand(1, 100);
-        $answer = ($randomval <= 60) ? $currentquestion->correctanswer : $answers[array_rand($answers)];
+    // Group users into batches of 50 for bulk submission.
+    $batchsize = 50;
+    $userbatches = array_chunk(array_values($allusers), $batchsize);
+    $results['total_requests'] = count($userbatches);
 
-        $allresponses[] = array(
+    // Use curl_multi for concurrent batch submissions.
+    $mh = curl_multi_init();
+    $handles = array();
+
+    foreach ($userbatches as $batchindex => $batch) {
+        // Build batch of responses.
+        $responses = array();
+        foreach ($batch as $idx => $user) {
+            $randomval = rand(1, 100);
+            $answer = ($randomval <= 60) ? $currentquestion->correctanswer : $answers[array_rand($answers)];
+            $clickerid = 'CONCURRENT-' . $user->id;
+
+            $responses[] = array(
+                'userid' => $user->id,
+                'clickerid' => $clickerid,
+                'answer' => $answer,
+                'timestamp' => time(),
+            );
+        }
+
+        // Build HTTP request parameters.
+        $params = array(
+            'wstoken' => $token,
+            'moodlewsrestformat' => 'json',
+            'wsfunction' => 'mod_classengage_submit_bulk_responses',
             'sessionid' => $sessionid,
-            'questionid' => $currentquestion->id,
-            'userid' => $user->id,
-            'answer' => $answer,
-            'timestamp' => time(),
         );
-        $results['total_requests']++;
+
+        // Add responses array parameters.
+        foreach ($responses as $idx => $resp) {
+            $params["responses[{$idx}][userid]"] = $resp['userid'];
+            $params["responses[{$idx}][clickerid]"] = $resp['clickerid'];
+            $params["responses[{$idx}][answer]"] = $resp['answer'];
+            $params["responses[{$idx}][timestamp]"] = $resp['timestamp'];
+        }
+
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $serverurl);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($params, '', '&', PHP_QUERY_RFC1738));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 120);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_POSTREDIR, CURL_REDIR_POST_ALL);
+
+        // Resolve localhost:8000 to the container IP when using Docker internal networking.
+        if ($baseurl) {
+            $host = preg_replace('#^https?://#', '', $baseurl);
+            curl_setopt($ch, CURLOPT_RESOLVE, array("localhost:8000:{$host}", "localhost:80:{$host}"));
+        }
+
+        $handles[] = array(
+            'ch' => $ch,
+            'batchindex' => $batchindex,
+            'batchsize' => count($batch),
+            'starttime' => microtime(true),
+        );
+        curl_multi_add_handle($mh, $ch);
     }
 
-    // Submit in batches of 100 (engine maximum batch size).
-    $batchsize = 100;
-    $batches = array_chunk($allresponses, $batchsize);
-    $batchstart = microtime(true);
+    // Execute all requests concurrently.
+    $running = null;
+    do {
+        curl_multi_exec($mh, $running);
+        curl_multi_select($mh);
+    } while ($running > 0);
 
-    foreach ($batches as $batchindex => $batchresponses) {
-        try {
-            $result = $engine->submit_batch($batchresponses);
+    // Process results.
+    foreach ($handles as $h) {
+        $response = curl_multi_getcontent($h['ch']);
+        $info = curl_getinfo($h['ch']);
+        $httpcode = $info['http_code'];
+        $latency = ($info['total_time'] ?? 0) * 1000;
+        $results['latencies'][] = $latency;
 
-            if ($result->success) {
-                $results['successful'] += $result->processedcount;
-                $results['failed'] += $result->failedcount;
+        if ($httpcode == 200 && $response) {
+            $data = json_decode($response, true);
 
-                // Process individual results for error tracking.
-                if (!empty($result->results)) {
-                    foreach ($result->results as $r) {
-                        if (!$r->success && !empty($r->error)) {
-                            $results['errors'][$r->error] = ($results['errors'][$r->error] ?? 0) + 1;
+            if (isset($data['exception'])) {
+                // Webservice exception.
+                $results['failed'] += $h['batchsize'];
+                $error = $data['message'] ?? $data['exception'];
+                $results['errors'][$error] = ($results['errors'][$error] ?? 0) + $h['batchsize'];
+                if ($verbose) {
+                    echo "Batch {$h['batchindex']} API error: {$error}\n";
+                }
+            } else if (isset($data['processed'])) {
+                // Successful response.
+                $results['successful'] += $data['processed'];
+                $results['failed'] += $data['failed'];
+
+                // Track individual errors from results.
+                if (!empty($data['results'])) {
+                    foreach ($data['results'] as $r) {
+                        if (!$r['success'] && !empty($r['message'])) {
+                            $results['errors'][$r['message']] = ($results['errors'][$r['message']] ?? 0) + 1;
                         }
                     }
                 }
-            } else {
-                $results['failed'] += count($batchresponses);
-                $error = $result->error ?? 'Batch submission failed';
-                $results['errors'][$error] = ($results['errors'][$error] ?? 0) + count($batchresponses);
-            }
 
-            if ($verbose) {
-                echo "Batch " . ($batchindex + 1) . "/" . count($batches) . ": processed={$result->processedcount}, failed={$result->failedcount}\n";
+                if ($verbose) {
+                    echo "Batch {$h['batchindex']}: processed={$data['processed']}, failed={$data['failed']}, latency=" . number_format($latency, 2) . "ms\n";
+                }
+            } else {
+                // Unknown response format.
+                $results['failed'] += $h['batchsize'];
+                $results['errors']['Unknown response format'] = ($results['errors']['Unknown response format'] ?? 0) + $h['batchsize'];
+                if ($verbose) {
+                    echo "Batch {$h['batchindex']} unknown response: " . substr($response, 0, 200) . "\n";
+                }
             }
-        } catch (Exception $e) {
-            $results['failed'] += count($batchresponses);
-            $results['errors'][$e->getMessage()] = ($results['errors'][$e->getMessage()] ?? 0) + count($batchresponses);
+        } else {
+            $results['failed'] += $h['batchsize'];
+            $curlerror = curl_error($h['ch']);
+            $error = $curlerror ?: "HTTP {$httpcode}";
+            $results['errors'][$error] = ($results['errors'][$error] ?? 0) + $h['batchsize'];
             if ($verbose) {
-                echo "Batch " . ($batchindex + 1) . " exception: {$e->getMessage()}\n";
+                echo "Batch {$h['batchindex']} HTTP error: {$error}\n";
             }
         }
-    }
 
-    $batchlatency = (microtime(true) - $batchstart) * 1000;
-
-    // Calculate per-response latency (approximate).
-    $perresponselatency = $batchlatency / max(1, count($allresponses));
-    foreach ($allresponses as $idx => $resp) {
-        $results['latencies'][] = $perresponselatency;
+        curl_multi_remove_handle($mh, $h['ch']);
+        curl_close($h['ch']);
     }
-
-    if ($verbose) {
-        echo "Total batch processing latency: " . number_format($batchlatency, 2) . "ms\n";
-    }
+    curl_multi_close($mh);
 
     $submissiontime = microtime(true) - $submissionstart;
     $totaltime = microtime(true) - $results['start_time'];
+
+    // Update total_requests to reflect actual users (not batches).
+    $results['total_requests'] = $actualusers;
 
     // Calculate statistics.
     sort($results['latencies']);
@@ -960,14 +1145,15 @@ function perform_concurrent_simulation($sessionid, $prefix, $numusers, $verbose,
     $nfr01pass = $avglatency < 1000; // Sub-1-second average latency.
     $nfr03pass = $results['successful'] >= ($actualusers * 0.95); // 95% success rate for 200+ users.
 
-    echo "\n--- Concurrent Simulation Results ---\n";
+    echo "\n--- Concurrent Simulation Results (via API) ---\n";
     echo "Total users simulated: {$actualusers}\n";
+    echo "Total batches: " . count($handles) . "\n";
     echo "Total requests: {$results['total_requests']}\n";
     echo "Successful: {$results['successful']}\n";
     echo "Failed: {$results['failed']}\n";
     $successRate = $results['total_requests'] > 0 ? ($results['successful'] / $results['total_requests']) * 100 : 0;
     echo "Success rate: " . number_format($successRate, 2) . "%\n";
-    echo "\n--- Latency Statistics ---\n";
+    echo "\n--- Latency Statistics (per batch) ---\n";
     echo "Min latency: " . number_format($minlatency, 2) . "ms\n";
     echo "Average latency: " . number_format($avglatency, 2) . "ms\n";
     echo "P50 latency: " . number_format($p50latency, 2) . "ms\n";
@@ -998,6 +1184,7 @@ function perform_concurrent_simulation($sessionid, $prefix, $numusers, $verbose,
             'timestamp' => date('c'),
             'sessionid' => $sessionid,
             'users' => $actualusers,
+            'mode' => 'api',
             'results' => $results,
             'statistics' => array(
                 'min_latency' => $minlatency,
@@ -1006,7 +1193,7 @@ function perform_concurrent_simulation($sessionid, $prefix, $numusers, $verbose,
                 'p95_latency' => $p95latency,
                 'p99_latency' => $p99latency,
                 'max_latency' => $maxlatency,
-                'throughput' => $results['successful'] / $submissiontime,
+                'throughput' => $results['successful'] / max(0.001, $submissiontime),
             ),
             'nfr_compliance' => array(
                 'nfr01' => $nfr01pass,

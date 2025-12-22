@@ -15,7 +15,10 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Property-based tests for mod_classengage client cache functionality
+ * Property-based tests
+ *
+ * @group mod_classengage
+ * @group mod_classengage_property for mod_classengage client cache functionality
  *
  * These tests verify correctness properties for offline caching and late submission
  * handling. The client-side IndexedDB behavior is tested through server-side
@@ -31,7 +34,10 @@ namespace mod_classengage;
 defined('MOODLE_INTERNAL') || die();
 
 /**
- * Property-based tests for client cache functionality
+ * Property-based tests
+ *
+ * @group mod_classengage
+ * @group mod_classengage_property for client cache functionality
  *
  * Uses PHPUnit data providers to simulate property-based testing with random inputs.
  * Each property test runs a minimum of 100 iterations as specified in the design document.

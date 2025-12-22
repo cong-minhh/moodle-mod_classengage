@@ -36,6 +36,9 @@ defined('MOODLE_INTERNAL') || die();
 
 /**
  * Rate limiter unit tests
+ *
+ * @group mod_classengage
+ * @group mod_classengage_unit
  */
 class rate_limiter_test extends \advanced_testcase
 {
