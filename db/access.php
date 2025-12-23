@@ -162,5 +162,34 @@ $capabilities = array(
         )
     ),
 
+    /**
+     * Ability to view own quiz results and performance history
+     * Enterprise feature for student self-review
+     */
+    'mod/classengage:viewownresults' => array(
+        'captype' => 'read',
+        'contextlevel' => CONTEXT_MODULE,
+        'archetypes' => array(
+            'student' => CAP_ALLOW,
+            'teacher' => CAP_ALLOW,
+            'editingteacher' => CAP_ALLOW,
+            'manager' => CAP_ALLOW
+        )
+    ),
+
+    /**
+     * Ability to export quiz and analytics data
+     * Enterprise feature for data analysts and administrators
+     */
+    'mod/classengage:exportdata' => array(
+        'riskbitmask' => RISK_PERSONAL,
+        'captype' => 'read',
+        'contextlevel' => CONTEXT_MODULE,
+        'archetypes' => array(
+            'editingteacher' => CAP_ALLOW,
+            'manager' => CAP_ALLOW
+        )
+    ),
+
 );
 

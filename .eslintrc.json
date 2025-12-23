@@ -1,0 +1,32 @@
+{
+    "extends": ["eslint:recommended"],
+    "env": {
+        "browser": true,
+        "amd": true,
+        "es6": true
+    },
+    "globals": {
+        "M": "readonly",
+        "Y": "readonly",
+        "require": "readonly",
+        "define": "readonly"
+    },
+    "rules": {
+        "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+        "no-console": "off",
+        "semi": ["error", "always"],
+        "quotes": ["warn", "single", { "avoidEscape": true }],
+        "indent": ["warn", 4],
+        "no-trailing-spaces": "warn",
+        "eol-last": ["warn", "always"],
+        "comma-dangle": ["warn", "always-multiline"]
+    },
+    "parserOptions": {
+        "ecmaVersion": 2020,
+        "sourceType": "module"
+    },
+    "ignorePatterns": [
+        "amd/build/**",
+        "node_modules/**"
+    ]
+}

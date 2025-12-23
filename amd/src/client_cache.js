@@ -35,7 +35,7 @@ define(['jquery'], function($) {
     var DB_CONFIG = {
         name: 'classengage_cache',
         version: 1,
-        storeName: 'pending_responses'
+        storeName: 'pending_responses',
     };
 
     /**
@@ -45,7 +45,7 @@ define(['jquery'], function($) {
     var DEFAULTS = {
         maxRetries: 5,
         retryDelay: 1000,
-        maxCacheAge: 3600000 // 1 hour in milliseconds
+        maxCacheAge: 3600000, // 1 hour in milliseconds
     };
 
     /**
@@ -63,7 +63,7 @@ define(['jquery'], function($) {
             stored: 0,
             submitted: 0,
             failed: 0,
-            pending: 0
+            pending: 0,
         };
 
         // Event handlers
@@ -171,7 +171,7 @@ define(['jquery'], function($) {
             clientTimestamp: response.clientTimestamp || Date.now(),
             retryCount: 0,
             status: 'pending',
-            lastError: null
+            lastError: null,
         };
 
         return new Promise(function(resolve, reject) {
@@ -607,14 +607,14 @@ define(['jquery'], function($) {
             sessionid: cachedResponse.sessionId,
             questionid: cachedResponse.questionId,
             answer: cachedResponse.answer,
-            clienttimestamp: cachedResponse.clientTimestamp
+            clienttimestamp: cachedResponse.clientTimestamp,
         }).then(function(response) {
             if (response.success) {
                 return self.markSubmitted(cachedResponse.id).then(function() {
                     return {
                         id: cachedResponse.id,
                         success: true,
-                        islate: response.islate || false
+                        islate: response.islate || false,
                     };
                 });
             } else {
@@ -625,7 +625,7 @@ define(['jquery'], function($) {
                             id: cachedResponse.id,
                             success: false,
                             error: response.error,
-                            permanent: true
+                            permanent: true,
                         };
                     });
                 }
@@ -633,7 +633,7 @@ define(['jquery'], function($) {
                     return {
                         id: cachedResponse.id,
                         success: false,
-                        error: response.error
+                        error: response.error,
                     };
                 });
             }
@@ -642,7 +642,7 @@ define(['jquery'], function($) {
                 return {
                     id: cachedResponse.id,
                     success: false,
-                    error: error.message
+                    error: error.message,
                 };
             });
         });
@@ -664,7 +664,7 @@ define(['jquery'], function($) {
             'Session not found',
             'Session not active',
             'Question not found',
-            'already answered'
+            'already answered',
         ];
         return permanentErrors.some(function(msg) {
             return error.indexOf(msg) !== -1;
@@ -892,6 +892,6 @@ define(['jquery'], function($) {
          */
         off: function(event, callback) {
             this.getInstance().off(event, callback);
-        }
+        },
     };
 });

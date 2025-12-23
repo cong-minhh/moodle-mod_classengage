@@ -28,7 +28,7 @@ define([], function() {
     var debounceTimer = null;
     var currentSort = {
         column: '',
-        direction: 'ASC'
+        direction: 'ASC',
     };
 
     /**
@@ -182,7 +182,7 @@ define([], function() {
     var clearFilters = function() {
         var url = buildUrl({
             id: cmid,
-            sessionid: sessionid
+            sessionid: sessionid,
         });
         window.location.href = url;
     };
@@ -207,7 +207,7 @@ define([], function() {
     var buildUrlParams = function() {
         var params = {
             id: cmid,
-            sessionid: sessionid
+            sessionid: sessionid,
         };
 
         // Name search
@@ -347,6 +347,6 @@ define([], function() {
     }
 
     return {
-        init: init
+        init: init,
     };
 });

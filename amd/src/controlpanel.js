@@ -54,7 +54,7 @@ define(['jquery', 'core/notification', 'mod_classengage/connection_manager'],
             timelimit: 0,           // Total time limit
             clientStartTime: 0,     // When local countdown started
             isRunning: false,       // Whether countdown is active
-            countdownTimer: null    // setInterval reference
+            countdownTimer: null,    // setInterval reference
         };
 
         return {
@@ -127,7 +127,7 @@ define(['jquery', 'core/notification', 'mod_classengage/connection_manager'],
 
                 // Try to connect via SSE
                 ConnectionManager.init(sessionId, {
-                    pollInterval: pollingInterval
+                    pollInterval: pollingInterval,
                 }).then(function () {
                     // Log actual transport being used
                     var status = ConnectionManager.getInstance().getStatus();
@@ -135,7 +135,7 @@ define(['jquery', 'core/notification', 'mod_classengage/connection_manager'],
                     console.log('Connection established for control panel:', {
                         transport: status.transport,
                         status: status.status,
-                        connectionId: status.connectionId
+                        connectionId: status.connectionId,
                     });
 
                     if (status.transport === 'sse') {
@@ -165,7 +165,7 @@ define(['jquery', 'core/notification', 'mod_classengage/connection_manager'],
                     currentquestion: data.currentquestion,
                     responses: data.responses,
                     distribution: data.distribution,
-                    hasChart: !!chart
+                    hasChart: !!chart,
                 });
 
                 // Sync local timer with server time (if changed significantly)
@@ -186,7 +186,7 @@ define(['jquery', 'core/notification', 'mod_classengage/connection_manager'],
                     distribution: data.distribution,
                     connected: data.connected,
                     answered: data.answered,
-                    pending: data.pending
+                    pending: data.pending,
                 });
             },
 
@@ -308,7 +308,7 @@ define(['jquery', 'core/notification', 'mod_classengage/connection_manager'],
                     data: {
                         action: 'pause',
                         sessionid: sessionId,
-                        sesskey: M.cfg.sesskey
+                        sesskey: M.cfg.sesskey,
                     },
                     dataType: 'json',
                     success: function (response) {
@@ -316,21 +316,21 @@ define(['jquery', 'core/notification', 'mod_classengage/connection_manager'],
                             self.handleSessionPaused(response);
                             Notification.addNotification({
                                 message: M.util.get_string('sessionpaused', 'mod_classengage'),
-                                type: 'info'
+                                type: 'info',
                             });
                         } else {
                             Notification.addNotification({
                                 message: response.error || 'Failed to pause session',
-                                type: 'error'
+                                type: 'error',
                             });
                         }
                     },
                     error: function () {
                         Notification.addNotification({
                             message: 'Network error while pausing session',
-                            type: 'error'
+                            type: 'error',
                         });
-                    }
+                    },
                 });
             },
 
@@ -349,7 +349,7 @@ define(['jquery', 'core/notification', 'mod_classengage/connection_manager'],
                     data: {
                         action: 'resume',
                         sessionid: sessionId,
-                        sesskey: M.cfg.sesskey
+                        sesskey: M.cfg.sesskey,
                     },
                     dataType: 'json',
                     success: function (response) {
@@ -357,21 +357,21 @@ define(['jquery', 'core/notification', 'mod_classengage/connection_manager'],
                             self.handleSessionResumed(response);
                             Notification.addNotification({
                                 message: M.util.get_string('sessionresumed', 'mod_classengage'),
-                                type: 'info'
+                                type: 'info',
                             });
                         } else {
                             Notification.addNotification({
                                 message: response.error || 'Failed to resume session',
-                                type: 'error'
+                                type: 'error',
                             });
                         }
                     },
                     error: function () {
                         Notification.addNotification({
                             message: 'Network error while resuming session',
-                            type: 'error'
+                            type: 'error',
                         });
-                    }
+                    },
                 });
             },
 
@@ -579,14 +579,14 @@ define(['jquery', 'core/notification', 'mod_classengage/connection_manager'],
              */
             getStatusClass: function (status) {
                 switch (status) {
-                    case 'connected':
-                        return 'text-success';
-                    case 'disconnected':
-                        return 'text-danger';
-                    case 'answering':
-                        return 'text-info';
-                    default:
-                        return 'text-muted';
+                case 'connected':
+                    return 'text-success';
+                case 'disconnected':
+                    return 'text-danger';
+                case 'answering':
+                    return 'text-info';
+                default:
+                    return 'text-muted';
                 }
             },
 
@@ -603,14 +603,14 @@ define(['jquery', 'core/notification', 'mod_classengage/connection_manager'],
                     return 'fa-check-circle';
                 }
                 switch (status) {
-                    case 'connected':
-                        return 'fa-circle';
-                    case 'disconnected':
-                        return 'fa-times-circle';
-                    case 'answering':
-                        return 'fa-spinner fa-spin';
-                    default:
-                        return 'fa-question-circle';
+                case 'connected':
+                    return 'fa-circle';
+                case 'disconnected':
+                    return 'fa-times-circle';
+                case 'answering':
+                    return 'fa-spinner fa-spin';
+                default:
+                    return 'fa-question-circle';
                 }
             },
 
@@ -687,7 +687,7 @@ define(['jquery', 'core/notification', 'mod_classengage/connection_manager'],
                     this.updateAggregateStats({
                         connected: data.connected,
                         answered: data.answered,
-                        pending: data.pending
+                        pending: data.pending,
                     });
                 }
 
@@ -940,16 +940,16 @@ define(['jquery', 'core/notification', 'mod_classengage/connection_manager'],
                                 'rgba(54, 162, 235, 0.8)',
                                 'rgba(54, 162, 235, 0.8)',
                                 'rgba(54, 162, 235, 0.8)',
-                                'rgba(54, 162, 235, 0.8)'
+                                'rgba(54, 162, 235, 0.8)',
                             ],
                             borderColor: [
                                 'rgba(54, 162, 235, 1)',
                                 'rgba(54, 162, 235, 1)',
                                 'rgba(54, 162, 235, 1)',
-                                'rgba(54, 162, 235, 1)'
+                                'rgba(54, 162, 235, 1)',
                             ],
-                            borderWidth: 1
-                        }]
+                            borderWidth: 1,
+                        }],
                     },
                     options: {
                         responsive: true,
@@ -958,20 +958,20 @@ define(['jquery', 'core/notification', 'mod_classengage/connection_manager'],
                             y: {
                                 beginAtZero: true,
                                 ticks: {
-                                    stepSize: 1
-                                }
-                            }
+                                    stepSize: 1,
+                                },
+                            },
                         },
                         plugins: {
                             legend: {
-                                display: false
+                                display: false,
                             },
                             title: {
                                 display: true,
-                                text: 'Response Distribution'
-                            }
-                        }
-                    }
+                                text: 'Response Distribution',
+                            },
+                        },
+                    },
                 });
             },
 

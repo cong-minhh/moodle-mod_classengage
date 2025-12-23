@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="mod/classengage/db" VERSION="20251205" COMMENT="XMLDB file for Moodle mod/classengage"
+<XMLDB PATH="mod/classengage/db" VERSION="20251222" COMMENT="XMLDB file for Moodle mod/classengage - Enterprise Edition"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
 >
@@ -69,6 +69,7 @@
       <INDEXES>
         <INDEX NAME="status" UNIQUE="false" FIELDS="status"/>
         <INDEX NAME="difficulty" UNIQUE="false" FIELDS="difficulty"/>
+        <INDEX NAME="classengageid_status" UNIQUE="false" FIELDS="classengageid, status" COMMENT="Enterprise: Filter questions by activity and status"/>
       </INDEXES>
     </TABLE>
     <TABLE NAME="classengage_sessions" COMMENT="Stores quiz session information">
@@ -141,6 +142,7 @@
       <INDEXES>
         <INDEX NAME="session_user" UNIQUE="false" FIELDS="sessionid, userid"/>
         <INDEX NAME="session_question_user" UNIQUE="true" FIELDS="sessionid, questionid, userid" COMMENT="One response per user per question per session"/>
+        <INDEX NAME="classengageid_timecreated" UNIQUE="false" FIELDS="classengageid, timecreated" COMMENT="Enterprise: Activity-level analytics queries"/>
       </INDEXES>
     </TABLE>
     <TABLE NAME="classengage_clicker_devices" COMMENT="Maps clicker device IDs to Moodle users">
@@ -226,6 +228,27 @@
       <INDEXES>
         <INDEX NAME="sessionid_eventtype" UNIQUE="false" FIELDS="sessionid, event_type"/>
         <INDEX NAME="timecreated" UNIQUE="false" FIELDS="timecreated"/>
+        <INDEX NAME="userid_timecreated" UNIQUE="false" FIELDS="userid, timecreated" COMMENT="Enterprise: User activity timeline queries"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="classengage_analytics_cache" COMMENT="Pre-computed analytics metrics for enterprise dashboard performance">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="sessionid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Foreign key to classengage_sessions"/>
+        <FIELD NAME="metric_type" TYPE="char" LENGTH="50" NOTNULL="true" SEQUENCE="false" COMMENT="Type of metric: summary, performance, timeline, distribution"/>
+        <FIELD NAME="metric_key" TYPE="char" LENGTH="100" NOTNULL="true" SEQUENCE="false" COMMENT="Specific metric identifier within type"/>
+        <FIELD NAME="metric_value" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="JSON-encoded metric data"/>
+        <FIELD NAME="computed_at" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Timestamp when metric was computed"/>
+        <FIELD NAME="expires_at" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Timestamp when cache expires"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="sessionid" TYPE="foreign" FIELDS="sessionid" REFTABLE="classengage_sessions" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="sessionid_metrictype" UNIQUE="false" FIELDS="sessionid, metric_type"/>
+        <INDEX NAME="sessionid_metrickey" UNIQUE="true" FIELDS="sessionid, metric_type, metric_key" COMMENT="Unique metric per session"/>
+        <INDEX NAME="expires_at" UNIQUE="false" FIELDS="expires_at" COMMENT="For cleanup of expired cache entries"/>
       </INDEXES>
     </TABLE>
   </TABLES>

@@ -53,6 +53,35 @@ Gain actionable insights with our comprehensive analytics dashboard:
 - **Clicker Integration**: Native support for physical clicker devices via our REST API, perfect for environments with limited connectivity or strict device policies.
 - **Connection Resilience**: Automatic reconnection with state restoration when network connectivity is interrupted.
 
+## Project Structure
+
+```
+mod/classengage/
+├── classes/               # PHP classes (PSR-4 namespaced)
+│   ├── task/              # Scheduled background tasks
+│   ├── event/             # Moodle event definitions
+│   ├── external/          # Web service API functions
+│   ├── form/              # Moodle form classes
+│   └── output/            # Renderers and templates
+├── db/                    # Database schema, capabilities, services
+│   ├── install.xml        # Table definitions (11 tables)
+│   ├── access.php         # Capability definitions
+│   ├── services.php       # Web service definitions
+│   └── tasks.php          # Scheduled task definitions
+├── amd/                   # JavaScript AMD modules
+│   ├── src/               # Source files (edit these)
+│   └── build/             # Minified output (auto-generated)
+├── tests/                 # Test suites
+│   ├── unit/              # Fast, isolated unit tests
+│   ├── integration/       # Database-dependent tests
+│   ├── property/          # Property-based tests
+│   ├── performance/       # Load and benchmark tests
+│   └── behat/             # End-to-end acceptance tests
+├── lang/                  # Language string files
+├── backup/                # Backup and restore support
+└── .github/workflows/     # CI/CD pipeline configuration
+```
+
 ## Installation
 
 ### Standard Plugin Installation

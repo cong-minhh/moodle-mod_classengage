@@ -65,4 +65,24 @@ $tasks = [
         'month' => '*',
         'dayofweek' => '*',
     ],
+    // Enterprise: Archive old completed sessions weekly on Sundays at 4 AM.
+    [
+        'classname' => 'mod_classengage\task\archive_old_sessions',
+        'blocking' => 0,
+        'minute' => '0',
+        'hour' => '4',
+        'day' => '*',
+        'month' => '*',
+        'dayofweek' => '0', // Sunday
+    ],
+    // Enterprise: Warm caches for active sessions every 5 minutes.
+    [
+        'classname' => 'mod_classengage\task\warm_active_caches',
+        'blocking' => 0,
+        'minute' => '*/5',
+        'hour' => '*',
+        'day' => '*',
+        'month' => '*',
+        'dayofweek' => '*',
+    ],
 ];

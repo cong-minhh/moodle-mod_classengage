@@ -85,4 +85,22 @@ $definitions = array(
         'staticacceleration' => true,
         'staticaccelerationsize' => 500, // Support higher concurrent users
     ),
+    // Enterprise: User performance cache for real-time leaderboards.
+    'user_performance' => array(
+        'mode' => cache_store::MODE_APPLICATION,
+        'simplekeys' => true,
+        'simpledata' => false,
+        'ttl' => 10, // 10 seconds for real-time feel
+        'staticacceleration' => true,
+        'staticaccelerationsize' => 200, // Support 200+ concurrent users
+    ),
+    // Enterprise: Session summary cache for instructor dashboard.
+    'session_summary' => array(
+        'mode' => cache_store::MODE_APPLICATION,
+        'simplekeys' => true,
+        'simpledata' => false,
+        'ttl' => 5, // 5 seconds for near-real-time dashboard updates
+        'staticacceleration' => true,
+        'staticaccelerationsize' => 50,
+    ),
 );

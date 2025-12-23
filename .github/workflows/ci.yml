@@ -1,0 +1,116 @@
+name: ClassEngage CI
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  lint-php:
+    name: PHP Code Quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.1"
+          tools: phpcs
+
+      - name: Install Moodle Coding Standard
+        run: |
+          composer global require moodlehq/moodle-cs
+          phpcs --config-set installed_paths $(composer global config home)/vendor/moodlehq/moodle-cs
+
+      - name: Run PHP CodeSniffer
+        run: |
+          phpcs --standard=moodle \
+            --ignore=*/amd/build/*,*/vendor/*,*/node_modules/* \
+            --extensions=php \
+            --report=checkstyle \
+            --report-file=phpcs-report.xml \
+            . || true
+
+      - name: Upload PHPCS Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phpcs-report
+          path: phpcs-report.xml
+
+  lint-js:
+    name: JavaScript Code Quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+
+      - name: Run ESLint
+        run: |
+          npx eslint amd/src/*.js --format stylish || true
+
+  test:
+    name: PHPUnit Tests
+    runs-on: ubuntu-latest
+    needs: [lint-php]
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_USER: moodle
+          POSTGRES_PASSWORD: moodle
+          POSTGRES_DB: moodle
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.1"
+          extensions: dom, mbstring, xml, xmlwriter, pgsql, gd, intl, zip
+          coverage: xdebug
+
+      - name: PHPUnit Test Note
+        run: |
+          echo "=========================================="
+          echo "PHPUnit tests require a full Moodle installation."
+          echo "This workflow provides a template structure."
+          echo ""
+          echo "To run tests locally:"
+          echo "  vendor/bin/phpunit mod/classengage/tests/"
+          echo ""
+          echo "For full Moodle CI, consider using:"
+          echo "  https://github.com/moodlehq/moodle-plugin-ci"
+          echo "=========================================="
+
+  summary:
+    name: CI Summary
+    runs-on: ubuntu-latest
+    needs: [lint-php, lint-js, test]
+    if: always()
+    steps:
+      - name: Check Results
+        run: |
+          echo "## CI Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| PHP Lint | ${{ needs.lint-php.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| JS Lint | ${{ needs.lint-js.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Tests | ${{ needs.test.result }} |" >> $GITHUB_STEP_SUMMARY

@@ -37,7 +37,7 @@ define(['jquery'], function ($) {
         DISCONNECTED: 'disconnected',
         CONNECTING: 'connecting',
         CONNECTED: 'connected',
-        RECONNECTING: 'reconnecting'
+        RECONNECTING: 'reconnecting',
     };
 
     /**
@@ -47,7 +47,7 @@ define(['jquery'], function ($) {
     var TRANSPORT = {
         SSE: 'sse',
         POLLING: 'polling',
-        OFFLINE: 'offline'
+        OFFLINE: 'offline',
     };
 
     /**
@@ -60,7 +60,7 @@ define(['jquery'], function ($) {
         sseRetryAttempts: 3, // 3 attempts before error (SSE required)
         reconnectDelay: 1000, // Initial reconnect delay
         maxReconnectDelay: 30000, // Max reconnect delay
-        connectionTimeout: 10000 // Connection timeout
+        connectionTimeout: 10000, // Connection timeout
     };
 
     /**
@@ -241,7 +241,7 @@ define(['jquery'], function ($) {
             // Note: 'error' removed - conflicts with native EventSource.onerror event
             // Instructor-only events (SSE-only mode)
             'stats_update',
-            'students_update'
+            'students_update',
         ];
 
         events.forEach(function (eventType) {
@@ -307,7 +307,7 @@ define(['jquery'], function ($) {
             self.emit('statuschange', { status: self.status, transport: self.transport });
             self.emit('connection_error', {
                 message: 'SSE connection required. Polling fallback has been removed.',
-                reason: 'sse_required'
+                reason: 'sse_required',
             });
             reject(new Error('SSE connection required. Please ensure your browser supports Server-Sent Events.'));
         });
@@ -377,7 +377,7 @@ define(['jquery'], function ($) {
         // Exponential backoff
         this.reconnectDelay = Math.min(
             this.reconnectDelay * 2,
-            this.options.maxReconnectDelay
+            this.options.maxReconnectDelay,
         );
     };
 
@@ -442,7 +442,7 @@ define(['jquery'], function ($) {
             action: type,
             sessionid: this.sessionId,
             connectionid: this.connectionId,
-            sesskey: M.cfg.sesskey
+            sesskey: M.cfg.sesskey,
         }, data || {});
 
         return new Promise(function (resolve, reject) {
@@ -451,7 +451,7 @@ define(['jquery'], function ($) {
                 method: 'POST',
                 data: requestData,
                 dataType: 'json',
-                timeout: self.options.connectionTimeout
+                timeout: self.options.connectionTimeout,
             })
                 .done(function (response) {
                     delete self.pendingRequests[requestId];
@@ -530,7 +530,7 @@ define(['jquery'], function ($) {
             status: this.status,
             transport: this.transport,
             latency: this.latency,
-            connectionId: this.connectionId
+            connectionId: this.connectionId,
         };
     };
 
@@ -660,6 +660,6 @@ define(['jquery'], function ($) {
 
         // Export constants
         STATUS: STATUS,
-        TRANSPORT: TRANSPORT
+        TRANSPORT: TRANSPORT,
     };
 });

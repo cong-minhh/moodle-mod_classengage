@@ -33,7 +33,7 @@ define([
     'core/notification',
     'core/str',
     'mod_classengage/connection_manager',
-    'mod_classengage/client_cache'
+    'mod_classengage/client_cache',
 ], function ($, Ajax, Notification, Str, ConnectionManager, ClientCache) {
 
     /**
@@ -44,7 +44,7 @@ define([
         WAITING: 'waiting',
         ACTIVE: 'active',
         PAUSED: 'paused',
-        COMPLETED: 'completed'
+        COMPLETED: 'completed',
     };
 
     /**
@@ -68,7 +68,7 @@ define([
             clientStartTime: 0,        // Client timestamp when countdown started
             isRunning: false,          // Whether countdown is active
             isPaused: false,           // Whether timer is paused
-            lastSyncTime: 0            // Last time we synced with server
+            lastSyncTime: 0,            // Last time we synced with server
         },
 
         /**
@@ -90,7 +90,7 @@ define([
                 // Initialize client cache for offline support
                 return ClientCache.init({
                     maxRetries: 3,
-                    retryDelay: 2000
+                    retryDelay: 2000,
                 });
             }).then(function () {
                 // Set up connection manager for client cache
@@ -98,7 +98,7 @@ define([
 
                 // Initialize connection manager
                 return ConnectionManager.init(sessionid, {
-                    pollInterval: pollinginterval || 2000
+                    pollInterval: pollinginterval || 2000,
                 });
             }).then(function () {
                 // Set up event handlers
@@ -148,7 +148,7 @@ define([
                 { key: 'reconnecting', component: 'mod_classengage' },
                 { key: 'connectionrestored', component: 'mod_classengage' },
                 { key: 'submittingoffline', component: 'mod_classengage' },
-                { key: 'pendingsubmissions', component: 'mod_classengage' }
+                { key: 'pendingsubmissions', component: 'mod_classengage' },
             ];
 
             return Str.get_strings(stringKeys).then(function (strings) {
@@ -166,7 +166,7 @@ define([
                     reconnecting: strings[10] || 'Reconnecting...',
                     connectionrestored: strings[11] || 'Connection restored',
                     submittingoffline: strings[12] || 'Saving response offline...',
-                    pendingsubmissions: strings[13] || 'Pending submissions'
+                    pendingsubmissions: strings[13] || 'Pending submissions',
                 };
                 return null;
             }).catch(function () {
@@ -185,7 +185,7 @@ define([
                     reconnecting: 'Reconnecting...',
                     connectionrestored: 'Connection restored',
                     submittingoffline: 'Saving response offline...',
-                    pendingsubmissions: 'Pending submissions'
+                    pendingsubmissions: 'Pending submissions',
                 };
             });
         },
@@ -401,7 +401,7 @@ define([
                 this.updateQuestionDisplay({
                     success: true,
                     status: data.status,
-                    question: data.question
+                    question: data.question,
                 });
             }
 
@@ -518,7 +518,7 @@ define([
 
             // Request current state
             ConnectionManager.send('getstatus', {
-                sessionid: this.sessionId
+                sessionid: this.sessionId,
             }).then(function (response) {
                 if (response.success && response.session) {
                     this.handleStateUpdate(response.session);
@@ -584,7 +584,7 @@ define([
                 sessionid: this.sessionId,
                 questionid: questionId,
                 answer: selectedAnswer,
-                clienttimestamp: clientTimestamp
+                clienttimestamp: clientTimestamp,
             }).then(function (response) {
                 self.handleSubmissionResponse(response);
                 return null;
@@ -633,7 +633,7 @@ define([
                 sessionId: this.sessionId,
                 questionId: questionId,
                 answer: answer,
-                clientTimestamp: clientTimestamp
+                clientTimestamp: clientTimestamp,
             }).then(function () {
                 self.showOfflineSubmissionConfirmation();
                 self.updateOfflineIndicator();
@@ -659,7 +659,7 @@ define([
                 '<h4>' + this.strings.answersubmitted + '</h4>' +
                 '<p>' + this.strings.offline + '</p>' +
                 '<p>' + this.strings.waitingnextquestion + '</p>' +
-                '</div>'
+                '</div>',
             );
         },
 
@@ -1017,7 +1017,7 @@ define([
 
             // Try ConnectionManager send for state refresh
             ConnectionManager.send('getstatus', {
-                sessionid: this.sessionId
+                sessionid: this.sessionId,
             }).then(function (response) {
                 if (response && response.success && response.session) {
                     self.handleStateUpdate(response.session);
@@ -1040,7 +1040,7 @@ define([
                 clearInterval(this.countdownTimer);
                 this.countdownTimer = null;
             }
-        }
+        },
     };
 
     return {
@@ -1054,6 +1054,6 @@ define([
          */
         init: function (cmid, sessionid, pollinginterval) {
             return Quiz.init(cmid, sessionid, pollinginterval);
-        }
+        },
     };
 });

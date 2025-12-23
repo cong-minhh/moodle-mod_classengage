@@ -558,3 +558,34 @@ $string['healthcheck:tables'] = 'Database tables';
 $string['healthcheck:diskspace'] = 'Disk space';
 $string['healthcheck:memory'] = 'Memory usage';
 
+// Enterprise settings
+$string['settings:enterprisesettings'] = 'Enterprise Settings';
+$string['settings:enterprisesettings_desc'] = 'Configure enterprise-level settings for large-scale deployments';
+$string['settings:logretentiondays'] = 'Log Retention Days';
+$string['settings:logretentiondays_desc'] = 'Number of days to retain session logs before cleanup (default: 90)';
+$string['settings:connectiontimeout'] = 'Connection Timeout';
+$string['settings:connectiontimeout_desc'] = 'SSE connection timeout in seconds before requiring reconnect (default: 30)';
+$string['settings:staleconnectionthreshold'] = 'Stale Connection Threshold';
+$string['settings:staleconnectionthreshold_desc'] = 'Seconds of inactivity before a connection is considered stale (default: 60)';
+$string['settings:analyticswindow'] = 'Analytics Aggregation Window';
+$string['settings:analyticswindow_desc'] = 'Minutes between analytics pre-computation runs (default: 60)';
+$string['settings:maxconcurrentconnections'] = 'Max Concurrent Connections';
+$string['settings:maxconcurrentconnections_desc'] = 'Maximum concurrent SSE connections per session (default: 500)';
+
+// Enterprise scheduled tasks
+$string['task:archiveoldsessions'] = 'Archive old quiz sessions';
+$string['task:warmactivecaches'] = 'Warm caches for active sessions';
+
+// Enterprise capabilities
+$string['classengage:viewownresults'] = 'View own quiz results and performance history';
+$string['classengage:exportdata'] = 'Export quiz and analytics data';
+
+// Enterprise analytics cache
+$string['analyticscachecleared'] = 'Analytics cache cleared successfully';
+$string['analyticscachewarmed'] = 'Analytics cache pre-computed for {$a} active sessions';
+
+// Archive task
+$string['sessionsarchived'] = '{$a} old sessions archived successfully';
+$string['archiveretentiondays'] = 'Archive sessions older than {$a} days';
+
+

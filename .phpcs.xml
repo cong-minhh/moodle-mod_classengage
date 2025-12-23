@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ruleset name="mod_classengage">
+    <description>PHP CodeSniffer configuration for mod_classengage</description>
+    
+    <!-- Use the Moodle coding standard -->
+    <rule ref="moodle"/>
+    
+    <!-- Files to check -->
+    <file>.</file>
+    
+    <!-- Exclude patterns -->
+    <exclude-pattern>*/vendor/*</exclude-pattern>
+    <exclude-pattern>*/node_modules/*</exclude-pattern>
+    <exclude-pattern>*/amd/build/*</exclude-pattern>
+    <exclude-pattern>*/.git/*</exclude-pattern>
+    <exclude-pattern>*/tests/fixtures/*</exclude-pattern>
+    
+    <!-- File extensions to check -->
+    <arg name="extensions" value="php"/>
+    
+    <!-- Show progress and use colors -->
+    <arg name="colors"/>
+    <arg value="sp"/>
+</ruleset>

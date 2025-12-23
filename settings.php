@@ -26,68 +26,139 @@ defined('MOODLE_INTERNAL') || die();
 
 if ($ADMIN->fulltree) {
     // NLP Service Settings
-    $settings->add(new admin_setting_heading('mod_classengage/nlpheading',
+    $settings->add(new admin_setting_heading(
+        'mod_classengage/nlpheading',
         get_string('settings:nlpendpoint', 'mod_classengage'),
-        ''));
+        ''
+    ));
 
-    $settings->add(new admin_setting_configtext('mod_classengage/nlpendpoint',
+    $settings->add(new admin_setting_configtext(
+        'mod_classengage/nlpendpoint',
         get_string('settings:nlpendpoint', 'mod_classengage'),
         get_string('settings:nlpendpoint_desc', 'mod_classengage'),
         '',
-        PARAM_URL));
+        PARAM_URL
+    ));
 
-    $settings->add(new admin_setting_configpasswordunmask('mod_classengage/nlpapikey',
+    $settings->add(new admin_setting_configpasswordunmask(
+        'mod_classengage/nlpapikey',
         get_string('settings:nlpapikey', 'mod_classengage'),
         get_string('settings:nlpapikey_desc', 'mod_classengage'),
-        ''));
+        ''
+    ));
 
-    $settings->add(new admin_setting_configcheckbox('mod_classengage/autogeneratequestions',
+    $settings->add(new admin_setting_configcheckbox(
+        'mod_classengage/autogeneratequestions',
         get_string('settings:autogeneratequestions', 'mod_classengage'),
         get_string('settings:autogeneratequestions_desc', 'mod_classengage'),
-        0));
+        0
+    ));
 
     // File Upload Settings
-    $settings->add(new admin_setting_heading('mod_classengage/fileheading',
+    $settings->add(new admin_setting_heading(
+        'mod_classengage/fileheading',
         get_string('settings:maxfilesize', 'mod_classengage'),
-        ''));
+        ''
+    ));
 
-    $settings->add(new admin_setting_configtext('mod_classengage/maxfilesize',
+    $settings->add(new admin_setting_configtext(
+        'mod_classengage/maxfilesize',
         get_string('settings:maxfilesize', 'mod_classengage'),
         get_string('settings:maxfilesize_desc', 'mod_classengage'),
         '50',
-        PARAM_INT));
+        PARAM_INT
+    ));
 
     // Quiz Defaults
-    $settings->add(new admin_setting_heading('mod_classengage/quizheading',
+    $settings->add(new admin_setting_heading(
+        'mod_classengage/quizheading',
         get_string('settings:defaultquestions', 'mod_classengage'),
-        ''));
+        ''
+    ));
 
-    $settings->add(new admin_setting_configtext('mod_classengage/defaultquestions',
+    $settings->add(new admin_setting_configtext(
+        'mod_classengage/defaultquestions',
         get_string('settings:defaultquestions', 'mod_classengage'),
         get_string('settings:defaultquestions_desc', 'mod_classengage'),
         '10',
-        PARAM_INT));
+        PARAM_INT
+    ));
 
-    $settings->add(new admin_setting_configtext('mod_classengage/defaulttimelimit',
+    $settings->add(new admin_setting_configtext(
+        'mod_classengage/defaulttimelimit',
         get_string('settings:defaulttimelimit', 'mod_classengage'),
         get_string('settings:defaulttimelimit_desc', 'mod_classengage'),
         '30',
-        PARAM_INT));
+        PARAM_INT
+    ));
 
     // Real-time Settings
-    $settings->add(new admin_setting_heading('mod_classengage/realtimeheading',
+    $settings->add(new admin_setting_heading(
+        'mod_classengage/realtimeheading',
         get_string('settings:enablerealtime', 'mod_classengage'),
-        ''));
+        ''
+    ));
 
-    $settings->add(new admin_setting_configcheckbox('mod_classengage/enablerealtime',
+    $settings->add(new admin_setting_configcheckbox(
+        'mod_classengage/enablerealtime',
         get_string('settings:enablerealtime', 'mod_classengage'),
         get_string('settings:enablerealtime_desc', 'mod_classengage'),
-        1));
+        1
+    ));
 
-    $settings->add(new admin_setting_configtext('mod_classengage/pollinginterval',
+    $settings->add(new admin_setting_configtext(
+        'mod_classengage/pollinginterval',
         get_string('settings:pollinginterval', 'mod_classengage'),
         get_string('settings:pollinginterval_desc', 'mod_classengage'),
         '1000',
-        PARAM_INT));
+        PARAM_INT
+    ));
+
+    // Enterprise Settings
+    $settings->add(new admin_setting_heading(
+        'mod_classengage/enterpriseheading',
+        get_string('settings:enterprisesettings', 'mod_classengage'),
+        get_string('settings:enterprisesettings_desc', 'mod_classengage')
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'mod_classengage/log_retention_days',
+        get_string('settings:logretentiondays', 'mod_classengage'),
+        get_string('settings:logretentiondays_desc', 'mod_classengage'),
+        '90',
+        PARAM_INT
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'mod_classengage/connection_timeout',
+        get_string('settings:connectiontimeout', 'mod_classengage'),
+        get_string('settings:connectiontimeout_desc', 'mod_classengage'),
+        '30',
+        PARAM_INT
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'mod_classengage/stale_connection_threshold',
+        get_string('settings:staleconnectionthreshold', 'mod_classengage'),
+        get_string('settings:staleconnectionthreshold_desc', 'mod_classengage'),
+        '60',
+        PARAM_INT
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'mod_classengage/analytics_window',
+        get_string('settings:analyticswindow', 'mod_classengage'),
+        get_string('settings:analyticswindow_desc', 'mod_classengage'),
+        '60',
+        PARAM_INT
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'mod_classengage/max_concurrent_connections',
+        get_string('settings:maxconcurrentconnections', 'mod_classengage'),
+        get_string('settings:maxconcurrentconnections_desc', 'mod_classengage'),
+        '500',
+        PARAM_INT
+    ));
 }
 

@@ -239,6 +239,56 @@ function xmldb_classengage_upgrade($oldversion)
         upgrade_mod_savepoint(true, 2025122004, 'classengage');
     }
 
+    // Enterprise Improvements: Add performance indexes and analytics cache table.
+    if ($oldversion < 2025122005) {
+
+        // Add index on classengage_questions for activity-level queries.
+        $table = new xmldb_table('classengage_questions');
+        $index = new xmldb_index('classengageid_status', XMLDB_INDEX_NOTUNIQUE, ['classengageid', 'status']);
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+        // Add index on classengage_responses for analytics queries.
+        $table = new xmldb_table('classengage_responses');
+        $index = new xmldb_index('classengageid_timecreated', XMLDB_INDEX_NOTUNIQUE, ['classengageid', 'timecreated']);
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+        // Add index on classengage_session_log for user activity queries.
+        $table = new xmldb_table('classengage_session_log');
+        $index = new xmldb_index('userid_timecreated', XMLDB_INDEX_NOTUNIQUE, ['userid', 'timecreated']);
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+        // Create classengage_analytics_cache table.
+        $table = new xmldb_table('classengage_analytics_cache');
+
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('sessionid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('metric_type', XMLDB_TYPE_CHAR, '50', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('metric_key', XMLDB_TYPE_CHAR, '100', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('metric_value', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $table->add_field('computed_at', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('expires_at', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('sessionid', XMLDB_KEY_FOREIGN, ['sessionid'], 'classengage_sessions', ['id']);
+
+        $table->add_index('sessionid_metrictype', XMLDB_INDEX_NOTUNIQUE, ['sessionid', 'metric_type']);
+        $table->add_index('sessionid_metrickey', XMLDB_INDEX_UNIQUE, ['sessionid', 'metric_type', 'metric_key']);
+        $table->add_index('expires_at', XMLDB_INDEX_NOTUNIQUE, ['expires_at']);
+
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Classengage savepoint reached.
+        upgrade_mod_savepoint(true, 2025122005, 'classengage');
+    }
+
     return true;
 }
 
