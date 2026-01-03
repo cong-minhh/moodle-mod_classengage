@@ -177,6 +177,13 @@ if ($mform->is_cancelled()) {
 
 echo $OUTPUT->header();
 
+// Initialize NLP progress bar AMD module.
+$PAGE->requires->js_call_amd('mod_classengage/slides_manager', 'init', [
+    ['cmid' => $cm->id]
+]);
+// Initialize Generator Wizard
+$PAGE->requires->js_call_amd('mod_classengage/generator_wizard', 'init', [$cm->id]);
+
 echo $OUTPUT->heading(format_string($classengage->name));
 
 // Tab navigation using shared function.
@@ -236,8 +243,16 @@ if ($slides) {
             $fileicon = 'fa-file-powerpoint-o text-warning';
         }
 
+        // Add data attributes for NLP job tracking.
+        $nlpstatus = $slide->nlp_job_status ?? 'idle';
+        $nlpprogress = $slide->nlp_job_progress ?? 0;
+
         echo html_writer::start_div('col-md-6 col-lg-4 mb-4 animate-slide-in', array('style' => 'animation-delay: ' . $delay . 's'));
-        echo html_writer::start_div('card h-100 classengage-slide-card');
+        echo html_writer::start_div('card h-100 classengage-slide-card', array(
+            'data-slideid' => $slide->id,
+            'data-nlp-status' => $nlpstatus,
+            'data-nlp-progress' => $nlpprogress
+        ));
 
         $delay += 0.1;
 
@@ -279,10 +294,19 @@ if ($slides) {
 
         // Card Footer with Actions
         echo html_writer::start_div('card-footer bg-white border-top-0 d-flex justify-content-between');
-        echo html_writer::link(
-            $generateurl,
+
+        // Use button for AJAX-based NLP generation (with link fallback for non-JS).
+        $btndisabled = in_array($nlpstatus, ['pending', 'running']);
+        // Use button to trigger modal wizard
+        echo html_writer::tag(
+            'button',
             get_string('generatequestions', 'mod_classengage'),
-            array('class' => 'btn btn-primary btn-sm')
+            array(
+                'class' => 'btn btn-primary btn-sm',
+                'title' => get_string('generatequestions', 'mod_classengage'),
+                'data-action' => 'open-generator',
+                'data-slideid' => $slide->id
+            )
         );
         echo html_writer::link(
             $deleteurl,

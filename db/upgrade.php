@@ -289,6 +289,62 @@ function xmldb_classengage_upgrade($oldversion)
         upgrade_mod_savepoint(true, 2025122005, 'classengage');
     }
 
+    // NLP Progress Bar: Add job tracking columns to classengage_slides.
+    if ($oldversion < 2025122302) {
+        $table = new xmldb_table('classengage_slides');
+
+        // Add nlp_job_status field.
+        $field = new xmldb_field('nlp_job_status', XMLDB_TYPE_CHAR, '20', null, XMLDB_NOTNULL, null, 'idle', 'timemodified');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Add nlp_job_progress field.
+        $field = new xmldb_field('nlp_job_progress', XMLDB_TYPE_INTEGER, '3', null, XMLDB_NOTNULL, null, '0', 'nlp_job_status');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Add nlp_job_id field.
+        $field = new xmldb_field('nlp_job_id', XMLDB_TYPE_INTEGER, '10', null, null, null, null, 'nlp_job_progress');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Add nlp_job_error field.
+        $field = new xmldb_field('nlp_job_error', XMLDB_TYPE_TEXT, null, null, null, null, null, 'nlp_job_id');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Add nlp_questions_count field.
+        $field = new xmldb_field('nlp_questions_count', XMLDB_TYPE_INTEGER, '5', null, XMLDB_NOTNULL, null, '0', 'nlp_job_error');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Add nlp_job_started field.
+        $field = new xmldb_field('nlp_job_started', XMLDB_TYPE_INTEGER, '10', null, null, null, null, 'nlp_questions_count');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Add nlp_job_completed field.
+        $field = new xmldb_field('nlp_job_completed', XMLDB_TYPE_INTEGER, '10', null, null, null, null, 'nlp_job_started');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Add index on nlp_job_status for efficient queries.
+        $index = new xmldb_index('nlp_job_status', XMLDB_INDEX_NOTUNIQUE, ['nlp_job_status']);
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+        // Classengage savepoint reached.
+        upgrade_mod_savepoint(true, 2025122302, 'classengage');
+    }
+
     return true;
 }
 

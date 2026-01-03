@@ -55,11 +55,13 @@ define([
         cmid: null,
         sessionId: null,
         currentQuestion: null,
+        currentQuestionId: null,
         pollingTimer: null,
         countdownTimer: null,
         isOnline: true,
         pendingSubmission: null,
         strings: {},
+        answeredQuestions: {}, // Track which questions user has answered
 
         // Client-side timer state (enterprise timer separation)
         timerState: {
@@ -74,16 +76,47 @@ define([
         /**
          * Initialize the quiz module
          *
-         * @param {number} cmid Course module ID
-         * @param {number} sessionid Session ID
-         * @param {number} pollinginterval Polling interval in milliseconds
+         * @param {Object} options Initialization options
+         * @param {number} options.cmid Course module ID
+         * @param {number} options.sessionid Session ID
+         * @param {number} options.pollinginterval Polling interval in milliseconds
+         * @param {number} options.timelimit Time limit for current question
+         * @param {number} options.timeremaining Time remaining for current question
+         * @param {number} options.questionid Current question ID
          * @return {Promise} Resolves when initialized
          */
-        init: function (cmid, sessionid, pollinginterval) {
+        init: function (options) {
             var self = this;
+
+            // Handle both object and legacy positional arguments
+            var cmid, sessionid, pollinginterval, timelimit, timeremaining, questionid, hasanswered;
+            if (typeof options === 'object' && options !== null) {
+                cmid = options.cmid;
+                sessionid = options.sessionid;
+                pollinginterval = options.pollinginterval;
+                timelimit = options.timelimit || 0;
+                timeremaining = options.timeremaining || 0;
+                questionid = options.questionid || 0;
+                hasanswered = options.hasanswered || false;
+            } else {
+                // Legacy positional arguments
+                cmid = arguments[0];
+                sessionid = arguments[1];
+                pollinginterval = arguments[2];
+                timelimit = 0;
+                timeremaining = 0;
+                questionid = 0;
+                hasanswered = false;
+            }
 
             this.cmid = cmid;
             this.sessionId = sessionid;
+            this.currentQuestionId = questionid;
+
+            // Mark current question as answered if PHP says so
+            if (questionid > 0 && hasanswered) {
+                this.answeredQuestions[questionid] = true;
+            }
 
             // Load language strings
             return this.loadStrings().then(function () {
@@ -117,6 +150,17 @@ define([
                     $(this).find('input[type="radio"]').prop('checked', true);
                     $(this).addClass('selected').siblings().removeClass('selected');
                 });
+
+                // Start timer immediately if we have timer data from PHP
+                if (timeremaining > 0 && timelimit > 0) {
+                    self.startLocalCountdown(timeremaining);
+                }
+
+                // Update quiz status when connected
+                $('#quiz-status').removeClass('d-none').text('Connected');
+                setTimeout(function () {
+                    $('#quiz-status').addClass('d-none');
+                }, 2000);
 
                 return null;
             }).catch(function (error) {
@@ -397,6 +441,14 @@ define([
          * @param {Object} data State update data
          */
         handleStateUpdate: function (data) {
+            // Sync timer if we have timer info
+            if (data.timelimit > 0 && data.timeremaining !== undefined) {
+                this.syncServerTime({
+                    timerremaining: data.timeremaining,
+                    timestamp: data.timestamp || (Date.now() / 1000),
+                });
+            }
+
             if (data.question) {
                 this.updateQuestionDisplay({
                     success: true,
@@ -418,13 +470,27 @@ define([
          * @param {Object} data Question data
          */
         handleQuestionBroadcast: function (data) {
-            this.currentQuestion = data.question;
-            this.displayQuestion(data.question);
+            var question = data.question;
+            var questionId = question.id || data.questionid;
+
+            // Check if this is a NEW question (reset answered state for new questions)
+            if (questionId && this.currentQuestionId !== questionId) {
+                this.currentQuestionId = questionId;
+                // New question - user hasn't answered yet (unless cached)
+            }
+
+            // Check if user has already answered this question
+            if (questionId && this.answeredQuestions[questionId]) {
+                question.answered = true;
+            }
+
+            this.currentQuestion = question;
+            this.displayQuestion(question);
 
             // Start local countdown timer with timelimit from server
             // Timer is fully client-side - server validates on submission
-            var timelimit = data.timelimit || (data.question && data.question.timelimit) || 0;
-            if (timelimit > 0) {
+            var timelimit = data.timelimit || (question && question.timelimit) || 0;
+            if (timelimit > 0 && !question.answered) {
                 this.startLocalCountdown(timelimit);
             }
         },
@@ -674,6 +740,11 @@ define([
             container.find('.optimistic-feedback').remove();
 
             if (response.success) {
+                // Mark this question as answered so SSE won't overwrite
+                if (this.currentQuestion && this.currentQuestion.id) {
+                    this.answeredQuestions[this.currentQuestion.id] = true;
+                }
+
                 var message = response.iscorrect ? this.strings.correct : this.strings.incorrect;
                 var alertClass = response.iscorrect ? 'success' : 'warning';
 
@@ -697,10 +768,17 @@ define([
                 this.showVisualConfirmation(response.iscorrect);
             } else {
                 // Handle error
-                if (response.error && response.error.indexOf('Duplicate') !== -1) {
+                var errorMsg = response.error || '';
+                if (errorMsg.toLowerCase().indexOf('already') !== -1 || 
+                    errorMsg.toLowerCase().indexOf('duplicate') !== -1) {
+                    // Already answered - show friendly message
                     container.html('<div class="alert alert-info">' + this.strings.alreadyanswered + '</div>');
+                } else if (errorMsg.toLowerCase().indexOf('not active') !== -1) {
+                    // Session not active
+                    container.html('<div class="alert alert-warning">Session is not active</div>');
                 } else {
-                    Notification.exception({ message: response.error || 'Error submitting answer' });
+                    // Other errors - show as notification instead of exception popup
+                    this.showNotification('error', errorMsg || 'Error submitting answer');
                     $('.submit-answer-btn').prop('disabled', false);
                 }
             }

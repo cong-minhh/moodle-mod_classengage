@@ -1,0 +1,36 @@
+<div class="row align-items-center border-bottom py-2 slide-row" data-page="{{pagenum}}">
+    <!-- Checkbox Toggle -->
+    <div class="col-1 text-center">
+        <input type="checkbox" class="slide-toggle" name="include_page[{{pagenum}}]" value="1" checked>
+    </div>
+
+    <!-- Page Info -->
+    <div class="col-2">
+        <span class="badge badge-secondary">{{#str}} page, mod_classengage {{/str}} {{pagenum}}</span>
+    </div>
+
+    <!-- Text Content -->
+    <div class="col-5">
+        <div class="text-preview small text-muted">
+            {{shorttext}}...
+            {{#hasmore}}
+            <a href="#" class="text-primary show-more-text" data-fulltext="{{fulltext}}">[{{#str}} showmore, mod_classengage {{/str}}]</a>
+            {{/hasmore}}
+        </div>
+    </div>
+
+    <!-- Images -->
+    <div class="col-4">
+        {{#images}}
+        <div class="d-inline-block mr-2 mb-2 text-center" style="width: 180px;">
+            <label class="mb-0 cursor-pointer" title="{{#str}} includeimage, mod_classengage {{/str}}">
+                <input type="checkbox" name="include_image[{{safe_source}}]" value="1" checked class="image-toggle">
+                <img src="data:{{mediaType}};base64,{{data}}" class="img-thumbnail mt-1" style="max-height: 150px;">
+            </label>
+        </div>
+        {{/images}}
+        {{^images}}
+        <span class="text-muted small"><em>{{#str}} noimages, mod_classengage {{/str}}</em></span>
+        {{/images}}
+    </div>
+</div>

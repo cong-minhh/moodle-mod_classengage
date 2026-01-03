@@ -26,13 +26,13 @@
  * - Concurrent user simulation for scalability testing
  *
  * Usage:
- *   php load_test_api.php --action=create --users=100 --prefix=loadtest
- *   php load_test_api.php --action=enroll --courseid=2 --prefix=loadtest
- *   php load_test_api.php --action=answer --sessionid=1 --prefix=loadtest --percent=50
- *   php load_test_api.php --action=batch --sessionid=1 --prefix=loadtest --batchsize=10
- *   php load_test_api.php --action=sse --sessionid=1 --prefix=loadtest --duration=30
- *   php load_test_api.php --action=concurrent --sessionid=1 --prefix=loadtest --users=200
- *   php load_test_api.php --action=cleanup --prefix=loadtest
+ *   php tests/performance/load_test_api.php --action=create --users=100 --prefix=loadtest
+ *   php tests/performance/load_test_api.php --action=enroll --courseid=2 --prefix=loadtest
+ *   php tests/performance/load_test_api.php --action=answer --sessionid=1 --prefix=loadtest --percent=50
+ *   php tests/performance/load_test_api.php --action=batch --sessionid=1 --prefix=loadtest --batchsize=10
+ *   php tests/performance/load_test_api.php --action=sse --sessionid=1 --prefix=loadtest --duration=30
+ *   php tests/performance/load_test_api.php --action=concurrent --sessionid=1 --prefix=loadtest --users=200
+ *   php tests/performance/load_test_api.php --action=cleanup --prefix=loadtest
  *
  * @package    mod_classengage
  * @copyright  2025 Danielle
@@ -112,12 +112,12 @@ Actions:
   all         Run create, enroll, and answer actions
 
 Examples:
-  php mod/classengage/tests/load_test_api.php --action=create --users=200 --prefix=testuser
-  php mod/classengage/tests/load_test_api.php --action=enroll --courseid=2 --prefix=testuser
-  php mod/classengage/tests/load_test_api.php --action=batch --sessionid=1 --prefix=testuser --batchsize=10
-  php mod/classengage/tests/load_test_api.php --action=sse --sessionid=1 --prefix=testuser --duration=60
-  php mod/classengage/tests/load_test_api.php --action=concurrent --sessionid=1 --prefix=testuser --users=100
-  php mod/classengage/tests/load_test_api.php --action=cleanup --prefix=testuser
+  php /var/www/html/mod/classengage/tests/performance/load_test_api.php --action=create --users=200 --prefix=testuser
+  php /var/www/html/mod/classengage/tests/performance/load_test_api.php --action=enroll --courseid=2 --prefix=testuser
+  php /var/www/html/mod/classengage/tests/performance/load_test_api.php --action=batch --sessionid=1 --prefix=testuser --batchsize=10
+  php /var/www/html/mod/classengage/tests/performance/load_test_api.php --action=sse --sessionid=1 --prefix=testuser --duration=60
+  php /var/www/html/mod/classengage/tests/performance/load_test_api.php --action=concurrent --sessionid=1 --prefix=testuser --users=100
+  php /var/www/html/mod/classengage/tests/performance/load_test_api.php --action=cleanup --prefix=testuser
 
 EOT;
     echo $help;
@@ -277,6 +277,89 @@ function get_api_token($verbose = false)
     }
 
     return $token;
+}
+
+/**
+ * Get the internal webservice URL, handling Docker environment
+ *
+ * When running inside Docker, $CFG->wwwroot is typically localhost:8000 which
+ * is not accessible from inside the container. This function returns the
+ * internal URL (127.0.0.1:80) for making API calls.
+ *
+ * @param string $baseurl Optional override URL
+ * @param bool $verbose Show detailed output
+ * @return string The webservice URL to use
+ */
+function get_internal_webservice_url($baseurl = '', $verbose = false)
+{
+    global $CFG;
+
+    // If baseurl provided, use it
+    if (!empty($baseurl)) {
+        $url = rtrim($baseurl, '/') . '/webservice/rest/server.php';
+        if ($verbose) {
+            echo "Using provided base URL: {$url}\n";
+        }
+        return $url;
+    }
+
+    if (is_docker_environment()) {
+        // Inside Docker - use internal URL (Apache listens on port 80)
+        $url = 'http://127.0.0.1/webservice/rest/server.php';
+        if ($verbose) {
+            echo "Detected Docker environment, using internal URL: {$url}\n";
+        }
+        return $url;
+    }
+
+    // Outside Docker - use configured wwwroot
+    $url = $CFG->wwwroot . '/webservice/rest/server.php';
+    if ($verbose) {
+        echo "Using configured wwwroot: {$url}\n";
+    }
+    return $url;
+}
+
+/**
+ * Detect if running inside Docker container
+ *
+ * @return bool True if running in Docker
+ */
+function is_docker_environment()
+{
+    return file_exists('/.dockerenv') || strpos(__DIR__, '/var/www/html') === 0;
+}
+
+/**
+ * Configure curl handle for Docker environment
+ *
+ * When running inside Docker, Moodle will redirect requests to $CFG->wwwroot
+ * (typically localhost:8000) which isn't accessible from inside the container.
+ * This function sets the Host header to match wwwroot so Moodle accepts the request.
+ *
+ * @param resource $ch Curl handle
+ * @param bool $verbose Show debug output
+ */
+function configure_curl_for_docker($ch, $verbose = false)
+{
+    global $CFG;
+
+    if (is_docker_environment()) {
+        // Extract host:port from wwwroot
+        $parsed = parse_url($CFG->wwwroot);
+        $host = $parsed['host'] ?? 'localhost';
+        $port = $parsed['port'] ?? ($parsed['scheme'] === 'https' ? 443 : 80);
+        $hostHeader = $host . ($port != 80 && $port != 443 ? ':' . $port : '');
+
+        // Set Host header to match wwwroot so Moodle doesn't redirect
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+            'Host: ' . $hostHeader,
+        ));
+
+        if ($verbose) {
+            echo "Configured curl for Docker (Host: {$hostHeader})\n";
+        }
+    }
 }
 
 /**
@@ -487,7 +570,7 @@ function perform_answer_questions($sessionid, $prefix, $percent, $delay, $verbos
 
     // 4. Simulate Requests.
     $answers = array('A', 'B', 'C', 'D');
-    $serverurl = $CFG->wwwroot . '/webservice/rest/server.php';
+    $serverurl = get_internal_webservice_url('', $verbose);
 
     // Initialize session state manager for connection tracking.
     $statemanager = new \mod_classengage\session_state_manager();
@@ -531,6 +614,9 @@ function perform_answer_questions($sessionid, $prefix, $percent, $delay, $verbos
         curl_setopt($ch, CURLOPT_POSTFIELDS, $postdata);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_POSTREDIR, CURL_REDIR_POST_ALL);
+        configure_curl_for_docker($ch, false);
 
         $handles[] = array('ch' => $ch, 'user' => $user);
         curl_multi_add_handle($mh, $ch);
@@ -651,8 +737,8 @@ function perform_batch_submission($sessionid, $prefix, $percent, $batchsize, $ve
         cli_error('Failed to generate API token');
     }
 
-    // Use baseurl if provided, otherwise use wwwroot.
-    $serverurl = ($baseurl ?: $CFG->wwwroot) . '/webservice/rest/server.php';
+    // Use internal URL helper for Docker compatibility.
+    $serverurl = get_internal_webservice_url($baseurl, $verbose);
     echo "API endpoint: {$serverurl}\n";
 
     $starttime = microtime(true);
@@ -702,12 +788,7 @@ function perform_batch_submission($sessionid, $prefix, $percent, $batchsize, $ve
         curl_setopt($ch, CURLOPT_TIMEOUT, 60);
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
         curl_setopt($ch, CURLOPT_POSTREDIR, CURL_REDIR_POST_ALL);
-
-        // Resolve localhost:8000 to the container IP when using Docker internal networking.
-        if ($baseurl) {
-            $host = preg_replace('#^https?://#', '', $baseurl);
-            curl_setopt($ch, CURLOPT_RESOLVE, array("localhost:8000:{$host}", "localhost:80:{$host}"));
-        }
+        configure_curl_for_docker($ch, $verbose);
 
         $response = curl_exec($ch);
         $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -953,8 +1034,8 @@ function perform_concurrent_simulation($sessionid, $prefix, $numusers, $verbose,
         cli_error('Failed to generate API token');
     }
 
-    // Use baseurl if provided, otherwise use wwwroot.
-    $serverurl = ($baseurl ?: $CFG->wwwroot) . '/webservice/rest/server.php';
+    // Use internal URL helper for Docker compatibility.
+    $serverurl = get_internal_webservice_url($baseurl, $verbose);
     echo "API endpoint: {$serverurl}\n";
 
     $answers = array('A', 'B', 'C', 'D');
@@ -1040,12 +1121,7 @@ function perform_concurrent_simulation($sessionid, $prefix, $numusers, $verbose,
         curl_setopt($ch, CURLOPT_TIMEOUT, 120);
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
         curl_setopt($ch, CURLOPT_POSTREDIR, CURL_REDIR_POST_ALL);
-
-        // Resolve localhost:8000 to the container IP when using Docker internal networking.
-        if ($baseurl) {
-            $host = preg_replace('#^https?://#', '', $baseurl);
-            curl_setopt($ch, CURLOPT_RESOLVE, array("localhost:8000:{$host}", "localhost:80:{$host}"));
-        }
+        configure_curl_for_docker($ch, false);
 
         $handles[] = array(
             'ch' => $ch,

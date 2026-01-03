@@ -33,6 +33,14 @@
         <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="User who uploaded the slide"/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <!-- NLP Job Tracking Fields -->
+        <FIELD NAME="nlp_job_status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="idle" SEQUENCE="false" COMMENT="NLP job lifecycle: idle, pending, running, completed, failed"/>
+        <FIELD NAME="nlp_job_progress" TYPE="int" LENGTH="3" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="NLP job progress percentage 0-100"/>
+        <FIELD NAME="nlp_job_id" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Adhoc task ID for tracking"/>
+        <FIELD NAME="nlp_job_error" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Error message if job failed"/>
+        <FIELD NAME="nlp_questions_count" TYPE="int" LENGTH="5" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Number of questions generated"/>
+        <FIELD NAME="nlp_job_started" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Timestamp when job started"/>
+        <FIELD NAME="nlp_job_completed" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Timestamp when job completed/failed"/>
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
@@ -41,6 +49,7 @@
       </KEYS>
       <INDEXES>
         <INDEX NAME="status" UNIQUE="false" FIELDS="status"/>
+        <INDEX NAME="nlp_job_status" UNIQUE="false" FIELDS="nlp_job_status" COMMENT="For efficient NLP job status queries"/>
       </INDEXES>
     </TABLE>
     <TABLE NAME="classengage_questions" COMMENT="Stores quiz questions (generated or manual)">

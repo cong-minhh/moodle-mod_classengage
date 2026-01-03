@@ -63,6 +63,15 @@ $PAGE->set_title(format_string($classengage->name));
 $PAGE->set_heading(format_string($course->fullname));
 $PAGE->set_context($context);
 
+// Check if user is teacher or student - do this before any output
+$isteacher = has_capability('mod/classengage:managequestions', $context);
+
+if ($isteacher) {
+    // Teacher view - redirect to slides.php which is the default tab
+    // This ensures they see the slides content when clicking the module
+    redirect(new moodle_url('/mod/classengage/slides.php', array('id' => $cm->id)));
+}
+
 echo $OUTPUT->header();
 
 echo $OUTPUT->heading(format_string($classengage->name));
@@ -72,100 +81,62 @@ if ($classengage->intro) {
     echo $OUTPUT->box(format_module_intro('classengage', $classengage, $cm->id), 'generalbox', 'intro');
 }
 
-// Check if user is teacher or student
-$isteacher = has_capability('mod/classengage:managequestions', $context);
+// Student view only reaches here (teachers are redirected above)
+echo html_writer::start_div('classengage-student-view');
 
-if ($isteacher) {
-    // Teacher view - tabs for different functions
-    echo html_writer::start_div('classengage-teacher-view');
-    echo html_writer::div(get_string('teacherwelcome', 'mod_classengage'), 'alert alert-info');
+// Check for active session
+$activesession = $DB->get_record('classengage_sessions', array(
+    'classengageid' => $classengage->id,
+    'status' => 'active'
+));
 
-    // Tab navigation
-    $tabs = array();
-    $tabs[] = new tabobject(
-        'slides',
-        new moodle_url('/mod/classengage/slides.php', array('id' => $cm->id)),
-        get_string('uploadslides', 'mod_classengage')
+if ($activesession) {
+    $quizurl = new moodle_url('/mod/classengage/quiz.php', array('id' => $cm->id, 'sessionid' => $activesession->id));
+    echo html_writer::div(
+        html_writer::link(
+            $quizurl,
+            get_string('joinquiz', 'mod_classengage'),
+            array('class' => 'btn btn-primary btn-lg')
+        ),
+        'text-center mb-3'
     );
-    $tabs[] = new tabobject(
-        'questions',
-        new moodle_url('/mod/classengage/questions.php', array('id' => $cm->id)),
-        get_string('managequestions', 'mod_classengage')
-    );
-    $tabs[] = new tabobject(
-        'sessions',
-        new moodle_url('/mod/classengage/sessions.php', array('id' => $cm->id)),
-        get_string('managesessions', 'mod_classengage')
-    );
-    $tabs[] = new tabobject(
-        'analytics',
-        new moodle_url('/mod/classengage/analytics.php', array('id' => $cm->id)),
-        get_string('analytics', 'mod_classengage')
-    );
-
-    print_tabs(array($tabs), 'slides');
-
-
-    echo html_writer::end_div();
 } else {
-    // Student view
-    echo html_writer::start_div('classengage-student-view');
-
-    // Check for active session
-    $activesession = $DB->get_record('classengage_sessions', array(
-        'classengageid' => $classengage->id,
-        'status' => 'active'
-    ));
-
-    if ($activesession) {
-        $quizurl = new moodle_url('/mod/classengage/quiz.php', array('id' => $cm->id, 'sessionid' => $activesession->id));
-        echo html_writer::div(
-            html_writer::link(
-                $quizurl,
-                get_string('joinquiz', 'mod_classengage'),
-                array('class' => 'btn btn-primary btn-lg')
-            ),
-            'text-center mb-3'
-        );
-    } else {
-        echo html_writer::div(get_string('nosession', 'mod_classengage'), 'alert alert-info');
-    }
-
-    // Show past results
-    echo html_writer::tag('h3', get_string('yourresults', 'mod_classengage'));
-
-    $sql = "SELECT s.name, r.score, r.timecreated
-              FROM {classengage_sessions} s
-              JOIN {classengage_responses} r ON r.sessionid = s.id
-             WHERE s.classengageid = :classengageid
-               AND r.userid = :userid
-          ORDER BY r.timecreated DESC";
-
-    $results = $DB->get_records_sql($sql, array('classengageid' => $classengage->id, 'userid' => $USER->id));
-
-    if ($results) {
-        $table = new html_table();
-        $table->head = array(
-            get_string('sessionname', 'mod_classengage'),
-            get_string('score', 'mod_classengage'),
-            get_string('date')
-        );
-
-        foreach ($results as $result) {
-            $table->data[] = array(
-                format_string($result->name),
-                $result->score,
-                userdate($result->timecreated)
-            );
-        }
-
-        echo html_writer::table($table);
-    } else {
-        echo html_writer::div(get_string('noresults', 'mod_classengage'), 'alert alert-secondary');
-    }
-
-    echo html_writer::end_div();
+    echo html_writer::div(get_string('nosession', 'mod_classengage'), 'alert alert-info');
 }
 
-echo $OUTPUT->footer();
+// Show past results
+echo html_writer::tag('h3', get_string('yourresults', 'mod_classengage'));
 
+$sql = "SELECT s.name, r.score, r.timecreated
+          FROM {classengage_sessions} s
+          JOIN {classengage_responses} r ON r.sessionid = s.id
+         WHERE s.classengageid = :classengageid
+           AND r.userid = :userid
+      ORDER BY r.timecreated DESC";
+
+$results = $DB->get_records_sql($sql, array('classengageid' => $classengage->id, 'userid' => $USER->id));
+
+if ($results) {
+    $table = new html_table();
+    $table->head = array(
+        get_string('sessionname', 'mod_classengage'),
+        get_string('score', 'mod_classengage'),
+        get_string('date')
+    );
+
+    foreach ($results as $result) {
+        $table->data[] = array(
+            format_string($result->name),
+            $result->score,
+            userdate($result->timecreated)
+        );
+    }
+
+    echo html_writer::table($table);
+} else {
+    echo html_writer::div(get_string('noresults', 'mod_classengage'), 'alert alert-secondary');
+}
+
+echo html_writer::end_div();
+
+echo $OUTPUT->footer();

@@ -22,9 +22,9 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-require(__DIR__.'/../../config.php');
-require_once(__DIR__.'/lib.php');
-require_once(__DIR__.'/classes/form/edit_question_form.php');
+require(__DIR__ . '/../../config.php');
+require_once(__DIR__ . '/lib.php');
+require_once(__DIR__ . '/classes/form/edit_question_form.php');
 
 $id = required_param('id', PARAM_INT); // Course module ID
 $action = optional_param('action', '', PARAM_ALPHA);
@@ -57,7 +57,7 @@ if ($action === 'approve' && $questionid && confirm_sesskey()) {
 // Handle bulk actions
 if (($action === 'bulkdelete' || $action === 'bulkapprove') && confirm_sesskey()) {
     $selectedquestions = optional_param_array('q', [], PARAM_INT);
-    
+
     if (!empty($selectedquestions)) {
         if ($action === 'bulkdelete') {
             list($insql, $inparams) = $DB->get_in_or_equal($selectedquestions);
@@ -78,21 +78,38 @@ echo $OUTPUT->heading(format_string($classengage->name));
 
 // Tab navigation
 $tabs = array();
-$tabs[] = new tabobject('slides', new moodle_url('/mod/classengage/slides.php', array('id' => $cm->id)), 
-                       get_string('uploadslides', 'mod_classengage'));
-$tabs[] = new tabobject('questions', new moodle_url('/mod/classengage/questions.php', array('id' => $cm->id)), 
-                       get_string('managequestions', 'mod_classengage'));
-$tabs[] = new tabobject('sessions', new moodle_url('/mod/classengage/sessions.php', array('id' => $cm->id)), 
-                       get_string('managesessions', 'mod_classengage'));
-$tabs[] = new tabobject('analytics', new moodle_url('/mod/classengage/analytics.php', array('id' => $cm->id)), 
-                       get_string('analytics', 'mod_classengage'));
+$tabs[] = new tabobject(
+    'slides',
+    new moodle_url('/mod/classengage/slides.php', array('id' => $cm->id)),
+    get_string('uploadslides', 'mod_classengage')
+);
+$tabs[] = new tabobject(
+    'questions',
+    new moodle_url('/mod/classengage/questions.php', array('id' => $cm->id)),
+    get_string('managequestions', 'mod_classengage')
+);
+$tabs[] = new tabobject(
+    'sessions',
+    new moodle_url('/mod/classengage/sessions.php', array('id' => $cm->id)),
+    get_string('managesessions', 'mod_classengage')
+);
+$tabs[] = new tabobject(
+    'analytics',
+    new moodle_url('/mod/classengage/analytics.php', array('id' => $cm->id)),
+    get_string('analytics', 'mod_classengage')
+);
 
 print_tabs(array($tabs), 'questions');
 
 // Add question button
 $addurl = new moodle_url('/mod/classengage/editquestion.php', array('id' => $cm->id));
+
+
+// Add "Generate from Text" button
+$genurl = new moodle_url('/mod/classengage/generate_questions.php', array('id' => $cm->id));
 echo html_writer::div(
-    html_writer::link($addurl, get_string('addquestion', 'mod_classengage'), array('class' => 'btn btn-primary')),
+    html_writer::link($addurl, get_string('addquestion', 'mod_classengage'), array('class' => 'btn btn-primary mr-2')) .
+    html_writer::link($genurl, get_string('generatefromtext', 'mod_classengage'), array('class' => 'btn btn-info')),
     'mb-3'
 );
 
@@ -122,7 +139,8 @@ echo html_writer::empty_tag('input', array('type' => 'hidden', 'name' => 'sesske
 echo html_writer::empty_tag('input', array('type' => 'hidden', 'name' => 'action', 'value' => '', 'id' => 'bulkaction'));
 
 // Helper function to render question table
-function render_question_table($questions, $cm) {
+function render_question_table($questions, $cm)
+{
     global $OUTPUT;
     $table = new html_table();
     $table->head = array(
@@ -134,39 +152,54 @@ function render_question_table($questions, $cm) {
         get_string('actions', 'mod_classengage')
     );
     $table->attributes['class'] = 'generaltable table table-hover';
-    
+
     foreach ($questions as $question) {
-        $editurl = new moodle_url('/mod/classengage/editquestion.php', 
-            array('id' => $cm->id, 'questionid' => $question->id));
-        $deleteurl = new moodle_url('/mod/classengage/questions.php', 
-            array('id' => $cm->id, 'action' => 'delete', 'questionid' => $question->id, 'sesskey' => sesskey()));
-        $approveurl = new moodle_url('/mod/classengage/questions.php',
-            array('id' => $cm->id, 'action' => 'approve', 'questionid' => $question->id, 'sesskey' => sesskey()));
-        
+        $editurl = new moodle_url(
+            '/mod/classengage/editquestion.php',
+            array('id' => $cm->id, 'questionid' => $question->id)
+        );
+        $deleteurl = new moodle_url(
+            '/mod/classengage/questions.php',
+            array('id' => $cm->id, 'action' => 'delete', 'questionid' => $question->id, 'sesskey' => sesskey())
+        );
+        $approveurl = new moodle_url(
+            '/mod/classengage/questions.php',
+            array('id' => $cm->id, 'action' => 'approve', 'questionid' => $question->id, 'sesskey' => sesskey())
+        );
+
         $actions = [];
-        $actions[] = html_writer::link($editurl, $OUTPUT->pix_icon('t/edit', get_string('edit')), 
-            array('class' => 'btn btn-sm btn-light', 'title' => get_string('edit')));
-        
+        $actions[] = html_writer::link(
+            $editurl,
+            $OUTPUT->pix_icon('t/edit', get_string('edit')),
+            array('class' => 'btn btn-sm btn-light', 'title' => get_string('edit'))
+        );
+
         if ($question->status !== 'approved') {
-            $actions[] = html_writer::link($approveurl, $OUTPUT->pix_icon('t/check', get_string('approve')),
-                array('class' => 'btn btn-sm btn-success', 'title' => get_string('approve')));
+            $actions[] = html_writer::link(
+                $approveurl,
+                $OUTPUT->pix_icon('t/check', get_string('approve')),
+                array('class' => 'btn btn-sm btn-success', 'title' => get_string('approve'))
+            );
         }
-        
-        $actions[] = html_writer::link($deleteurl, $OUTPUT->pix_icon('t/delete', get_string('delete')), 
-            array('class' => 'btn btn-sm btn-danger', 'title' => get_string('delete')));
-        
+
+        $actions[] = html_writer::link(
+            $deleteurl,
+            $OUTPUT->pix_icon('t/delete', get_string('delete')),
+            array('class' => 'btn btn-sm btn-danger', 'title' => get_string('delete'))
+        );
+
         // Truncate question text
         $questiontext = format_string($question->questiontext);
         if (strlen($questiontext) > 100) {
             $questiontext = substr($questiontext, 0, 100) . '...';
         }
-        
-        $statusbadge = $question->status === 'approved' ? 
-            '<span class="badge badge-success">'.get_string('approved', 'mod_classengage').'</span>' :
-            '<span class="badge badge-warning">'.get_string('pending', 'mod_classengage').'</span>';
-            
+
+        $statusbadge = $question->status === 'approved' ?
+            '<span class="badge badge-success">' . get_string('approved', 'mod_classengage') . '</span>' :
+            '<span class="badge badge-warning">' . get_string('pending', 'mod_classengage') . '</span>';
+
         $difficultybadge = '<span class="badge badge-secondary">' . ucfirst($question->difficulty) . '</span>';
-        
+
         $table->data[] = array(
             html_writer::checkbox('q[]', $question->id, false, '', array('class' => 'question-checkbox')),
             $questiontext,
@@ -191,7 +224,8 @@ if (!empty($manual_questions)) {
         'aria-controls' => $collapseid,
         'role' => 'button'
     ));
-    echo html_writer::tag('div', 
+    echo html_writer::tag(
+        'div',
         html_writer::tag('h4', get_string('manualquestions', 'mod_classengage'), array('class' => 'm-0 d-inline-block mr-2')) .
         html_writer::span($manual_count, 'badge badge-primary question-count-badge'),
         array('class' => 'd-flex align-items-center')
@@ -209,13 +243,13 @@ if (!empty($manual_questions)) {
 // Generated Questions Section
 if (!empty($generated_questions_by_slide)) {
     echo html_writer::tag('h3', get_string('generatedquestions', 'mod_classengage'), array('class' => 'mt-4 mb-3'));
-    
+
     $i = 0;
     foreach ($generated_questions_by_slide as $slide_title => $slide_questions) {
         $i++;
         $slide_count = count($slide_questions);
         $collapseid = 'collapse-generated-' . $i;
-        
+
         echo html_writer::start_div('card mb-4');
         echo html_writer::start_div('card-header bg-light d-flex justify-content-between align-items-center clickable-header', array(
             'data-toggle' => 'collapse',
@@ -224,7 +258,8 @@ if (!empty($generated_questions_by_slide)) {
             'aria-controls' => $collapseid,
             'role' => 'button'
         ));
-        echo html_writer::tag('div', 
+        echo html_writer::tag(
+            'div',
             html_writer::tag('h5', get_string('slide', 'mod_classengage') . ': ' . $slide_title, array('class' => 'm-0 d-inline-block mr-2')) .
             html_writer::span($slide_count, 'badge badge-info question-count-badge'),
             array('class' => 'd-flex align-items-center')
@@ -246,12 +281,12 @@ if (empty($manual_questions) && empty($generated_questions_by_slide)) {
     // Bulk Action Buttons
     echo html_writer::start_div('d-flex gap-2 mt-3 mb-5');
     echo html_writer::tag('button', get_string('delete_selected', 'mod_classengage'), array(
-        'type' => 'button', 
+        'type' => 'button',
         'class' => 'btn btn-danger',
         'onclick' => "document.getElementById('bulkaction').value='bulkdelete'; document.getElementById('questionsform').submit();"
     ));
     echo html_writer::tag('button', get_string('approve_selected', 'mod_classengage'), array(
-        'type' => 'button', 
+        'type' => 'button',
         'class' => 'btn btn-success ml-2',
         'onclick' => "document.getElementById('bulkaction').value='bulkapprove'; document.getElementById('questionsform').submit();"
     ));

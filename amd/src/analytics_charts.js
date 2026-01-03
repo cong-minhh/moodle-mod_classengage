@@ -525,7 +525,8 @@ define(['core/chartjs', 'core/str'],
                 });
 
                 // Add text alternative for accessibility
-                canvasData.canvas.setAttribute('aria-label', chartTitle + '. ' + generateDistributionTextAlternative(distributionData));
+                var altText = chartTitle + '. ' + generateDistributionTextAlternative(distributionData);
+                canvasData.canvas.setAttribute('aria-label', altText);
 
                 return true;
             }).catch(function(error) {

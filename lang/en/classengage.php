@@ -543,6 +543,7 @@ $string['searchstudents'] = 'Search students...';
 // Enterprise optimization: Scheduled tasks
 $string['task:cleanupstaleconnections'] = 'Clean up stale connections';
 $string['task:processresponsequeue'] = 'Process response queue';
+$string['task:generatenlp'] = 'Generate NLP questions for slide';
 $string['task:aggregateanalytics'] = 'Aggregate analytics data';
 $string['task:cleanupsessionlogs'] = 'Clean up old session logs';
 
@@ -588,4 +589,55 @@ $string['analyticscachewarmed'] = 'Analytics cache pre-computed for {$a} active 
 $string['sessionsarchived'] = '{$a} old sessions archived successfully';
 $string['archiveretentiondays'] = 'Archive sessions older than {$a} days';
 
+$string['connecting'] = 'Connecting...';
+$string['waitingforquestion'] = 'Waiting for question...';
+$string['waitingtostartdesc'] = 'The quiz will begin when your instructor starts the session.';
+$string['backtoactivity'] = 'Back to Activity';
+$string['error:cannotloadresults'] = 'Cannot load quiz results';
+$string['refresh'] = 'Refresh';
 
+// NLP Question Generator
+$string['generatefromtext'] = 'Generate from Text';
+$string['generatefromdocument'] = 'Generate from Document';
+$string['contenttext'] = 'Content Text';
+$string['selectcontentinstructions'] = 'Select the pages and images you want to use for question generation.';
+$string['pages_slides'] = 'Pages & Slides';
+$string['includeimage'] = 'Include Image: ';
+$string['nopagesfound'] = 'No pages found in this document.';
+$string['generationsettings'] = 'Generation Settings';
+$string['numberofquestions'] = 'Number of Questions';
+$string['mixed'] = 'Mixed';
+
+// Help strings
+$string['contenttext_help'] = 'Enter the text you want to generate questions from. The AI will analyze this text and create relevant multiple-choice questions.';
+$string['generatefromtext_help'] = 'Generate questions directly from any text you copy and paste here.';
+$string['generatefromdocument_help'] = 'Select pages and images from your uploaded document to generate questions specific to those sections.';
+$string['numberofquestions_help'] = 'Select how many questions you want to generate.';
+$string['difficulty_help'] = 'Select the difficulty level for the generated questions. Mixed will generate a variety of difficulties.';
+$string['generate'] = 'Generate';
+
+// Cognitive Levels (Bloom's Taxonomy)
+$string['cognitivelevel'] = 'Cognitive Level';
+$string['cognitivelevel_help'] = 'Determines the type of thinking required (e.g., \'Remember\' for factual recall, \'Analyze\' for connecting ideas). This works alongside Difficulty.';
+$string['bloom_remember'] = 'Remember: Recall facts and basic concepts';
+$string['bloom_understand'] = 'Understand: Explain ideas or concepts';
+$string['bloom_apply'] = 'Apply: Use information in new situations';
+$string['bloom_analyze'] = 'Analyze: Draw connections among ideas';
+$string['bloom_evaluate'] = 'Evaluate: Justify a stand or decision';
+$string['bloom_create'] = 'Create: Produce new or original work';
+
+// Advanced Distribution
+$string['advanced_settings'] = 'Advanced Distribution Mode';
+$string['distribution_help'] = 'Specify the exact number of questions for each category. Counts must sum to the Total Questions.';
+$string['difficulty_distribution'] = 'Difficulty Distribution';
+$string['cognitive_distribution'] = 'Cognitive Level Distribution';
+$string['total_questions_mismatch'] = 'Total count ({$a->current}) must match the selected Number of Questions ({$a->target}).';
+
+
+// Wizard Strings
+$string['pagerange'] = 'Page Range';
+$string['pagerange_help'] = 'Enter page numbers or ranges to select';
+$string['showmore'] = 'Show More';
+$string['noimages'] = 'No images found on this page.';
+$string['inspectingdocument'] = 'Inspecting document structure...';
+$string['images'] = 'Images';
