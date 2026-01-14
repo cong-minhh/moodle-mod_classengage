@@ -345,6 +345,26 @@ function xmldb_classengage_upgrade($oldversion)
         upgrade_mod_savepoint(true, 2025122302, 'classengage');
     }
 
+    // NLP API Enhancement: Add bloomlevel and rationale fields to questions table.
+    if ($oldversion < 2026011400) {
+        $table = new xmldb_table('classengage_questions');
+
+        // Add bloomlevel field for Bloom's taxonomy level.
+        $field = new xmldb_field('bloomlevel', XMLDB_TYPE_CHAR, '20', null, null, null, null, 'difficulty');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Add rationale field for AI-generated explanation.
+        $field = new xmldb_field('rationale', XMLDB_TYPE_TEXT, null, null, null, null, null, 'bloomlevel');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Classengage savepoint reached.
+        upgrade_mod_savepoint(true, 2026011400, 'classengage');
+    }
+
     return true;
 }
 

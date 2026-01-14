@@ -31,58 +31,63 @@ defined('MOODLE_INTERNAL') || die();
  *
  * Transforms analytics data into Chart.js-compatible format.
  */
-class chart_data_transformer {
-    
+class chart_data_transformer
+{
+
     /**
      * Transform engagement timeline data for Chart.js
      *
      * @param array $timeline Timeline data from analytics engine
      * @return array Timeline data (passed through as-is for JavaScript processing)
      */
-    public static function transform_timeline_data($timeline) {
+    public static function transform_timeline_data($timeline)
+    {
         // JavaScript expects array of objects with label, count, is_peak, is_dip
         // Just return as-is since analytics_engine already provides correct structure
         return $timeline;
     }
-    
+
     /**
      * Transform concept difficulty data for Chart.js
      *
      * @param array $conceptdifficulty Concept difficulty data from comprehension analyzer
      * @return array Difficulty data (passed through as-is for JavaScript processing)
      */
-    public static function transform_difficulty_data($conceptdifficulty) {
+    public static function transform_difficulty_data($conceptdifficulty)
+    {
         // JavaScript expects array of objects with question_text and correctness_rate
         // Just return as-is since comprehension_analyzer already provides correct structure
         return $conceptdifficulty;
     }
-    
+
     /**
      * Transform participation distribution data for Chart.js
      *
      * @param object $distribution Participation distribution data
      * @return object Distribution data (passed through as-is for JavaScript processing)
      */
-    public static function transform_distribution_data($distribution) {
+    public static function transform_distribution_data($distribution)
+    {
         // JavaScript expects object with high, moderate, low, none properties
         // Just return as-is since analytics_engine already provides correct structure
         return $distribution;
     }
-    
+
     /**
      * Transform all analytics data to chart format
      *
      * @param array $engagementtimeline Timeline data
      * @param array $conceptdifficulty Concept difficulty data
-     * @param array $participationdistribution Participation distribution data
+     * @param object $participationdistribution Participation distribution data
      * @return \stdClass Complete chart data object
      */
-    public static function transform_all_chart_data($engagementtimeline, $conceptdifficulty, $participationdistribution) {
+    public static function transform_all_chart_data($engagementtimeline, $conceptdifficulty, $participationdistribution)
+    {
         $chartdata = new \stdClass();
         $chartdata->timeline = self::transform_timeline_data($engagementtimeline);
         $chartdata->difficulty = self::transform_difficulty_data($conceptdifficulty);
         $chartdata->distribution = self::transform_distribution_data($participationdistribution);
-        
+
         return $chartdata;
     }
 }

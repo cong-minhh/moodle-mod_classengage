@@ -22,10 +22,10 @@
     <!-- Images -->
     <div class="col-4">
         {{#images}}
-        <div class="d-inline-block mr-2 mb-2 text-center" style="width: 180px;">
+        <div class="d-inline-block mr-2 mb-2 text-center" style="width: auto; max-width: 180px;">
             <label class="mb-0 cursor-pointer" title="{{#str}} includeimage, mod_classengage {{/str}}">
-                <input type="checkbox" name="include_image[{{safe_source}}]" value="1" checked class="image-toggle">
-                <img src="data:{{mediaType}};base64,{{data}}" class="img-thumbnail mt-1" style="max-height: 150px;">
+                <input type="checkbox" name="include_image[{{safe_source}}]" value="1" checked class="image-toggle" data-source="{{source}}">
+                <img src="data:{{mediaType}};base64,{{data}}" class="img-thumbnail mt-1" style="max-height: 150px; width: auto; max-width: 100%;">
             </label>
         </div>
         {{/images}}

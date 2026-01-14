@@ -1,0 +1,58 @@
+<div class="card border-primary mb-4">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">{{#str}}aianalysis, mod_classengage{{/str}}</h5>
+        <span class="badge badge-light">{{#str}}poweredbyai, mod_classengage{{/str}}</span>
+    </div>
+    <div class="card-body">
+        {{#summary}}
+        <div class="alert alert-info mb-4">
+            <strong>{{#str}}executivesummary, mod_classengage{{/str}}:</strong> {{summary}}
+        </div>
+        {{/summary}}
+
+        <div class="row">
+            <div class="col-md-4">
+                <div class="card h-100 border-success">
+                    <div class="card-header bg-success text-white">
+                        <h6 class="mb-0">{{#str}}strengths, mod_classengage{{/str}}</h6>
+                    </div>
+                    <ul class="list-group list-group-flush">
+                        {{#strengths}}
+                        <li class="list-group-item"><i class="fa fa-check text-success mr-2"></i> {{.}}</li>
+                        {{/strengths}}
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="card h-100 border-warning">
+                    <div class="card-header bg-warning text-dark">
+                        <h6 class="mb-0">{{#str}}improvementareas, mod_classengage{{/str}}</h6>
+                    </div>
+                    <ul class="list-group list-group-flush">
+                        {{#areas_for_improvement}}
+                        <li class="list-group-item"><i class="fa fa-exclamation-triangle text-warning mr-2"></i> {{.}}</li>
+                        {{/areas_for_improvement}}
+                    </ul>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card h-100 border-info">
+                    <div class="card-header bg-info text-white">
+                        <h6 class="mb-0">{{#str}}actionableadvice, mod_classengage{{/str}}</h6>
+                    </div>
+                    <ul class="list-group list-group-flush">
+                        {{#actionable_advice}}
+                        <li class="list-group-item"><i class="fa fa-lightbulb-o text-info mr-2"></i> {{.}}</li>
+                        {{/actionable_advice}}
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <div class="text-right mt-3">
+            <small class="text-muted">{{#str}}aidisclaimer, mod_classengage{{/str}}</small>
+        </div>
+    </div>
+</div>

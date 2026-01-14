@@ -151,6 +151,25 @@ class nlp_generator
     }
 
     /**
+     * Analyze class session data using AI
+     * 
+     * @param array $sessiondata
+     * @param array $options
+     * @return array Analysis result
+     */
+    public function analyze_session($sessiondata, $options = [])
+    {
+        $endpoint = '/api/analyze-session';
+
+        $payload = array(
+            'session_data' => $sessiondata,
+            'options' => $options
+        );
+
+        return $this->call_api($endpoint, json_encode($payload), 'POST', ['Content-Type: application/json']);
+    }
+
+    /**
      * Legacy method for backward compatibility
      */
     public function generate_questions_from_file($file, $classengageid, $slideid, $numquestions = null)
@@ -294,6 +313,8 @@ class nlp_generator
             $question->optiond = $q['optiond'];
             $question->correctanswer = $q['correctanswer'];
             $question->difficulty = $q['difficulty'] ?? 'medium';
+            $question->bloomlevel = $q['bloomLevel'] ?? $q['bloomlevel'] ?? null;
+            $question->rationale = $q['rationale'] ?? null;
             $question->status = 'pending';
             $question->source = 'nlp';
             $question->timecreated = $now;

@@ -22,8 +22,8 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-require(__DIR__.'/../../config.php');
-require_once(__DIR__.'/lib.php');
+require(__DIR__ . '/../../config.php');
+require_once(__DIR__ . '/lib.php');
 
 use mod_classengage\engagement_calculator;
 use mod_classengage\comprehension_analyzer;
@@ -72,12 +72,14 @@ echo html_writer::start_div('mod-classengage');
 echo html_writer::tag('h3', get_string('analyticspage', 'mod_classengage'));
 
 // Session selector (limit to last 50 sessions for performance).
-$sessions = $DB->get_records_menu('classengage_sessions',
+$sessions = $DB->get_records_menu(
+    'classengage_sessions',
     array('classengageid' => $classengage->id, 'status' => 'completed'),
     'timecreated DESC',
     'id,name',
     0,
-    50);
+    50
+);
 
 if (empty($sessions)) {
     echo html_writer::div(get_string('nocompletedsessions', 'mod_classengage'), 'alert alert-info');
@@ -189,6 +191,9 @@ $advanceddata->participation_distribution = $participationdistribution;
 
 echo $renderer->render_advanced_analysis($advanceddata);
 
+// Render AI Script
+echo $renderer->render_ai_script($sessionid);
+
 // End tab content container.
 echo html_writer::end_div();
 
@@ -213,8 +218,11 @@ $PAGE->requires->js_call_amd('mod_classengage/analytics_tabs', 'init', [$cm->id,
 // Export button.
 echo html_writer::start_div('mt-3');
 $exporturl = new moodle_url('/mod/classengage/export.php', array('id' => $cm->id, 'sessionid' => $sessionid));
-echo html_writer::link($exporturl, get_string('exportanalytics', 'mod_classengage'),
-    array('class' => 'btn btn-secondary'));
+echo html_writer::link(
+    $exporturl,
+    get_string('exportanalytics', 'mod_classengage'),
+    array('class' => 'btn btn-secondary')
+);
 echo html_writer::end_div();
 
 echo html_writer::end_div(); // End mod-classengage.

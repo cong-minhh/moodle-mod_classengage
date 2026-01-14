@@ -72,10 +72,12 @@ define([
                 root.on('change', '#select-all-slides', function() {
                     var checked = $(this).is(':checked');
                     root.find('.slide-toggle').prop('checked', checked);
-                    // Also toggle all images if selecting all slides
-                    if (checked) {
-                        root.find('.image-toggle').prop('checked', true);
-                    }
+                });
+
+                // Select All Images Handler
+                root.on('change', '#select-all-images', function() {
+                    var checked = $(this).is(':checked');
+                    root.find('.image-toggle').prop('checked', checked);
                 });
 
                 // Generate Confirm Click
@@ -394,19 +396,18 @@ define([
             
             var includeImages = [];
             root.find('.image-toggle:checked').each(function() {
-                // Source is in name="include_image[SOURCE]" -- Wait, extracting from name is messy
-                // Let's use data attribute?
-                includeImages.push($(this).closest('.d-inline-block').find('img').attr('src')); // No, src is base64
-                
-                // We need the source ID.
-                // The template didn't put it in a clean data attrib.
-                // Re-check template: input name="include_image[{{safe_source}}]"
-                // We can parse the name.
-                var name = $(this).attr('name');
-                if (name) {
-                    var match = name.match(/include_image\[(.*)\]/);
-                    if (match) {
-                         includeImages.push(match[1]);
+                // Get source ID from data-source attribute (preferred) or fallback to parsing name
+                var source = $(this).data('source');
+                if (source) {
+                    includeImages.push(source);
+                } else {
+                    // Fallback: parse from checkbox name
+                    var name = $(this).attr('name');
+                    if (name) {
+                        var match = name.match(/include_image\[(.*)\]/);
+                        if (match && match[1]) {
+                            includeImages.push(match[1]);
+                        }
                     }
                 }
             });

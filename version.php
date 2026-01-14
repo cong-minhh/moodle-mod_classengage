@@ -25,8 +25,8 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'mod_classengage';
-$plugin->version = 2025122302;  // YYYYMMDDXX format - NLP Progress Bar
+$plugin->version = 2026011400;  // YYYYMMDDXX format - NLP API Enhancement (rationale + bloom level)
 $plugin->requires = 2022041900; // Moodle 4.0 or later
 $plugin->maturity = MATURITY_BETA;
-$plugin->release = 'v1.5.0-beta';
+$plugin->release = 'v1.6.0-beta';
 
