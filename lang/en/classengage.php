@@ -677,3 +677,4 @@ $string['questionsgenerated'] = 'Questions Generated';
 $string['questionsources'] = 'Source Attribution';
 $string['sourceslides'] = 'Source Pages';
 $string['sourceimages'] = 'Source Images';
+$string['referenceimage'] = 'Reference Image';

@@ -159,6 +159,20 @@ class control_panel_renderer
         // Card body with question and answers
         $output .= html_writer::start_div('card-body');
 
+        // Display referenced image if present
+        if (!empty($question->question_image)) {
+            $output .= html_writer::start_div('question-image text-center mb-3');
+            $output .= html_writer::empty_tag('img', [
+                'src' => $question->question_image,
+                'alt' => get_string('referenceimage', 'mod_classengage'),
+                'class' => 'img-fluid rounded shadow-sm',
+                'style' => 'max-height: 250px; cursor: zoom-in;',
+                'loading' => 'lazy',
+                'onclick' => 'window.open(this.src, "_blank")'
+            ]);
+            $output .= html_writer::end_div();
+        }
+
         // Question text
         $output .= html_writer::tag('p', format_text($question->questiontext), ['class' => 'lead mb-4']);
 

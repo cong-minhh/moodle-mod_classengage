@@ -405,6 +405,20 @@ function xmldb_classengage_upgrade($oldversion)
         upgrade_mod_savepoint(true, 2026011600, 'classengage');
     }
 
+    // Question Image: Add question_image field for displaying referenced images.
+    if ($oldversion < 2026011601) {
+        $table = new xmldb_table('classengage_questions');
+
+        // Add question_image field for storing image URL that question references.
+        $field = new xmldb_field('question_image', XMLDB_TYPE_CHAR, '500', null, null, null, null, 'sources');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Classengage savepoint reached.
+        upgrade_mod_savepoint(true, 2026011601, 'classengage');
+    }
+
     return true;
 }
 

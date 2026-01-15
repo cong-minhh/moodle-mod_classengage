@@ -192,6 +192,21 @@ if ($session->status === constants::SESSION_STATUS_ACTIVE || $session->status ==
     if ($currentquestion) {
         // Display pre-loaded question
         echo html_writer::start_div('question-text mb-4');
+
+        // Display referenced image if present (with lazy loading for performance)
+        if (!empty($currentquestion->question_image)) {
+            echo html_writer::start_div('question-image text-center mb-3');
+            echo html_writer::empty_tag('img', array(
+                'src' => $currentquestion->question_image,
+                'alt' => get_string('referenceimage', 'mod_classengage'),
+                'class' => 'img-fluid rounded shadow-sm',
+                'style' => 'max-height: 300px; cursor: zoom-in;',
+                'loading' => 'lazy',
+                'onclick' => 'window.open(this.src, "_blank")'
+            ));
+            echo html_writer::end_div();
+        }
+
         echo html_writer::tag('h4', format_string($currentquestion->questiontext), array('class' => 'font-weight-bold'));
         echo html_writer::end_div();
 

@@ -329,6 +329,15 @@ class nlp_generator
             $question->rationale = $q['rationale'] ?? null;
             // Store source attribution (slides and images used for generation)
             $question->sources = !empty($q['sources']) ? json_encode($q['sources']) : null;
+            // Store the specific image this question references (for display to students)
+            // Prepend nlppublicurl if it's a relative URL
+            $questionimage = $q['question_image'] ?? null;
+            if ($questionimage && strpos($questionimage, '/') === 0) {
+                // Relative URL - prepend the NLP public URL
+                $nlppublicurl = rtrim(get_config('mod_classengage', 'nlppublicurl'), '/');
+                $questionimage = $nlppublicurl . $questionimage;
+            }
+            $question->question_image = $questionimage;
             $question->status = 'pending';
             $question->source = 'nlp';
             $question->timecreated = $now;
