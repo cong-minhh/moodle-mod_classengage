@@ -2307,3 +2307,61 @@
   text-align: center;
   white-space: nowrap;
 }
+
+/* ============================================================================
+   CONTROL PANEL QUESTION OPTIONS
+   ============================================================================ */
+
+.question-options {
+  margin-top: 1rem;
+}
+
+.question-option {
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.question-option:hover {
+  border-color: #dee2e6;
+  background-color: #e9ecef !important;
+}
+
+.question-option.bg-success-light {
+  background-color: #d4edda !important;
+  border-color: #28a745 !important;
+}
+
+.question-option .badge {
+  padding: 0.5rem 0.75rem;
+  font-size: 1rem;
+}
+
+.question-option .option-text {
+  font-size: 1rem;
+  line-height: 1.5;
+  flex: 1;
+}
+
+/* Status card styling */
+.status-card-title {
+  font-size: 0.85rem;
+  color: #6c757d;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-card-value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #343a40;
+}
+
+/* Control panel button container */
+.mod-classengage-controlpanel .card-body .d-flex.gap-3 {
+  gap: 1rem;
+}
+
+.mod-classengage-controlpanel .card-body .d-flex .btn-lg {
+  min-width: 180px;
+}

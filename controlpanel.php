@@ -165,14 +165,11 @@ if ($session->status === constants::SESSION_STATUS_ACTIVE || $session->status ==
             // Main content column (left).
             echo html_writer::start_div('col-lg-8');
 
-            // Display current question text.
+            // Display current question text with answers.
             echo $renderer->render_question_display($currentq);
 
             // Display response distribution (table and chart).
             echo $renderer->render_response_distribution($currentq);
-
-            // Display control buttons (including pause/resume).
-            echo $renderer->render_control_buttons($session, $cm->id, $sessionid);
 
             echo html_writer::end_div(); // col-lg-8.
 
@@ -185,6 +182,9 @@ if ($session->status === constants::SESSION_STATUS_ACTIVE || $session->status ==
             echo html_writer::end_div(); // col-lg-4.
 
             echo html_writer::end_div(); // row.
+
+            // Control buttons - full width below the main content
+            echo $renderer->render_control_buttons($session, $cm->id, $sessionid);
         } else {
             echo $OUTPUT->notification(
                 get_string('error:noquestionfound', 'mod_classengage'),

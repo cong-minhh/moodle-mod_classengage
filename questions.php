@@ -427,33 +427,38 @@ echo html_writer::end_tag('form');
 
 // JavaScript for Select All and Popover initialization
 echo html_writer::script("
-    // Initialize popovers for question preview
-    \$(function() {
-        \$('[data-toggle=\"popover\"]').popover({
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize Bootstrap popovers if available
+    if (typeof jQuery !== 'undefined' && jQuery.fn.popover) {
+        jQuery('[data-toggle=\"popover\"]').popover({
             container: 'body',
             boundary: 'viewport'
         });
         
         // Close popover when clicking outside
-        \$('body').on('click', function(e) {
-            \$('[data-toggle=\"popover\"]').each(function() {
-                if (!\$(this).is(e.target) && \$(this).has(e.target).length === 0 && \$('.popover').has(e.target).length === 0) {
-                    \$(this).popover('hide');
+        jQuery('body').on('click', function(e) {
+            jQuery('[data-toggle=\"popover\"]').each(function() {
+                if (!jQuery(this).is(e.target) && jQuery(this).has(e.target).length === 0 && jQuery('.popover').has(e.target).length === 0) {
+                    jQuery(this).popover('hide');
                 }
             });
         });
-    });
+    }
     
     // Select All checkbox functionality
-    document.querySelectorAll('.selectall-checkbox').forEach(function(selectAll) {
+    var selectAllCheckboxes = document.querySelectorAll('.selectall-checkbox');
+    selectAllCheckboxes.forEach(function(selectAll) {
         selectAll.addEventListener('change', function() {
             var table = this.closest('table');
-            var checkboxes = table.querySelectorAll('.question-checkbox');
-            checkboxes.forEach(function(checkbox) {
-                checkbox.checked = selectAll.checked;
-            });
+            if (table) {
+                var checkboxes = table.querySelectorAll('.question-checkbox');
+                checkboxes.forEach(function(checkbox) {
+                    checkbox.checked = selectAll.checked;
+                });
+            }
         });
     });
+});
 ");
 
 echo $OUTPUT->footer();

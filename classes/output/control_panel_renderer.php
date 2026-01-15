@@ -131,21 +131,78 @@ class control_panel_renderer
     }
 
     /**
-     * Render current question display
+     * Render current question display with answer options
      *
      * @param \stdClass $question Question object
      * @return string HTML output
      */
     public function render_question_display($question)
     {
-        $output = html_writer::start_div('card mb-4');
-        $output .= html_writer::start_div('card-header bg-primary text-white');
+        $output = html_writer::start_div('card mb-4 shadow-sm');
+
+        // Card header
+        $output .= html_writer::start_div('card-header bg-primary text-white d-flex justify-content-between align-items-center');
         $output .= html_writer::tag('h5', get_string('currentquestiontext', 'mod_classengage'), ['class' => 'mb-0']);
+        // Show difficulty and bloom level badges if available
+        $badges = '';
+        if (!empty($question->difficulty)) {
+            $badges .= html_writer::tag('span', ucfirst($question->difficulty), ['class' => 'badge badge-light mr-1']);
+        }
+        if (!empty($question->bloomlevel)) {
+            $badges .= html_writer::tag('span', ucfirst($question->bloomlevel), ['class' => 'badge badge-info']);
+        }
+        if (!empty($badges)) {
+            $output .= html_writer::tag('div', $badges);
+        }
         $output .= html_writer::end_div();
+
+        // Card body with question and answers
         $output .= html_writer::start_div('card-body');
-        $output .= html_writer::tag('p', format_text($question->questiontext), ['class' => 'lead mb-0']);
-        $output .= html_writer::end_div();
-        $output .= html_writer::end_div();
+
+        // Question text
+        $output .= html_writer::tag('p', format_text($question->questiontext), ['class' => 'lead mb-4']);
+
+        // Answer options
+        $output .= html_writer::start_div('question-options');
+
+        $options = [
+            'A' => $question->optiona ?? '',
+            'B' => $question->optionb ?? '',
+            'C' => $question->optionc ?? '',
+            'D' => $question->optiond ?? '',
+        ];
+
+        $correctanswer = strtoupper($question->correctanswer ?? '');
+
+        foreach ($options as $letter => $optiontext) {
+            if (empty($optiontext)) {
+                continue;
+            }
+
+            $iscorrect = ($letter === $correctanswer);
+            $optionclass = 'question-option d-flex align-items-start p-3 mb-2 rounded';
+            $optionclass .= $iscorrect ? ' bg-success-light border-success' : ' bg-light';
+
+            $output .= html_writer::start_div($optionclass, ['id' => 'option-' . $letter]);
+
+            // Letter badge
+            $badgeclass = $iscorrect ? 'badge badge-success mr-3' : 'badge badge-secondary mr-3';
+            $letterContent = $iscorrect ? '✓ ' . $letter : $letter;
+            $output .= html_writer::tag('span', $letterContent, [
+                'class' => $badgeclass,
+                'style' => 'font-size: 1rem; min-width: 35px; text-align: center;'
+            ]);
+
+            // Option text
+            $output .= html_writer::tag('span', format_text($optiontext), ['class' => 'option-text']);
+
+            $output .= html_writer::end_div();
+        }
+
+        $output .= html_writer::end_div(); // question-options
+
+        $output .= html_writer::end_div(); // card-body
+        $output .= html_writer::end_div(); // card
 
         return $output;
     }
@@ -306,8 +363,9 @@ class control_panel_renderer
      */
     public function render_control_buttons($session, $cmid, $sessionid)
     {
-        $output = html_writer::start_div('card');
-        $output .= html_writer::start_div('card-body text-center');
+        $output = html_writer::start_div('card mt-4 shadow-sm');
+        $output .= html_writer::start_div('card-body py-4');
+        $output .= html_writer::start_div('d-flex justify-content-center gap-3 flex-wrap');
 
         $baseparams = ['id' => $cmid, 'sessionid' => $sessionid, 'sesskey' => sesskey()];
 
@@ -322,7 +380,7 @@ class control_panel_renderer
             get_string('pause', 'mod_classengage'),
             [
                 'id' => 'btn-pause-session',
-                'class' => 'btn btn-warning btn-lg mr-2',
+                'class' => 'btn btn-warning btn-lg px-5',
                 'style' => $pausestyle,
                 'type' => 'button',
             ]
@@ -336,7 +394,7 @@ class control_panel_renderer
             get_string('resume', 'mod_classengage'),
             [
                 'id' => 'btn-resume-session',
-                'class' => 'btn btn-success btn-lg mr-2',
+                'class' => 'btn btn-success btn-lg px-5',
                 'style' => $resumestyle,
                 'type' => 'button',
             ]
@@ -349,8 +407,9 @@ class control_panel_renderer
             );
             $output .= html_writer::link(
                 $nexturl,
+                html_writer::tag('i', '', ['class' => 'fa fa-forward mr-2']) .
                 get_string('nextquestion', 'mod_classengage'),
-                ['class' => 'btn btn-primary btn-lg mr-2']
+                ['class' => 'btn btn-primary btn-lg px-5']
             );
         }
 
@@ -360,12 +419,14 @@ class control_panel_renderer
         );
         $output .= html_writer::link(
             $stopurl,
+            html_writer::tag('i', '', ['class' => 'fa fa-stop mr-2']) .
             get_string('stopsession', 'mod_classengage'),
-            ['class' => 'btn btn-danger btn-lg']
+            ['class' => 'btn btn-danger btn-lg px-5']
         );
 
-        $output .= html_writer::end_div();
-        $output .= html_writer::end_div();
+        $output .= html_writer::end_div(); // d-flex
+        $output .= html_writer::end_div(); // card-body
+        $output .= html_writer::end_div(); // card
 
         return $output;
     }
@@ -428,20 +489,20 @@ class control_panel_renderer
      */
     public function render_student_panel()
     {
-        $output = html_writer::start_div('card mb-4 shadow-sm');
+        $output = html_writer::start_div('card shadow-sm');
 
         // Card header.
-        $output .= html_writer::start_div('card-header bg-white');
+        $output .= html_writer::start_div('card-header bg-white py-2');
         $output .= html_writer::tag(
-            'h5',
+            'h6',
             html_writer::tag('i', '', ['class' => 'fa fa-users mr-2']) .
             get_string('students', 'mod_classengage'),
             ['class' => 'mb-0']
         );
         $output .= html_writer::end_div();
 
-        // Search input.
-        $output .= html_writer::start_div('card-body border-bottom py-2');
+        // Search input - compact padding.
+        $output .= html_writer::start_div('px-3 py-2 border-bottom');
         $output .= html_writer::tag('input', '', [
             'type' => 'text',
             'id' => 'student-search',
@@ -451,17 +512,15 @@ class control_panel_renderer
         ]);
         $output .= html_writer::end_div();
 
-        // Card body with student list container.
-        $output .= html_writer::start_div('card-body p-0');
+        // Student list container - no padding, fixed height to match other cards.
         $output .= html_writer::div(
             html_writer::div(
                 get_string('loadingstudents', 'mod_classengage'),
                 'text-muted p-3 text-center'
             ),
             '',
-            ['id' => 'student-list', 'style' => 'max-height: 400px; overflow-y: auto;']
+            ['id' => 'student-list', 'style' => 'height: 778px; overflow-y: auto;']
         );
-        $output .= html_writer::end_div();
 
         $output .= html_writer::end_div();
 

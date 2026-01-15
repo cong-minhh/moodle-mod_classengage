@@ -54,6 +54,8 @@ $string['teacherwelcome'] = 'Welcome! Use the tabs above to manage slides, quest
 $string['uploadslides'] = 'Upload Slides';
 $string['managequestions'] = 'Manage Questions';
 $string['managesessions'] = 'Quiz Sessions';
+$string['sessionresumed'] = 'Resumed session successfully';
+
 $string['analytics'] = 'Analytics';
 $string['joinquiz'] = 'Join Active Quiz';
 $string['nosession'] = 'No active quiz session at the moment. Please wait for your instructor to start a quiz.';
