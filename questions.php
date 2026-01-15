@@ -108,13 +108,15 @@ $addurl = new moodle_url('/mod/classengage/editquestion.php', array('id' => $cm-
 // Add "Generate from Text" button
 $genurl = new moodle_url('/mod/classengage/generate_questions.php', array('id' => $cm->id));
 echo html_writer::div(
-    html_writer::link($addurl, get_string('addquestion', 'mod_classengage'), array('class' => 'btn btn-primary mr-2')) .
-    html_writer::link($genurl, get_string('generatefromtext', 'mod_classengage'), array('class' => 'btn btn-info')),
-    'mb-3'
+    html_writer::link($addurl, get_string('addquestion', 'mod_classengage'), array('class' => 'btn btn-primary mr-2'))
+    //html_writer::link($genurl, get_string('generatefromtext', 'mod_classengage'), array('class' => 'btn btn-info')),
+    //'mb-3'
 );
 
-// Fetch questions with slide info
-$sql = "SELECT q.*, s.title as slidetitle 
+// Fetch questions with slide info including NLP metadata
+$sql = "SELECT q.*, s.title as slidetitle, s.id as slide_id,
+               s.nlp_provider, s.nlp_model, s.nlp_generation_metadata,
+               s.nlp_questions_count, s.nlp_job_completed
         FROM {classengage_questions} q 
         LEFT JOIN {classengage_slides} s ON q.slideid = s.id 
         WHERE q.classengageid = ? 
@@ -123,6 +125,7 @@ $questions = $DB->get_records_sql($sql, array($classengage->id));
 
 $manual_questions = [];
 $generated_questions_by_slide = [];
+$slide_metadata = []; // Store slide metadata separately
 
 foreach ($questions as $q) {
     if (empty($q->slideid)) {
@@ -130,6 +133,17 @@ foreach ($questions as $q) {
     } else {
         $slidetitle = $q->slidetitle ? $q->slidetitle : get_string('unknownslide', 'mod_classengage');
         $generated_questions_by_slide[$slidetitle][] = $q;
+
+        // Store slide metadata (only once per slide)
+        if (!isset($slide_metadata[$slidetitle])) {
+            $slide_metadata[$slidetitle] = [
+                'provider' => $q->nlp_provider,
+                'model' => $q->nlp_model,
+                'metadata' => $q->nlp_generation_metadata ? json_decode($q->nlp_generation_metadata, true) : null,
+                'count' => $q->nlp_questions_count,
+                'generated_at' => $q->nlp_job_completed
+            ];
+        }
     }
 }
 
@@ -147,11 +161,22 @@ function render_question_table($questions, $cm)
         html_writer::checkbox('selectall', 1, false, '', array('class' => 'selectall-checkbox')),
         get_string('questiontext', 'mod_classengage'),
         get_string('difficulty', 'mod_classengage'),
+        get_string('cognitivelevel', 'mod_classengage'),
         get_string('status', 'mod_classengage'),
         get_string('created', 'mod_classengage'),
         get_string('actions', 'mod_classengage')
     );
     $table->attributes['class'] = 'generaltable table table-hover';
+
+    // Bloom level badge colors
+    $bloomcolors = [
+        'remember' => 'primary',
+        'understand' => 'success',
+        'apply' => 'warning',
+        'analyze' => 'info',
+        'evaluate' => 'danger',
+        'create' => 'dark'
+    ];
 
     foreach ($questions as $question) {
         $editurl = new moodle_url(
@@ -188,11 +213,52 @@ function render_question_table($questions, $cm)
             array('class' => 'btn btn-sm btn-danger', 'title' => get_string('delete'))
         );
 
-        // Truncate question text
-        $questiontext = format_string($question->questiontext);
-        if (strlen($questiontext) > 100) {
-            $questiontext = substr($questiontext, 0, 100) . '...';
+        // Truncate question text for display
+        $displaytext = format_string($question->questiontext);
+        if (strlen($displaytext) > 80) {
+            $displaytext = substr($displaytext, 0, 80) . '...';
         }
+
+        // Build question preview tooltip with answers (HTML formatted)
+        $correctanswer = strtoupper($question->correctanswer);
+        $tooltiphtml = '<div class="question-tooltip-content">';
+        $tooltiphtml .= '<div class="tooltip-question"><strong>Q:</strong> ' . s($question->questiontext) . '</div>';
+        $tooltiphtml .= '<div class="tooltip-answers">';
+        $tooltiphtml .= '<div class="tooltip-option' . ($correctanswer === 'A' ? ' correct' : '') . '">'
+            . ($correctanswer === 'A' ? '✓ ' : '&nbsp;&nbsp;&nbsp;')
+            . '<strong>A:</strong> ' . s($question->optiona) . '</div>';
+        $tooltiphtml .= '<div class="tooltip-option' . ($correctanswer === 'B' ? ' correct' : '') . '">'
+            . ($correctanswer === 'B' ? '✓ ' : '&nbsp;&nbsp;&nbsp;')
+            . '<strong>B:</strong> ' . s($question->optionb) . '</div>';
+        if (!empty($question->optionc)) {
+            $tooltiphtml .= '<div class="tooltip-option' . ($correctanswer === 'C' ? ' correct' : '') . '">'
+                . ($correctanswer === 'C' ? '✓ ' : '&nbsp;&nbsp;&nbsp;')
+                . '<strong>C:</strong> ' . s($question->optionc) . '</div>';
+        }
+        if (!empty($question->optiond)) {
+            $tooltiphtml .= '<div class="tooltip-option' . ($correctanswer === 'D' ? ' correct' : '') . '">'
+                . ($correctanswer === 'D' ? '✓ ' : '&nbsp;&nbsp;&nbsp;')
+                . '<strong>D:</strong> ' . s($question->optiond) . '</div>';
+        }
+        $tooltiphtml .= '</div>';
+        if (!empty($question->rationale)) {
+            $tooltiphtml .= '<div class="tooltip-rationale"><strong>💡 Rationale:</strong> ' . s($question->rationale) . '</div>';
+        }
+        $tooltiphtml .= '</div>';
+
+        // Wrap question text with popover (focus trigger for auto-dismiss)
+        $questiontext = html_writer::tag('a', $displaytext, [
+            'href' => '#',
+            'class' => 'question-text-hover',
+            'data-toggle' => 'popover',
+            'data-trigger' => 'focus',
+            'data-placement' => 'right',
+            'data-html' => 'true',
+            'data-content' => $tooltiphtml,
+            'title' => 'Question Preview',
+            'tabindex' => '0',
+            'onclick' => 'return false;'
+        ]);
 
         $statusbadge = $question->status === 'approved' ?
             '<span class="badge badge-success">' . get_string('approved', 'mod_classengage') . '</span>' :
@@ -200,16 +266,31 @@ function render_question_table($questions, $cm)
 
         $difficultybadge = '<span class="badge badge-secondary">' . ucfirst($question->difficulty) . '</span>';
 
+        // Create bloom level badge with color coding
+        $bloomlevel = $question->bloomlevel ?? '';
+        if (!empty($bloomlevel)) {
+            $bloomcolor = $bloomcolors[$bloomlevel] ?? 'secondary';
+            $bloombadge = '<span class="badge badge-' . $bloomcolor . '">' . ucfirst($bloomlevel) . '</span>';
+        } else {
+            $bloombadge = '<span class="badge badge-light">-</span>';
+        }
+
+        // Format date as dd/mm/yyyy HH:mm (military time)
+        $createddatetime = date('d/m/Y H:i', $question->timecreated);
+
         $table->data[] = array(
             html_writer::checkbox('q[]', $question->id, false, '', array('class' => 'question-checkbox')),
             $questiontext,
             $difficultybadge,
+            $bloombadge,
             $statusbadge,
-            userdate($question->timecreated),
+            $createddatetime,
             implode(' ', $actions)
         );
     }
-    return html_writer::table($table);
+
+    // Wrap table in responsive container
+    return html_writer::div(html_writer::table($table), 'table-responsive');
 }
 
 // Manual Questions Section
@@ -268,6 +349,55 @@ if (!empty($generated_questions_by_slide)) {
         echo html_writer::end_div();
         echo html_writer::start_div('collapse show', array('id' => $collapseid));
         echo html_writer::start_div('card-body p-0');
+
+        // Display generation metadata if available
+        if (isset($slide_metadata[$slide_title]) && !empty($slide_metadata[$slide_title]['provider'])) {
+            $meta = $slide_metadata[$slide_title];
+            $metahtml = html_writer::start_div('generation-metadata-bar bg-light border-bottom px-3 py-2 d-flex flex-wrap align-items-center gap-3');
+
+            // Provider badge
+            if (!empty($meta['provider'])) {
+                $providerbadge = html_writer::span(
+                    html_writer::tag('i', '', ['class' => 'fa fa-robot mr-1']) . ucfirst($meta['provider']),
+                    'badge badge-dark mr-2'
+                );
+                $metahtml .= $providerbadge;
+            }
+
+            // Model info
+            if (!empty($meta['model'])) {
+                $modelinfo = html_writer::span(
+                    html_writer::tag('i', '', ['class' => 'fa fa-microchip mr-1']) . $meta['model'],
+                    'text-muted small mr-3'
+                );
+                $metahtml .= $modelinfo;
+            }
+
+            // Generation timestamp
+            if (!empty($meta['generated_at'])) {
+                $timeinfo = html_writer::span(
+                    html_writer::tag('i', '', ['class' => 'fa fa-clock-o mr-1']) . userdate($meta['generated_at']),
+                    'text-muted small mr-3'
+                );
+                $metahtml .= $timeinfo;
+            }
+
+            // Distribution plan summary (if available)
+            if (!empty($meta['metadata']['plan'])) {
+                $plan = $meta['metadata']['plan'];
+                $plantext = count($plan) . ' ' . get_string('distributionplan', 'mod_classengage');
+                $planinfo = html_writer::tag(
+                    'span',
+                    html_writer::tag('i', '', ['class' => 'fa fa-list mr-1']) . $plantext,
+                    ['class' => 'text-muted small', 'title' => json_encode($plan, JSON_PRETTY_PRINT), 'data-toggle' => 'tooltip']
+                );
+                $metahtml .= $planinfo;
+            }
+
+            $metahtml .= html_writer::end_div();
+            echo $metahtml;
+        }
+
         echo render_question_table($slide_questions, $cm);
         echo html_writer::end_div();
         echo html_writer::end_div(); // collapse
@@ -295,8 +425,26 @@ if (empty($manual_questions) && empty($generated_questions_by_slide)) {
 
 echo html_writer::end_tag('form');
 
-// JavaScript for Select All
+// JavaScript for Select All and Popover initialization
 echo html_writer::script("
+    // Initialize popovers for question preview
+    \$(function() {
+        \$('[data-toggle=\"popover\"]').popover({
+            container: 'body',
+            boundary: 'viewport'
+        });
+        
+        // Close popover when clicking outside
+        \$('body').on('click', function(e) {
+            \$('[data-toggle=\"popover\"]').each(function() {
+                if (!\$(this).is(e.target) && \$(this).has(e.target).length === 0 && \$('.popover').has(e.target).length === 0) {
+                    \$(this).popover('hide');
+                }
+            });
+        });
+    });
+    
+    // Select All checkbox functionality
     document.querySelectorAll('.selectall-checkbox').forEach(function(selectAll) {
         selectAll.addEventListener('change', function() {
             var table = this.closest('table');

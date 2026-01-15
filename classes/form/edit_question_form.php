@@ -31,19 +31,25 @@ require_once($CFG->libdir . '/formslib.php');
 /**
  * Edit question form class
  */
-class edit_question_form extends \moodleform {
+class edit_question_form extends \moodleform
+{
 
     /**
      * Define the form
      */
-    public function definition() {
+    public function definition()
+    {
         $mform = $this->_form;
         $customdata = $this->_customdata;
         $question = $customdata['question'];
 
         // Question text
-        $mform->addElement('textarea', 'questiontext', get_string('questiontext', 'mod_classengage'), 
-            array('rows' => 4, 'cols' => 60));
+        $mform->addElement(
+            'textarea',
+            'questiontext',
+            get_string('questiontext', 'mod_classengage'),
+            array('rows' => 4, 'cols' => 60)
+        );
         $mform->setType('questiontext', PARAM_TEXT);
         $mform->addRule('questiontext', null, 'required', null, 'client');
 
@@ -55,22 +61,38 @@ class edit_question_form extends \moodleform {
         $mform->setDefault('questiontype', 'multichoice');
 
         // Options
-        $mform->addElement('textarea', 'optiona', get_string('optiona', 'mod_classengage'), 
-            array('rows' => 2, 'cols' => 60));
+        $mform->addElement(
+            'textarea',
+            'optiona',
+            get_string('optiona', 'mod_classengage'),
+            array('rows' => 2, 'cols' => 60)
+        );
         $mform->setType('optiona', PARAM_TEXT);
         $mform->addRule('optiona', null, 'required', null, 'client');
 
-        $mform->addElement('textarea', 'optionb', get_string('optionb', 'mod_classengage'), 
-            array('rows' => 2, 'cols' => 60));
+        $mform->addElement(
+            'textarea',
+            'optionb',
+            get_string('optionb', 'mod_classengage'),
+            array('rows' => 2, 'cols' => 60)
+        );
         $mform->setType('optionb', PARAM_TEXT);
         $mform->addRule('optionb', null, 'required', null, 'client');
 
-        $mform->addElement('textarea', 'optionc', get_string('optionc', 'mod_classengage'), 
-            array('rows' => 2, 'cols' => 60));
+        $mform->addElement(
+            'textarea',
+            'optionc',
+            get_string('optionc', 'mod_classengage'),
+            array('rows' => 2, 'cols' => 60)
+        );
         $mform->setType('optionc', PARAM_TEXT);
 
-        $mform->addElement('textarea', 'optiond', get_string('optiond', 'mod_classengage'), 
-            array('rows' => 2, 'cols' => 60));
+        $mform->addElement(
+            'textarea',
+            'optiond',
+            get_string('optiond', 'mod_classengage'),
+            array('rows' => 2, 'cols' => 60)
+        );
         $mform->setType('optiond', PARAM_TEXT);
 
         // Correct answer
@@ -86,6 +108,29 @@ class edit_question_form extends \moodleform {
         );
         $mform->addElement('select', 'difficulty', get_string('difficulty', 'mod_classengage'), $difficulties);
         $mform->setDefault('difficulty', 'medium');
+
+        // Bloom's Taxonomy Level (Cognitive Level)
+        $bloomlevels = array(
+            '' => get_string('selectanswer', 'mod_classengage'),
+            'remember' => get_string('bloom_remember', 'mod_classengage'),
+            'understand' => get_string('bloom_understand', 'mod_classengage'),
+            'apply' => get_string('bloom_apply', 'mod_classengage'),
+            'analyze' => get_string('bloom_analyze', 'mod_classengage'),
+            'evaluate' => get_string('bloom_evaluate', 'mod_classengage'),
+            'create' => get_string('bloom_create', 'mod_classengage'),
+        );
+        $mform->addElement('select', 'bloomlevel', get_string('cognitivelevel', 'mod_classengage'), $bloomlevels);
+        $mform->addHelpButton('bloomlevel', 'cognitivelevel', 'mod_classengage');
+
+        // Rationale (AI explanation)
+        $mform->addElement(
+            'textarea',
+            'rationale',
+            get_string('rationale', 'mod_classengage'),
+            array('rows' => 3, 'cols' => 60)
+        );
+        $mform->setType('rationale', PARAM_TEXT);
+        $mform->addHelpButton('rationale', 'rationale', 'mod_classengage');
 
         // Buttons
         $this->add_action_buttons(true, get_string('savequestion', 'mod_classengage'));

@@ -41,6 +41,10 @@
         <FIELD NAME="nlp_questions_count" TYPE="int" LENGTH="5" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Number of questions generated"/>
         <FIELD NAME="nlp_job_started" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Timestamp when job started"/>
         <FIELD NAME="nlp_job_completed" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Timestamp when job completed/failed"/>
+        <!-- NLP Generation Metadata Fields -->
+        <FIELD NAME="nlp_provider" TYPE="char" LENGTH="50" NOTNULL="false" SEQUENCE="false" COMMENT="AI provider name (e.g., gemini, openai, local)"/>
+        <FIELD NAME="nlp_model" TYPE="char" LENGTH="100" NOTNULL="false" SEQUENCE="false" COMMENT="AI model identifier"/>
+        <FIELD NAME="nlp_generation_metadata" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="JSON blob with full generation metadata (plan, distribution, analysis)"/>
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>

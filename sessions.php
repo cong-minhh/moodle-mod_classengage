@@ -22,10 +22,10 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-require(__DIR__.'/../../config.php');
-require_once(__DIR__.'/lib.php');
-require_once(__DIR__.'/classes/form/create_session_form.php');
-require_once(__DIR__.'/classes/session_manager.php');
+require(__DIR__ . '/../../config.php');
+require_once(__DIR__ . '/lib.php');
+require_once(__DIR__ . '/classes/form/create_session_form.php');
+require_once(__DIR__ . '/classes/session_manager.php');
 
 $id = required_param('id', PARAM_INT); // Course module ID
 $action = optional_param('action', '', PARAM_ALPHA);
@@ -53,27 +53,27 @@ if ($action === 'start' && $sessionid && confirm_sesskey()) {
     // current_question_answered for any pre-existing connections.
     $statemanager = new \mod_classengage\session_state_manager();
     $statemanager->start_session($sessionid);
-    
+
     $event = \mod_classengage\event\session_started::create(array(
         'objectid' => $sessionid,
         'context' => $context,
         'other' => array('classengageid' => $classengage->id)
     ));
     $event->trigger();
-    
+
     redirect($PAGE->url, get_string('sessionstarted', 'mod_classengage'), null, \core\output\notification::NOTIFY_SUCCESS);
 }
 
 if ($action === 'stop' && $sessionid && confirm_sesskey()) {
     $sessionmanager->stop_session($sessionid);
-    
+
     $event = \mod_classengage\event\session_stopped::create(array(
         'objectid' => $sessionid,
         'context' => $context,
         'other' => array('classengageid' => $classengage->id)
     ));
     $event->trigger();
-    
+
     redirect($PAGE->url, get_string('sessionstopped', 'mod_classengage'), null, \core\output\notification::NOTIFY_SUCCESS);
 }
 
@@ -86,7 +86,7 @@ if ($action === 'delete' && $sessionid && confirm_sesskey()) {
         echo $OUTPUT->footer();
         exit;
     }
-    
+
     $sessionmanager->delete_session($sessionid);
     redirect($PAGE->url, get_string('sessiondeleted', 'mod_classengage'), null, \core\output\notification::NOTIFY_SUCCESS);
 }
@@ -102,7 +102,7 @@ if ($action === 'nextquestion' && $sessionid && confirm_sesskey()) {
 if ($data = data_submitted() && confirm_sesskey()) {
     $bulkaction = optional_param('bulkaction', '', PARAM_ALPHA);
     $selectedsessions = optional_param_array('sessionids', array(), PARAM_INT);
-    
+
     if (!empty($selectedsessions) && !empty($bulkaction)) {
         if ($bulkaction === 'delete') {
             $sessionmanager->delete_sessions($selectedsessions);
@@ -117,17 +117,23 @@ if ($data = data_submitted() && confirm_sesskey()) {
 }
 
 // Create session form
-$mform = new \mod_classengage\form\create_session_form($PAGE->url, 
-    array('cmid' => $cm->id, 'classengageid' => $classengage->id));
+$mform = new \mod_classengage\form\create_session_form(
+    $PAGE->url,
+    array('cmid' => $cm->id, 'classengageid' => $classengage->id)
+);
 
 if ($mform->is_cancelled()) {
     redirect($PAGE->url);
 } else if ($data = $mform->get_data()) {
     $sessionid = $sessionmanager->create_session($data, $USER->id);
-    
+
     if ($sessionid) {
-        redirect($PAGE->url, get_string('sessioncreated', 'mod_classengage'), 
-            null, \core\output\notification::NOTIFY_SUCCESS);
+        redirect(
+            $PAGE->url,
+            get_string('sessioncreated', 'mod_classengage'),
+            null,
+            \core\output\notification::NOTIFY_SUCCESS
+        );
     }
 }
 
@@ -137,14 +143,26 @@ echo $OUTPUT->heading(format_string($classengage->name));
 
 // Tab navigation
 $tabs = array();
-$tabs[] = new tabobject('slides', new moodle_url('/mod/classengage/slides.php', array('id' => $cm->id)), 
-                       get_string('uploadslides', 'mod_classengage'));
-$tabs[] = new tabobject('questions', new moodle_url('/mod/classengage/questions.php', array('id' => $cm->id)), 
-                       get_string('managequestions', 'mod_classengage'));
-$tabs[] = new tabobject('sessions', new moodle_url('/mod/classengage/sessions.php', array('id' => $cm->id)), 
-                       get_string('managesessions', 'mod_classengage'));
-$tabs[] = new tabobject('analytics', new moodle_url('/mod/classengage/analytics.php', array('id' => $cm->id)), 
-                       get_string('analytics', 'mod_classengage'));
+$tabs[] = new tabobject(
+    'slides',
+    new moodle_url('/mod/classengage/slides.php', array('id' => $cm->id)),
+    get_string('uploadslides', 'mod_classengage')
+);
+$tabs[] = new tabobject(
+    'questions',
+    new moodle_url('/mod/classengage/questions.php', array('id' => $cm->id)),
+    get_string('managequestions', 'mod_classengage')
+);
+$tabs[] = new tabobject(
+    'sessions',
+    new moodle_url('/mod/classengage/sessions.php', array('id' => $cm->id)),
+    get_string('managesessions', 'mod_classengage')
+);
+$tabs[] = new tabobject(
+    'analytics',
+    new moodle_url('/mod/classengage/analytics.php', array('id' => $cm->id)),
+    get_string('analytics', 'mod_classengage')
+);
 
 print_tabs(array($tabs), 'sessions');
 
@@ -168,62 +186,64 @@ echo html_writer::tag('h3', get_string('createnewsession', 'mod_classengage'), a
 $mform->display();
 
 // Helper function to render session table
-function render_session_table($sessions, $cm, $type) {
+function render_session_table($sessions, $cm, $type)
+{
     global $OUTPUT;
-    
+
     if (!$sessions) {
         return html_writer::div(get_string('no' . $type . 'sessions', 'mod_classengage'), 'alert alert-info mt-3');
     }
-    
+
     $formurl = new moodle_url('/mod/classengage/sessions.php', array('id' => $cm->id));
     $o = html_writer::start_tag('form', array('action' => $formurl, 'method' => 'post'));
     $o .= html_writer::input_hidden_params($formurl);
     $o .= html_writer::empty_tag('input', array('type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()));
-    
+
     $table = new html_table();
-    $table->attributes['class'] = 'generaltable table table-hover';
-    
+    $table->attributes['class'] = 'generaltable table table-hover sessions-table';
+
     $head = array(
         html_writer::checkbox('selectall', 1, false, '', array('class' => 'select-all-toggle', 'data-target' => 'session-checkbox-' . $type)),
         get_string('sessionname', 'mod_classengage'),
         get_string('numberofquestions', 'mod_classengage'),
     );
-    
+
     if ($type === 'active' || $type === 'completed') {
         $head[] = get_string('participants', 'mod_classengage');
     }
-    
+
     if ($type === 'completed') {
         $head[] = get_string('completeddate', 'mod_classengage');
     }
-    
+
     $head[] = get_string('actions', 'mod_classengage');
-    
+
     $table->head = $head;
-    
+
     foreach ($sessions as $session) {
         $checkbox = html_writer::checkbox('sessionids[]', $session->id, false, '', array('class' => 'session-checkbox-' . $type));
-        
+
         $row = array($checkbox, format_string($session->name), $session->numquestions);
-        
+
         if ($type === 'active' || $type === 'completed') {
             global $DB;
             $sql = "SELECT COUNT(DISTINCT userid) FROM {classengage_responses} WHERE sessionid = ?";
             $participantcount = $DB->count_records_sql($sql, array($session->id));
             $row[] = $participantcount;
         }
-        
+
         if ($type === 'completed') {
-            $row[] = userdate($session->timecompleted);
+            // Format date as dd/mm/yyyy HH:mm (military time)
+            $row[] = date('d/m/Y H:i', $session->timecompleted);
         }
-        
+
         // Actions
         $actions = array();
-        
+
         if ($type === 'active') {
             $controlurl = new moodle_url('/mod/classengage/controlpanel.php', array('id' => $cm->id, 'sessionid' => $session->id));
             $actions[] = html_writer::link($controlurl, get_string('controlpanel', 'mod_classengage'), array('class' => 'btn btn-sm btn-primary mr-1'));
-            
+
             $stopurl = new moodle_url('/mod/classengage/sessions.php', array('id' => $cm->id, 'action' => 'stop', 'sessionid' => $session->id, 'sesskey' => sesskey()));
             $actions[] = html_writer::link($stopurl, get_string('stopsession', 'mod_classengage'), array('class' => 'btn btn-sm btn-warning mr-1'));
         } else if ($type === 'ready') {
@@ -233,32 +253,33 @@ function render_session_table($sessions, $cm, $type) {
             $viewurl = new moodle_url('/mod/classengage/sessionresults.php', array('id' => $cm->id, 'sessionid' => $session->id));
             $actions[] = html_writer::link($viewurl, get_string('viewresults', 'mod_classengage'), array('class' => 'btn btn-sm btn-info mr-1'));
         }
-        
+
         $deleteurl = new moodle_url('/mod/classengage/sessions.php', array('id' => $cm->id, 'action' => 'delete', 'sessionid' => $session->id, 'sesskey' => sesskey()));
         $actions[] = html_writer::link($deleteurl, $OUTPUT->pix_icon('t/delete', get_string('delete')), array('class' => 'btn btn-sm btn-link text-danger', 'title' => get_string('delete')));
-        
-        $row[] = implode(' ', $actions);
-        
+
+        $row[] = html_writer::span(implode(' ', $actions), 'text-nowrap');
+
         $table->data[] = $row;
     }
-    
-    $o .= html_writer::table($table);
-    
+
+    // Wrap table in responsive container
+    $o .= html_writer::div(html_writer::table($table), 'table-responsive');
+
     // Bulk actions
     $o .= html_writer::start_div('d-flex align-items-center mt-2 mb-4');
     $o .= html_writer::tag('span', get_string('withselected', 'mod_classengage') . ': ', array('class' => 'mr-2'));
-    
+
     $bulkoptions = array('delete' => get_string('delete'));
     if ($type === 'active') {
         $bulkoptions['stop'] = get_string('stop', 'mod_classengage');
     }
-    
+
     $o .= html_writer::select($bulkoptions, 'bulkaction', '', array('' => get_string('choose', 'moodle')), array('class' => 'custom-select w-auto mr-2'));
     $o .= html_writer::empty_tag('input', array('type' => 'submit', 'value' => get_string('go'), 'class' => 'btn btn-secondary'));
     $o .= html_writer::end_div();
-    
+
     $o .= html_writer::end_tag('form');
-    
+
     return $o;
 }
 

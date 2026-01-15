@@ -365,6 +365,32 @@ function xmldb_classengage_upgrade($oldversion)
         upgrade_mod_savepoint(true, 2026011400, 'classengage');
     }
 
+    // NLP Generation Metadata: Add provider, model, and metadata fields to slides table.
+    if ($oldversion < 2026011500) {
+        $table = new xmldb_table('classengage_slides');
+
+        // Add nlp_provider field for AI provider name.
+        $field = new xmldb_field('nlp_provider', XMLDB_TYPE_CHAR, '50', null, null, null, null, 'nlp_job_completed');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Add nlp_model field for model identifier.
+        $field = new xmldb_field('nlp_model', XMLDB_TYPE_CHAR, '100', null, null, null, null, 'nlp_provider');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Add nlp_generation_metadata field for full JSON metadata.
+        $field = new xmldb_field('nlp_generation_metadata', XMLDB_TYPE_TEXT, null, null, null, null, null, 'nlp_model');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Classengage savepoint reached.
+        upgrade_mod_savepoint(true, 2026011500, 'classengage');
+    }
+
     return true;
 }
 

@@ -118,16 +118,19 @@ try {
             }
             // For images, they are already strings (source IDs)
 
-            $questions = $generator->generate_questions_from_document($docid, $classengage->id, $slideid, $safe_options);
+            $result = $generator->generate_questions_from_document($docid, $classengage->id, $slideid, $safe_options);
 
-            // Update slide with success.
+            // Update slide with success and metadata.
             $DB->update_record('classengage_slides', (object) [
                 'id' => $slideid,
                 'status' => 'completed',
                 'nlp_job_status' => 'completed',
                 'nlp_job_progress' => 100,
-                'nlp_questions_count' => count($questions),
+                'nlp_questions_count' => $result['count'],
                 'nlp_job_completed' => time(),
+                'nlp_provider' => $result['provider'] ?? null,
+                'nlp_model' => $result['model'] ?? null,
+                'nlp_generation_metadata' => $result['metadata'] ? json_encode($result['metadata']) : null,
                 'timemodified' => time()
             ]);
 
@@ -135,16 +138,29 @@ try {
             $event = \mod_classengage\event\questions_generated::create([
                 'objectid' => $slideid,
                 'context' => $context,
-                'other' => ['classengageid' => $classengage->id, 'count' => count($questions)]
+                'other' => ['classengageid' => $classengage->id, 'count' => $result['count']]
             ]);
             $event->trigger();
 
             $response = [
                 'success' => true,
                 'status' => 'completed',
-                'count' => count($questions),
-                'message' => count($questions) . ' questions generated successfully'
+                'count' => $result['count'],
+                'expected' => $safe_options['numQuestions'],
+                'provider' => $result['provider'],
+                'model' => $result['model'],
+                'message' => $result['count'] . ' questions generated successfully'
             ];
+
+            // Include analysis if available
+            if (!empty($result['analysis'])) {
+                $response['analysis'] = $result['analysis'];
+            }
+
+            // Include plan summary if available
+            if (!empty($result['metadata']['plan'])) {
+                $response['plan'] = $result['metadata']['plan'];
+            }
             break;
 
         case 'generatenlp':

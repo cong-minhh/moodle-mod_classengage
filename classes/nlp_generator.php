@@ -96,7 +96,7 @@ class nlp_generator
      * @param int $classengageid
      * @param int $slideid
      * @param array $options Generation options (includeSlides, includeImages, etc.)
-     * @return array Array of generated question IDs
+     * @return array Result with 'questionids', 'metadata', 'provider', 'model', 'analysis'
      */
     public function generate_questions_from_document($docid, $classengageid, $slideid, $options = [])
     {
@@ -118,7 +118,17 @@ class nlp_generator
             throw new \Exception('NLP service returned no questions');
         }
 
-        return $this->store_questions($response['questions'], $classengageid, $slideid);
+        $questionids = $this->store_questions($response['questions'], $classengageid, $slideid);
+
+        // Return extended response with metadata
+        return [
+            'questionids' => $questionids,
+            'count' => count($questionids),
+            'provider' => $response['provider'] ?? null,
+            'model' => $response['metadata']['model'] ?? null,
+            'analysis' => $response['analysis'] ?? null,
+            'metadata' => $response['metadata'] ?? null
+        ];
     }
 
     /**
@@ -313,7 +323,9 @@ class nlp_generator
             $question->optiond = $q['optiond'];
             $question->correctanswer = $q['correctanswer'];
             $question->difficulty = $q['difficulty'] ?? 'medium';
-            $question->bloomlevel = $q['bloomLevel'] ?? $q['bloomlevel'] ?? null;
+            // Check multiple possible key names for bloom/cognitive level
+            $question->bloomlevel = $q['bloomLevel'] ?? $q['bloomlevel'] ?? $q['bloom_level']
+                ?? $q['cognitiveLevel'] ?? $q['cognitive_level'] ?? null;
             $question->rationale = $q['rationale'] ?? null;
             $question->status = 'pending';
             $question->source = 'nlp';

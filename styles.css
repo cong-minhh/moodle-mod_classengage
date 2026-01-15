@@ -2022,3 +2022,288 @@
   cursor: not-allowed;
   pointer-events: none;
 }
+
+/* ============================================================================
+   NLP GENERATION METADATA BAR
+   ============================================================================ */
+
+.generation-metadata-bar {
+  background-color: var(--ce-gray-50, #f4f6f8);
+  border-bottom: 1px solid var(--ce-gray-200, #e9ecef);
+  padding: 0.5rem 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.85rem;
+}
+
+.generation-metadata-bar .badge-dark {
+  background-color: #343a40;
+  color: #fff;
+  font-weight: 500;
+}
+
+.generation-metadata-bar .text-muted {
+  color: #6c757d;
+}
+
+/* ============================================================================
+   BLOOM LEVEL BADGES (COLOR CODED BY COGNITIVE LEVEL)
+   ============================================================================ */
+
+/* Remember - Blue (basic recall) */
+.badge-primary {
+  background-color: #e3f2fd;
+  color: #1565c0;
+}
+
+/* Understand - Green (comprehension) */
+.badge-success {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+}
+
+/* Apply - Yellow/Amber (application) */
+.badge-warning {
+  background-color: #fff3e0;
+  color: #ef6c00;
+}
+
+/* Analyze - Cyan/Teal (analysis) */
+.badge-info {
+  background-color: #e0f7fa;
+  color: #00838f;
+}
+
+/* Evaluate - Red (evaluation/judgment) */
+.badge-danger {
+  background-color: #ffebee;
+  color: #c62828;
+}
+
+/* Create - Dark/Purple (synthesis) */
+.badge-dark {
+  background-color: #ede7f6;
+  color: #4527a0;
+}
+
+/* ============================================================================
+   RATIONALE ICON / TOOLTIP
+   ============================================================================ */
+
+.rationale-icon {
+  cursor: help;
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
+}
+
+.rationale-icon:hover {
+  opacity: 1;
+}
+
+/* Generator wizard success summary */
+.modal .alert-success h5 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.modal .alert-success .fa-check-circle {
+  color: #28a745;
+}
+
+/* ============================================================================
+   QUESTIONS TABLE COLUMN WIDTHS - Fixed layout with balanced distribution
+   ============================================================================ */
+
+.table-responsive .generaltable {
+  table-layout: fixed;
+  width: 100%;
+}
+
+/* Column 1: Checkbox - 3% */
+.table-responsive .generaltable th:nth-child(1),
+.table-responsive .generaltable td:nth-child(1) {
+  width: 3%;
+  text-align: center;
+  padding: 0.5rem 0.25rem;
+}
+
+/* Column 2: Question Text - 40% */
+.table-responsive .generaltable th:nth-child(2),
+.table-responsive .generaltable td:nth-child(2) {
+  width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Column 3: Difficulty - 8% */
+.table-responsive .generaltable th:nth-child(3),
+.table-responsive .generaltable td:nth-child(3) {
+  width: 8%;
+  text-align: center;
+}
+
+/* Column 4: Cognitive Level - 10% */
+.table-responsive .generaltable th:nth-child(4),
+.table-responsive .generaltable td:nth-child(4) {
+  width: 10%;
+  text-align: center;
+}
+
+/* Column 5: Status - 8% */
+.table-responsive .generaltable th:nth-child(5),
+.table-responsive .generaltable td:nth-child(5) {
+  width: 8%;
+  text-align: center;
+}
+
+/* Column 6: Created Date - 16% */
+.table-responsive .generaltable th:nth-child(6),
+.table-responsive .generaltable td:nth-child(6) {
+  width: 16%;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* Column 7: Actions - 15% */
+.table-responsive .generaltable th:nth-child(7),
+.table-responsive .generaltable td:nth-child(7) {
+  width: 15%;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* ============================================================================
+   QUESTION PREVIEW POPOVER
+   ============================================================================ */
+
+.question-text-hover {
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+  border-bottom: 1px dotted #999;
+}
+
+.question-text-hover:hover {
+  color: #0056b3;
+  text-decoration: none;
+}
+
+.question-text-hover:focus {
+  outline: none;
+  color: #0056b3;
+}
+
+/* Popover customization */
+.popover {
+  max-width: 450px;
+}
+
+.popover-body {
+  padding: 0;
+}
+
+/* Question tooltip content styling */
+.question-tooltip-content {
+  padding: 12px;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.question-tooltip-content .tooltip-question {
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e9ecef;
+  font-size: 0.95rem;
+}
+
+.question-tooltip-content .tooltip-answers {
+  margin-bottom: 10px;
+}
+
+.question-tooltip-content .tooltip-option {
+  padding: 6px 8px;
+  margin: 4px 0;
+  border-radius: 4px;
+  background-color: #f8f9fa;
+}
+
+.question-tooltip-content .tooltip-option.correct {
+  background-color: #d4edda;
+  color: #155724;
+  font-weight: 500;
+}
+
+.question-tooltip-content .tooltip-rationale {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #e9ecef;
+  color: #6c757d;
+  font-style: italic;
+  font-size: 0.85rem;
+}
+
+/* ============================================================================
+   SESSIONS TABLE COLUMN WIDTHS - Balanced distribution
+   ============================================================================ */
+
+.table-responsive .sessions-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+/* All cells baseline styling */
+.table-responsive .sessions-table th,
+.table-responsive .sessions-table td {
+  vertical-align: middle;
+  padding: 0.75rem;
+}
+
+/* Column 1: Checkbox - 4% */
+.table-responsive .sessions-table th:first-child,
+.table-responsive .sessions-table td:first-child {
+  width: 4%;
+  text-align: center;
+}
+
+/* Column 2: Session Name - 30% */
+.table-responsive .sessions-table th:nth-child(2),
+.table-responsive .sessions-table td:nth-child(2) {
+  width: 30%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Column 3: Number of Questions - 15% */
+.table-responsive .sessions-table th:nth-child(3),
+.table-responsive .sessions-table td:nth-child(3) {
+  width: 15%;
+  text-align: center;
+}
+
+/* Column 4: Participants - 12% */
+.table-responsive .sessions-table th:nth-child(4),
+.table-responsive .sessions-table td:nth-child(4) {
+  width: 12%;
+  text-align: center;
+}
+
+/* Column 5: Completed Date (completed table) - 17% */
+.table-responsive .sessions-table th:nth-child(5),
+.table-responsive .sessions-table td:nth-child(5) {
+  width: 17%;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* Last Column: Actions - 22% */
+.table-responsive .sessions-table th:last-child,
+.table-responsive .sessions-table td:last-child {
+  width: 22%;
+  text-align: center;
+  white-space: nowrap;
+}
