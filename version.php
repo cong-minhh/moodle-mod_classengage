@@ -25,8 +25,8 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'mod_classengage';
-$plugin->version = 2026011500;  // YYYYMMDDXX format - NLP Generation Metadata
+$plugin->version = 2026011600;  // YYYYMMDDXX format - Question Source Attribution
 $plugin->requires = 2022041900; // Moodle 4.0 or later
 $plugin->maturity = MATURITY_BETA;
-$plugin->release = 'v1.7.0-beta';
+$plugin->release = 'v1.8.0-beta';
 

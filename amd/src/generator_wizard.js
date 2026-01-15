@@ -217,10 +217,12 @@ define([
         if (page.images) {
           page.images.forEach(function (img) {
             images.push({
+              imageId: img.imageId || img.source, // Use imageId if available, fallback to source
               source: img.source,
-              safe_source: img.source,
+              url: img.url, // URL for image delivery
+              label: img.label,
               mediaType: img.mediaType,
-              data: img.data,
+              data: img.data, // Legacy Base64 fallback
             });
           });
         }
@@ -438,17 +440,22 @@ define([
 
       var includeImages = [];
       root.find(".image-toggle:checked").each(function () {
-        // Get source ID from data-source attribute (preferred) or fallback to parsing name
-        var source = $(this).data("source");
-        if (source) {
-          includeImages.push(source);
+        // Prefer imageId (new format), fallback to source (legacy)
+        var imageId = $(this).data("imageid");
+        if (imageId) {
+          includeImages.push(imageId);
         } else {
-          // Fallback: parse from checkbox name
-          var name = $(this).attr("name");
-          if (name) {
-            var match = name.match(/include_image\[(.*)\]/);
-            if (match && match[1]) {
-              includeImages.push(match[1]);
+          // Fallback: use source from data attribute or parse from name
+          var source = $(this).data("source");
+          if (source) {
+            includeImages.push(source);
+          } else {
+            var name = $(this).attr("name");
+            if (name) {
+              var match = name.match(/include_image\[(.*)\]/);
+              if (match && match[1]) {
+                includeImages.push(match[1]);
+              }
             }
           }
         }

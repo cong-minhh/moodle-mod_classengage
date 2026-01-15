@@ -70,6 +70,25 @@ try {
             $generator = new \mod_classengage\nlp_generator();
             $inspection = $generator->inspect_document($file);
 
+            // Process image URLs to full URLs (NLP returns relative /assets/... paths)
+            // Use public URL for browser access (required for Docker), fallback to endpoint
+            $nlppublicurl = get_config('mod_classengage', 'nlppublicurl');
+            $nlpbaseurl = rtrim(!empty($nlppublicurl) ? $nlppublicurl : get_config('mod_classengage', 'nlpendpoint'), '/');
+            if (!empty($inspection['pages'])) {
+                foreach ($inspection['pages'] as &$page) {
+                    if (!empty($page['images'])) {
+                        foreach ($page['images'] as &$img) {
+                            if (!empty($img['url']) && strpos($img['url'], 'http') !== 0) {
+                                // Convert relative URL to full URL
+                                $img['url'] = $nlpbaseurl . $img['url'];
+                            }
+                        }
+                        unset($img);
+                    }
+                }
+                unset($page);
+            }
+
             $response = [
                 'success' => true,
                 'docid' => $inspection['docId'],

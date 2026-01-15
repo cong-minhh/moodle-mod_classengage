@@ -174,6 +174,8 @@ $string['settings:nlpendpoint'] = 'NLP Service Endpoint';
 $string['settings:nlpendpoint_desc'] = 'URL endpoint for the NLP question generation service';
 $string['settings:nlpapikey'] = 'NLP API Key';
 $string['settings:nlpapikey_desc'] = 'API key for authenticating with the NLP service (optional, leave empty if not required)';
+$string['settings:nlppublicurl'] = 'NLP Public URL (Browser Access)';
+$string['settings:nlppublicurl_desc'] = 'Public URL for browser access to NLP assets. Required if Moodle runs in Docker (use localhost URL). Leave empty to use NLP Endpoint.';
 $string['settings:autogeneratequestions'] = 'Auto-generate Questions on Upload';
 $string['settings:autogeneratequestions_desc'] = 'Automatically generate quiz questions when slides are uploaded (requires NLP service)';
 $string['settings:maxfilesize'] = 'Maximum Slide File Size';
@@ -670,3 +672,8 @@ $string['generationmetadata'] = 'Generation Details';
 $string['generationcomplete'] = 'Generation Complete';
 $string['redirectingin'] = 'Redirecting in {$a} seconds...';
 $string['questionsgenerated'] = 'Questions Generated';
+
+// Question Source Attribution
+$string['questionsources'] = 'Source Attribution';
+$string['sourceslides'] = 'Source Pages';
+$string['sourceimages'] = 'Source Images';

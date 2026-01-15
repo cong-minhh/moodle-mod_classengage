@@ -24,9 +24,19 @@
         {{#images}}
         <div class="d-inline-block mr-2 mb-2 text-center" style="width: auto; max-width: 180px;">
             <label class="mb-0 cursor-pointer" title="{{#str}} includeimage, mod_classengage {{/str}}">
-                <input type="checkbox" name="include_image[{{safe_source}}]" value="1" checked class="image-toggle" data-source="{{source}}">
+                <input type="checkbox" name="include_image[{{imageId}}]" value="1" checked class="image-toggle" data-imageid="{{imageId}}" data-source="{{source}}">
+                {{#url}}
+                <img src="{{url}}" class="img-thumbnail mt-1" style="max-height: 150px; width: auto; max-width: 100%;">
+                {{/url}}
+                {{^url}}
+                {{#data}}
                 <img src="data:{{mediaType}};base64,{{data}}" class="img-thumbnail mt-1" style="max-height: 150px; width: auto; max-width: 100%;">
+                {{/data}}
+                {{/url}}
             </label>
+            {{#label}}
+            <div class="small text-muted mt-1">{{label}}</div>
+            {{/label}}
         </div>
         {{/images}}
         {{^images}}

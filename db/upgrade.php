@@ -391,6 +391,20 @@ function xmldb_classengage_upgrade($oldversion)
         upgrade_mod_savepoint(true, 2026011500, 'classengage');
     }
 
+    // Question Source Attribution: Add sources field to store slide/image references.
+    if ($oldversion < 2026011600) {
+        $table = new xmldb_table('classengage_questions');
+
+        // Add sources field for JSON with slide/image references.
+        $field = new xmldb_field('sources', XMLDB_TYPE_TEXT, null, null, null, null, null, 'rationale');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Classengage savepoint reached.
+        upgrade_mod_savepoint(true, 2026011600, 'classengage');
+    }
+
     return true;
 }
 

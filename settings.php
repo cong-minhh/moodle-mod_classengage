@@ -47,6 +47,14 @@ if ($ADMIN->fulltree) {
         ''
     ));
 
+    $settings->add(new admin_setting_configtext(
+        'mod_classengage/nlppublicurl',
+        get_string('settings:nlppublicurl', 'mod_classengage'),
+        get_string('settings:nlppublicurl_desc', 'mod_classengage'),
+        '',
+        PARAM_URL
+    ));
+
     $settings->add(new admin_setting_configcheckbox(
         'mod_classengage/autogeneratequestions',
         get_string('settings:autogeneratequestions', 'mod_classengage'),

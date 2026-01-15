@@ -71,6 +71,7 @@
         <FIELD NAME="difficulty" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="medium" SEQUENCE="false" COMMENT="Difficulty level: easy, medium, hard"/>
         <FIELD NAME="bloomlevel" TYPE="char" LENGTH="20" NOTNULL="false" SEQUENCE="false" COMMENT="Bloom's taxonomy level: remember, understand, apply, analyze, evaluate, create"/>
         <FIELD NAME="rationale" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="AI-generated explanation for the correct answer"/>
+        <FIELD NAME="sources" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="JSON: Slides and images used to generate this question"/>
         <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="pending" SEQUENCE="false" COMMENT="Status: pending, approved, rejected"/>
         <FIELD NAME="source" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="nlp" SEQUENCE="false" COMMENT="Source: nlp, manual"/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>

@@ -327,6 +327,8 @@ class nlp_generator
             $question->bloomlevel = $q['bloomLevel'] ?? $q['bloomlevel'] ?? $q['bloom_level']
                 ?? $q['cognitiveLevel'] ?? $q['cognitive_level'] ?? null;
             $question->rationale = $q['rationale'] ?? null;
+            // Store source attribution (slides and images used for generation)
+            $question->sources = !empty($q['sources']) ? json_encode($q['sources']) : null;
             $question->status = 'pending';
             $question->source = 'nlp';
             $question->timecreated = $now;

@@ -132,6 +132,67 @@ class edit_question_form extends \moodleform
         $mform->setType('rationale', PARAM_TEXT);
         $mform->addHelpButton('rationale', 'rationale', 'mod_classengage');
 
+        // Source Attribution (read-only for NLP-generated questions)
+        if ($question && !empty($question->sources)) {
+            $sources = json_decode($question->sources, true);
+            if ($sources) {
+                $sourceshtml = '<div class="question-sources">';
+
+                // Slides - compact range format (e.g., "1-5, 8-10")
+                if (!empty($sources['slides'])) {
+                    $ranges = $this->format_page_ranges($sources['slides']);
+                    $sourceshtml .= '<div class="d-flex align-items-center mb-2">' .
+                        '<span class="mr-2">' . get_string('sourceslides', 'mod_classengage') . ':</span>' .
+                        '<span class="badge badge-secondary">' . s($ranges) . '</span></div>';
+                }
+
+                // Images - collapsible section
+                if (!empty($sources['images'])) {
+                    $imagecount = count($sources['images']);
+                    $collapseid = 'source-images-' . $question->id;
+
+                    $sourceshtml .= '<div class="mb-2">' .
+                        '<a class="btn btn-sm btn-outline-secondary" data-toggle="collapse" href="#' . $collapseid . '" role="button" aria-expanded="false">' .
+                        '<i class="fa fa-images mr-1"></i>' . get_string('sourceimages', 'mod_classengage') .
+                        ' <span class="badge badge-pill badge-secondary ml-1">' . $imagecount . '</span>' .
+                        '</a></div>';
+
+                    $sourceshtml .= '<div class="collapse" id="' . $collapseid . '">';
+                    $sourceshtml .= '<div class="d-flex flex-wrap" style="gap: 8px;">';
+
+                    foreach ($sources['images'] as $img) {
+                        $label = s($img['label'] ?? 'Image');
+                        $url = $img['url'] ?? '';
+
+                        // Build public URL for images
+                        $publicurl = get_config('mod_classengage', 'nlppublicurl');
+                        $baseurl = !empty($publicurl) ? $publicurl : get_config('mod_classengage', 'nlpendpoint');
+                        if ($url && strpos($url, 'http') !== 0) {
+                            $url = rtrim($baseurl, '/') . $url;
+                        }
+
+                        if ($url) {
+                            $sourceshtml .= '<div class="card" style="width: 100px;">' .
+                                '<img src="' . s($url) . '" class="card-img-top" alt="' . $label . '" style="height: 70px; object-fit: cover;">' .
+                                '<div class="card-body p-1 text-center"><small class="text-muted" style="font-size: 0.7rem;">' . $label . '</small></div></div>';
+                        } else {
+                            $sourceshtml .= '<span class="badge badge-info">' . $label . '</span>';
+                        }
+                    }
+                    $sourceshtml .= '</div></div>';
+                }
+
+                $sourceshtml .= '</div>';
+
+                $mform->addElement(
+                    'static',
+                    'sources_display',
+                    get_string('questionsources', 'mod_classengage'),
+                    $sourceshtml
+                );
+            }
+        }
+
         // Buttons
         $this->add_action_buttons(true, get_string('savequestion', 'mod_classengage'));
 
@@ -139,6 +200,47 @@ class edit_question_form extends \moodleform
         if ($question) {
             $this->set_data($question);
         }
+    }
+
+    /**
+     * Format an array of page numbers into compact ranges
+     * 
+     * e.g., [1,2,3,5,6,8] => "1-3, 5-6, 8"
+     * 
+     * @param array $pages Array of page numbers
+     * @return string Formatted range string
+     */
+    protected function format_page_ranges(array $pages): string
+    {
+        if (empty($pages)) {
+            return '';
+        }
+
+        // Ensure numeric and sort
+        $pages = array_map('intval', $pages);
+        sort($pages);
+        $pages = array_unique($pages);
+
+        $ranges = [];
+        $start = $pages[0];
+        $end = $pages[0];
+
+        for ($i = 1; $i < count($pages); $i++) {
+            if ($pages[$i] == $end + 1) {
+                // Continue the range
+                $end = $pages[$i];
+            } else {
+                // End current range, start new one
+                $ranges[] = ($start == $end) ? (string) $start : "{$start}-{$end}";
+                $start = $pages[$i];
+                $end = $pages[$i];
+            }
+        }
+
+        // Add the last range
+        $ranges[] = ($start == $end) ? (string) $start : "{$start}-{$end}";
+
+        return implode(', ', $ranges);
     }
 }
 
