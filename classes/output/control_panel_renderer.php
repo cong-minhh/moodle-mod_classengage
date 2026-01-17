@@ -161,9 +161,15 @@ class control_panel_renderer
 
         // Display referenced image if present
         if (!empty($question->question_image)) {
+            // Construct full URL from stored path
+            $imagesrc = $question->question_image;
+            if (strpos($imagesrc, '/') === 0) {
+                $nlppublicurl = rtrim(get_config('mod_classengage', 'nlppublicurl'), '/');
+                $imagesrc = $nlppublicurl . $imagesrc;
+            }
             $output .= html_writer::start_div('question-image text-center mb-3');
             $output .= html_writer::empty_tag('img', [
-                'src' => $question->question_image,
+                'src' => $imagesrc,
                 'alt' => get_string('referenceimage', 'mod_classengage'),
                 'class' => 'img-fluid rounded shadow-sm',
                 'style' => 'max-height: 250px; cursor: zoom-in;',
