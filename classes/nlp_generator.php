@@ -257,7 +257,7 @@ class nlp_generator
 
         $options = array(
             'CURLOPT_RETURNTRANSFER' => true,
-            'CURLOPT_TIMEOUT' => 120,
+            'CURLOPT_TIMEOUT' => 300, // 5 minutes for large documents with post-processing
             'CURLOPT_HTTPHEADER' => $headers,
         );
 
