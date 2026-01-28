@@ -29,6 +29,7 @@ require_once(__DIR__ . '/classes/form/edit_question_form.php');
 $id = required_param('id', PARAM_INT); // Course module ID
 $action = optional_param('action', '', PARAM_ALPHA);
 $questionid = optional_param('questionid', 0, PARAM_INT);
+$highlight = optional_param('highlight', '', PARAM_ALPHANUMEXT); // e.g., slide_123
 
 $cm = get_coursemodule_from_id('classengage', $id, 0, false, MUST_EXIST);
 $course = $DB->get_record('course', array('id' => $cm->course), '*', MUST_EXIST);
@@ -75,6 +76,21 @@ if (($action === 'bulkdelete' || $action === 'bulkapprove') && confirm_sesskey()
 
 echo $OUTPUT->header();
 echo $OUTPUT->heading(format_string($classengage->name));
+
+// Highlight CSS for newly generated questions
+if ($highlight) {
+    echo html_writer::tag('style', '
+        .highlight-new {
+            border: 2px solid #17a2b8 !important;
+            box-shadow: 0 0 8px rgba(23, 162, 184, 0.3);
+            animation: highlight-pulse 2s ease-out;
+        }
+        @keyframes highlight-pulse {
+            0% { box-shadow: 0 0 15px rgba(23, 162, 184, 0.6); }
+            100% { box-shadow: 0 0 8px rgba(23, 162, 184, 0.3); }
+        }
+    ');
+}
 
 // Tab navigation
 $tabs = array();
@@ -137,6 +153,7 @@ foreach ($questions as $q) {
         // Store slide metadata (only once per slide)
         if (!isset($slide_metadata[$slidetitle])) {
             $slide_metadata[$slidetitle] = [
+                'slide_id' => $q->slide_id,
                 'provider' => $q->nlp_provider,
                 'model' => $q->nlp_model,
                 'metadata' => $q->nlp_generation_metadata ? json_decode($q->nlp_generation_metadata, true) : null,
@@ -331,7 +348,12 @@ if (!empty($generated_questions_by_slide)) {
         $slide_count = count($slide_questions);
         $collapseid = 'collapse-generated-' . $i;
 
-        echo html_writer::start_div('card mb-4');
+        // Check if this slide should be highlighted
+        $meta = $slide_metadata[$slide_title] ?? null;
+        $ishighlighted = $highlight && $meta && $highlight === 'slide_' . $meta['slide_id'];
+        $cardclass = 'card mb-4' . ($ishighlighted ? ' highlight-new' : '');
+
+        echo html_writer::start_div($cardclass);
         echo html_writer::start_div('card-header bg-light d-flex justify-content-between align-items-center clickable-header', array(
             'data-toggle' => 'collapse',
             'data-target' => '#' . $collapseid,

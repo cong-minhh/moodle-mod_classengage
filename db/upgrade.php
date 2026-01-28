@@ -419,6 +419,19 @@ function xmldb_classengage_upgrade($oldversion)
         upgrade_mod_savepoint(true, 2026011601, 'classengage');
     }
 
+    // Fix NLP Job ID type: Change from INT to CHAR(36) to support UUIDs.
+    if ($oldversion < 2026012800) {
+        $table = new xmldb_table('classengage_slides');
+        $field = new xmldb_field('nlp_job_id', XMLDB_TYPE_CHAR, '36', null, null, null, null, 'nlp_job_progress');
+
+        if ($dbman->field_exists($table, $field)) {
+            $dbman->change_field_type($table, $field);
+        }
+
+        // Classengage savepoint reached.
+        upgrade_mod_savepoint(true, 2026012800, 'classengage');
+    }
+
     return true;
 }
 

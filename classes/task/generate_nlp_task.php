@@ -109,17 +109,41 @@ class generate_nlp_task extends \core\task\adhoc_task
 
             // Progress: 40% - Pre-processing.
             $this->update_slide_status($slideid, 'running', 40);
-            $this->log_progress($slideid, 40, 'Extracting key concepts...');
+            $this->log_progress($slideid, 40, 'Inspecting document...');
 
-            // Generate questions via NLP service.
+            // Generate questions via NLP service using async flow.
             require_once(__DIR__ . '/../nlp_generator.php');
             $generator = new \mod_classengage\nlp_generator();
 
-            // Progress: 60% - NLP processing.
-            $this->update_slide_status($slideid, 'running', 60);
-            $this->log_progress($slideid, 60, 'Processing with NLP engine...');
+            // First inspect the document to get docId.
+            $inspection = $generator->inspect_document($file);
+            $docid = $inspection['docId'] ?? null;
 
-            $questions = $generator->generate_questions_from_file($file, $classengageid, $slideid);
+            if (empty($docid)) {
+                throw new \Exception('Document inspection failed - no docId returned');
+            }
+
+            $this->log_progress($slideid, 50, 'Document inspected, starting generation...');
+
+            // Progress: 60% - NLP processing with async polling.
+            $this->update_slide_status($slideid, 'running', 60);
+            $this->log_progress($slideid, 60, 'Processing with NLP engine (async)...');
+
+            // Use async generation with internal polling
+            // This is more robust - uses job queue on NLP service side
+            $result = $generator->generate_questions_async(
+                $docid,
+                $classengageid,
+                $slideid,
+                [
+                    'numQuestions' => $data->numquestions ?? 10,
+                    'difficulty' => $data->difficulty ?? 'mixed'
+                ],
+                600,  // 10 minute max wait
+                3     // poll every 3 seconds
+            );
+
+            $questions = $result['questionids'] ?? [];
 
             // Progress: 90% - Storing results.
             $this->update_slide_status($slideid, 'running', 90);

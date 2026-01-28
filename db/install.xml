@@ -36,7 +36,7 @@
         <!-- NLP Job Tracking Fields -->
         <FIELD NAME="nlp_job_status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="idle" SEQUENCE="false" COMMENT="NLP job lifecycle: idle, pending, running, completed, failed"/>
         <FIELD NAME="nlp_job_progress" TYPE="int" LENGTH="3" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="NLP job progress percentage 0-100"/>
-        <FIELD NAME="nlp_job_id" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Adhoc task ID for tracking"/>
+        <FIELD NAME="nlp_job_id" TYPE="char" LENGTH="36" NOTNULL="false" SEQUENCE="false" COMMENT="Adhoc task ID for tracking"/>
         <FIELD NAME="nlp_job_error" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Error message if job failed"/>
         <FIELD NAME="nlp_questions_count" TYPE="int" LENGTH="5" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Number of questions generated"/>
         <FIELD NAME="nlp_job_started" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Timestamp when job started"/>

@@ -26,7 +26,7 @@ define([
           var btn = $(e.currentTarget);
           this.slideid = btn.data("slideid");
           this.openWizard();
-        }.bind(this)
+        }.bind(this),
       );
     },
 
@@ -44,7 +44,7 @@ define([
           Str.get_string("generatefromdocument", "mod_classengage").then(
             function (title) {
               modal.setTitle(title);
-            }
+            },
           );
 
           // Set Body
@@ -60,7 +60,7 @@ define([
             function (html, js) {
               modal.setFooter(html);
               Templates.runTemplateJS(js);
-            }
+            },
           );
 
           modal.show();
@@ -95,6 +95,12 @@ define([
             self.triggerGeneration();
           });
 
+          // Cancel Button Handler - works at all stages
+          root.on("click", '[data-action="cancel"]', function () {
+            self.modal.hide();
+            $("#generator-floater").remove();
+          });
+
           // Show More Text
           root.on("click", ".show-more-text", function (e) {
             e.preventDefault();
@@ -108,7 +114,7 @@ define([
             "#id_difficulty, #id_cognitive, #id_numquestions",
             function () {
               self.checkDistributionVisibility();
-            }
+            },
           );
 
           // Manual Input Change -> Validate
@@ -150,13 +156,13 @@ define([
             self.renderPages();
           } else {
             self.modal.setBody(
-              '<div class="alert alert-danger">' + response.error + "</div>"
+              '<div class="alert alert-danger">' + response.error + "</div>",
             );
           }
         },
         error: function () {
           self.modal.setBody(
-            '<div class="alert alert-danger">Network error during inspection.</div>'
+            '<div class="alert alert-danger">Network error during inspection.</div>',
           );
         },
       });
@@ -201,7 +207,7 @@ define([
               fulltext: page.text, // For popup
               hasmore: page.text.length > 100,
               images: images,
-            })
+            }),
           );
       });
 
@@ -234,7 +240,7 @@ define([
             fulltext: page.text,
             hasmore: page.text.length > 100,
             images: images,
-          })
+          }),
         );
       });
 
@@ -433,30 +439,19 @@ define([
 
       var includeSlides = [];
       root.find(".slide-toggle:checked").each(function () {
-        // Get page number from data-page of parent row
         var row = $(this).closest(".slide-row");
         includeSlides.push(row.data("page"));
       });
 
       var includeImages = [];
       root.find(".image-toggle:checked").each(function () {
-        // Prefer imageId (new format), fallback to source (legacy)
         var imageId = $(this).data("imageid");
         if (imageId) {
           includeImages.push(imageId);
         } else {
-          // Fallback: use source from data attribute or parse from name
           var source = $(this).data("source");
           if (source) {
             includeImages.push(source);
-          } else {
-            var name = $(this).attr("name");
-            if (name) {
-              var match = name.match(/include_image\[(.*)\]/);
-              if (match && match[1]) {
-                includeImages.push(match[1]);
-              }
-            }
           }
         }
       });
@@ -480,8 +475,26 @@ define([
       root
         .find("#btn-generate-confirm")
         .prop("disabled", true)
-        .html('<i class="fa fa-spinner fa-spin"></i> Generating...');
+        .html('<i class="fa fa-spinner fa-spin"></i> Initializing...');
 
+      // Switch to Progress UI
+      root.find("#generator-content").addClass("d-none");
+      root.find("#generator-progress").removeClass("d-none");
+      self.modal.getFooter().find("#btn-generate-confirm").hide();
+
+      // Initialize Progress
+      if (self.updateProgress) {
+        self.updateProgress(0, "Sending request...");
+      }
+
+      // Bind Minimize Button
+      root
+        .off("click", "#btn-minimize-progress")
+        .on("click", "#btn-minimize-progress", function () {
+          self.minimizeModal();
+        });
+
+      // Step 1: Start the Job (Non-blocking)
       $.ajax({
         url: M.cfg.wwwroot + "/mod/classengage/slides_api.php",
         type: "POST",
@@ -494,78 +507,216 @@ define([
         },
         dataType: "json",
         success: function (response) {
-          if (response.success) {
-            // Show success summary before closing
-            var summaryHtml =
-              '<div class="alert alert-success">' +
-              '<h5><i class="fa fa-check-circle"></i> Generation Complete</h5>' +
-              '<div class="row mt-3">' +
-              '<div class="col-6">' +
-              "<strong>Questions Generated:</strong> " +
-              response.count;
-
-            if (response.expected && response.count !== response.expected) {
-              summaryHtml +=
-                ' <small class="text-warning">(requested: ' +
-                response.expected +
-                ")</small>";
-            }
-
-            summaryHtml += "</div>";
-
-            if (response.provider) {
-              summaryHtml +=
-                '<div class="col-6">' +
-                '<strong>Provider:</strong> <span class="badge badge-dark">' +
-                response.provider +
-                "</span>";
-              if (response.model) {
-                summaryHtml +=
-                  ' <small class="text-muted">(' + response.model + ")</small>";
-              }
-              summaryHtml += "</div>";
-            }
-
-            summaryHtml += "</div>";
-
-            // Show distribution plan if available
-            if (response.plan) {
-              summaryHtml +=
-                '<div class="mt-2"><small class="text-muted">' +
-                '<i class="fa fa-list"></i> Distribution: ' +
-                Object.keys(response.plan).length +
-                " categories" +
-                "</small></div>";
-            }
-
-            summaryHtml +=
-              '<p class="mt-3 mb-0 text-muted"><small>Redirecting in 3 seconds...</small></p>' +
-              "</div>";
-
-            root.find("#generator-content").html(summaryHtml);
-            root.find("#btn-generate-confirm").hide();
-
-            // Redirect after 3 seconds
-            setTimeout(function () {
-              self.modal.hide();
-              window.location.reload();
-            }, 3000);
+          if (response.success && response.status === "running") {
+            // Job started, begin Smart Polling
+            self.updateProgress(5, "Job queued...");
+            self.pollStatus(0);
+          } else if (response.success && response.status === "completed") {
+            self.updateProgress(100, "Done!");
+            self.showSuccess(response);
           } else {
-            alert("Error: " + response.error);
-            root
-              .find("#btn-generate-confirm")
-              .prop("disabled", false)
-              .text("Generate");
+            self.showError(
+              response.error || "Unknown error starting generation",
+            );
           }
         },
         error: function () {
-          alert("Network error during generation.");
-          root
-            .find("#btn-generate-confirm")
-            .prop("disabled", false)
-            .text("Generate");
+          self.showError("Network error starting generation.");
         },
       });
+    },
+
+    updateProgress: function (percent, statusText) {
+      var root = this.modal.getRoot();
+      var bar = root.find("#progress-bar");
+      bar.css("width", percent + "%");
+      bar.text(percent + "%");
+      bar.attr("aria-valuenow", percent);
+
+      if (statusText) {
+        root.find("#progress-status-text").text(statusText);
+        if (percent < 20) {
+          root.find("#progress-detail").text("Initializing NLP Engine...");
+        } else if (percent < 50) {
+          root.find("#progress-detail").text("Analyzing content...");
+        } else if (percent < 80) {
+          root.find("#progress-detail").text("Generating questions...");
+        } else if (percent < 100) {
+          root.find("#progress-detail").text("Finalizing...");
+        }
+      }
+    },
+
+    minimizeModal: function () {
+      var self = this;
+      this.modal.hide();
+
+      if ($("#generator-floater").length === 0) {
+        $("body").append(
+          '<div id="generator-floater" style="position: fixed; bottom: 20px; ' +
+            'right: 20px; z-index: 1050; box-shadow: 0 4px 12px rgba(0,0,0,0.15); cursor: pointer;">' +
+            '  <button class="btn btn-primary rounded-pill px-4 py-2 font-weight-bold">' +
+            '    <i class="fa fa-spinner fa-spin mr-2"></i> Generating <span id="floater-percent">0%</span>' +
+            "  </button>" +
+            "</div>",
+        );
+
+        $("#generator-floater").on("click", function () {
+          self.modal.show();
+          $(this).hide();
+        });
+      }
+
+      var percent =
+        this.modal.getRoot().find("#progress-bar").attr("aria-valuenow") || 0;
+      $("#floater-percent").text(percent + "%");
+      $("#generator-floater").show();
+    },
+
+    // Recursive Smart Polling
+    pollStatus: function (retryCount) {
+      var self = this;
+      var root = self.modal.getRoot();
+
+      // Use wait=true to enable server-side long polling (15s hold)
+      $.ajax({
+        url: M.cfg.wwwroot + "/mod/classengage/slides_api.php",
+        type: "GET",
+        data: {
+          action: "nlpstatus",
+          slideid: self.slideid,
+          sesskey: M.cfg.sesskey,
+          wait: true, // Enable Long Polling
+        },
+        dataType: "json",
+        timeout: 40000, // 40s timeout (server holds for 15s + buffer)
+        success: function (response) {
+          if (response.success) {
+            if (response.status === "completed") {
+              self.updateProgress(100, "Generation Complete!");
+              self.showSuccess(response);
+              if ($("#generator-floater").is(":visible")) {
+                $("#generator-floater").html(
+                  '<button class="btn btn-success rounded-pill px-4 py-2 font-weight-bold">' +
+                    '<i class="fa fa-check"></i> Complete!</button>',
+                );
+              }
+            } else if (response.status === "failed") {
+              self.showError(response.error);
+            } else {
+              // Still running - update UI and poll again IMMEDIATELY
+              var progress = response.progress || 0;
+              if (progress < 10) {
+                progress = 10;
+              }
+
+              self.updateProgress(progress, "Generating...");
+              $("#floater-percent").text(progress + "%");
+
+              // Call immediately for next long-poll window
+              self.pollStatus(0);
+            }
+          } else {
+            // Logic error - retry with backoff
+            setTimeout(function () {
+              self.pollStatus(retryCount);
+            }, 2000);
+          }
+        },
+        error: function (xhr, status, error) {
+          // Network error or timeout - retry with backoff
+          if (retryCount > 10) {
+            self.showError("Connection lost. Please refresh the page.");
+          } else {
+            console.warn("Poll failed, retrying...", status, error);
+            setTimeout(
+              function () {
+                self.pollStatus(retryCount + 1);
+              },
+              2000 + retryCount * 1000,
+            );
+          }
+        },
+      });
+    },
+
+    showError: function (msg) {
+      var root = this.modal.getRoot();
+      // Switch back to error UI in progress container
+      root.find("#progress-status-text").text("Error Failed");
+      root
+        .find("#progress-bar")
+        .addClass("bg-danger")
+        .removeClass("progress-bar-animated");
+      root.find("#progress-detail").text(msg).addClass("text-danger");
+      alert("Error: " + msg);
+    },
+
+    showSuccess: function (response) {
+      var self = this;
+      var root = self.modal.getRoot();
+
+      // Build success summary - clean, professional layout
+      var summaryHtml =
+        '<div class="text-center p-4">' +
+        '<div class="text-success mb-3"><i class="fa fa-check-circle fa-4x"></i></div>' +
+        "<h4>Questions Ready!</h4>" +
+        '<p class="lead mb-3">' +
+        "<strong>" +
+        response.count +
+        "</strong> questions have been generated.</p>";
+
+      // Info line: provider + duration in a clean row
+      summaryHtml += '<div class="mb-4">';
+
+      // Provider + Model badge
+      if (response.provider) {
+        var providerText = response.provider;
+        if (response.model) {
+          providerText += " (" + response.model + ")";
+        }
+        summaryHtml +=
+          '<span class="badge badge-dark mr-2">' +
+          '<i class="fa fa-robot mr-1"></i>' +
+          providerText +
+          "</span>";
+      }
+
+      // Duration
+      if (response.duration) {
+        var mins = Math.floor(response.duration / 60);
+        var secs = response.duration % 60;
+        var durationStr = mins > 0 ? mins + "m " + secs + "s" : secs + "s";
+        summaryHtml +=
+          '<span class="text-muted small">' +
+          '<i class="fa fa-clock-o mr-1"></i>Generated in ' +
+          durationStr +
+          "</span>";
+      }
+
+      summaryHtml += "</div>";
+
+      // View Questions button - navigate to questions.php with highlight
+      var questionsUrl =
+        M.cfg.wwwroot +
+        "/mod/classengage/questions.php?id=" +
+        self.cmid +
+        "&highlight=slide_" +
+        self.slideid;
+
+      summaryHtml +=
+        '<div class="mt-3">' +
+        '<a href="' +
+        questionsUrl +
+        '" class="btn btn-primary btn-lg">' +
+        '<i class="fa fa-eye mr-2"></i>View Questions</a>' +
+        "</div>" +
+        "</div>";
+
+      root.find("#generator-progress").html(summaryHtml);
+
+      root.find("#btn-minimize-progress").remove();
+      $("#generator-floater").remove();
     },
   };
 

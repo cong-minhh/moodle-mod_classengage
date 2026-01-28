@@ -31,12 +31,14 @@ require_once($CFG->libdir . '/formslib.php');
 /**
  * Upload slides form class
  */
-class upload_slides_form extends \moodleform {
+class upload_slides_form extends \moodleform
+{
 
     /**
      * Define the form
      */
-    public function definition() {
+    public function definition()
+    {
         $mform = $this->_form;
         $customdata = $this->_customdata;
 
@@ -46,7 +48,7 @@ class upload_slides_form extends \moodleform {
         // Title is required only if usefilename is not checked.
         // We can't easily use 'required' rule with disabledIf, so we'll handle validation manually or use optional.
         // For better UX, we'll make it optional here and validate in validation() method.
-        
+
         // Use file name checkbox
         $mform->addElement('checkbox', 'usefilename', get_string('usefilename', 'mod_classengage'));
         $mform->setDefault('usefilename', 1);
@@ -63,13 +65,18 @@ class upload_slides_form extends \moodleform {
             $maxbytes = $maxbytes * 1024 * 1024;
         }
 
-        $mform->addElement('filemanager', 'slidefile', get_string('slidefile', 'mod_classengage'), null,
+        $mform->addElement(
+            'filemanager',
+            'slidefile',
+            get_string('slidefile', 'mod_classengage'),
+            null,
             array(
                 'subdirs' => 0,
                 'maxbytes' => $maxbytes,
                 'maxfiles' => 1,
-                'accepted_types' => array('.pdf', '.ppt', '.pptx')
-            ));
+                'accepted_types' => array('.pdf', '.ppt', '.pptx', '.doc', '.docx')
+            )
+        );
         $mform->addRule('slidefile', null, 'required', null, 'client');
 
         // Hidden fields
@@ -92,9 +99,10 @@ class upload_slides_form extends \moodleform {
      * @param array $files
      * @return array
      */
-    public function validation($data, $files) {
+    public function validation($data, $files)
+    {
         $errors = parent::validation($data, $files);
-        
+
         if (empty($data['usefilename']) && empty($data['title'])) {
             $errors['title'] = get_string('required');
         }

@@ -135,9 +135,16 @@ try {
             if (!empty($safe_options['includeSlides'])) {
                 $safe_options['includeSlides'] = array_map('strval', $safe_options['includeSlides']);
             }
-            // For images, they are already strings (source IDs)
 
-            $result = $generator->generate_questions_from_document($docid, $classengage->id, $slideid, $safe_options);
+            // Use async generation with internal polling (robust, no timeouts)
+            $result = $generator->generate_questions_async(
+                $docid,
+                $classengage->id,
+                $slideid,
+                $safe_options,
+                600,  // 10 minute max wait
+                2     // poll every 2 seconds
+            );
 
             // Update slide with success and metadata.
             $DB->update_record('classengage_slides', (object) [
@@ -150,6 +157,7 @@ try {
                 'nlp_provider' => $result['provider'] ?? null,
                 'nlp_model' => $result['model'] ?? null,
                 'nlp_generation_metadata' => $result['metadata'] ? json_encode($result['metadata']) : null,
+                'nlp_job_id' => $result['jobId'] ?? null,
                 'timemodified' => time()
             ]);
 
@@ -168,6 +176,7 @@ try {
                 'expected' => $safe_options['numQuestions'],
                 'provider' => $result['provider'],
                 'model' => $result['model'],
+                'jobId' => $result['jobId'] ?? null,
                 'message' => $result['count'] . ' questions generated successfully'
             ];
 
@@ -267,15 +276,52 @@ try {
             break;
 
         case 'nlpstatus':
-            // Lightweight status endpoint for polling.
-            // Must be fast, read-only, and safe to poll frequently.
+            // "Smart Long-Polling" endpoint.
+            // 1. Client holds connection open (wait=true).
+            // 2. Server polls internal service.
+            // 3. Returns immediately on change or timeout.
 
             require_capability('mod/classengage:uploadslides', $context);
+            $wait = optional_param('wait', false, PARAM_BOOL);
 
-            // Response contract:
-            // { status: "idle|pending|running|completed|failed", progress: 0-100 }
-            // { status: "completed", count: 12 }
-            // { status: "failed", error: "..." }
+            // Close session lock immediately so UI remains responsive in other tabs.
+            \core\session\manager::write_close();
+
+            $maxwidth = 15; // Max hold time in seconds
+            $starttime = time();
+
+            require_once(__DIR__ . '/classes/nlp_generator.php');
+            $generator = new \mod_classengage\nlp_generator();
+
+            while (true) {
+                // Check current DB status
+                $slide = $DB->get_record('classengage_slides', ['id' => $slideid], '*', MUST_EXIST);
+                $dbtimemodified = $slide->timemodified;
+
+                // Sync with NLP service to get latest truth
+                $generator->check_and_update_job_status($slideid);
+
+                // Re-fetch to see if anything changed
+                $slide = $DB->get_record('classengage_slides', ['id' => $slideid], '*', MUST_EXIST);
+
+                // If finished, failed, or progress changed significantly, break and return
+                // Or if we are not in 'wait' mode (standard poll), break immediately
+                if (
+                    !$wait ||
+                    $slide->nlp_job_status === 'completed' ||
+                    $slide->nlp_job_status === 'failed' ||
+                    $slide->timemodified > $dbtimemodified
+                ) {
+                    break;
+                }
+
+                // Timeout check
+                if (time() - $starttime >= $maxwidth) {
+                    break;
+                }
+
+                sleep(2); // Wait before next internal check
+            }
 
             $response = [
                 'success' => true,
@@ -285,6 +331,25 @@ try {
 
             if (($slide->nlp_job_status ?? 'idle') === 'completed') {
                 $response['count'] = (int) ($slide->nlp_questions_count ?? 0);
+                $response['provider'] = $slide->nlp_provider ?? 'unknown';
+                $response['model'] = $slide->nlp_model ?? null;
+
+                // Calculate generation time
+                if (!empty($slide->nlp_job_started) && !empty($slide->nlp_job_completed)) {
+                    $response['duration'] = (int) $slide->nlp_job_completed - (int) $slide->nlp_job_started;
+                }
+
+                // Parse metadata for distribution info
+                if (!empty($slide->nlp_generation_metadata)) {
+                    $meta = json_decode($slide->nlp_generation_metadata, true);
+                    if ($meta) {
+                        $response['metadata'] = [
+                            'chunks' => $meta['chunksProcessed'] ?? null,
+                            'tokensUsed' => $meta['tokensUsed'] ?? null,
+                            'analysisTime' => $meta['analysisTime'] ?? null,
+                        ];
+                    }
+                }
             }
 
             if (($slide->nlp_job_status ?? 'idle') === 'failed') {

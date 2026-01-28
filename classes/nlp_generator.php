@@ -132,6 +132,233 @@ class nlp_generator
     }
 
     /**
+     * Start async question generation from a document (non-blocking)
+     * Returns immediately with a job ID for polling.
+     * 
+     * @param string $docid Document ID from prior inspection
+     * @param array $options Generation options
+     * @return array Contains 'jobId', 'statusUrl', 'resultUrl'
+     */
+    public function start_async_generation($docid, $options = [])
+    {
+        $endpoint = '/api/documents/generate-async';
+
+        $payload = array(
+            'docId' => $docid,
+            'options' => $options
+        );
+
+        // Ensure defaults
+        if (!isset($payload['options']['numQuestions'])) {
+            $payload['options']['numQuestions'] = get_config('mod_classengage', 'defaultquestions') ?: 10;
+        }
+
+        $response = $this->call_api_extended(
+            $endpoint,
+            json_encode($payload),
+            'POST',
+            ['Content-Type: application/json'],
+            30,   // Short timeout - this returns quickly
+            [200, 202]  // Accept both 200 and 202
+        );
+
+        if (empty($response['jobId'])) {
+            throw new \Exception('NLP service did not return a jobId');
+        }
+
+        return [
+            'jobId' => $response['jobId'],
+            'docId' => $response['docId'] ?? $docid,
+            'statusUrl' => $response['statusUrl'] ?? null,
+            'resultUrl' => $response['resultUrl'] ?? null,
+            'message' => $response['message'] ?? 'Job queued'
+        ];
+    }
+
+    /**
+     * Poll job status from NLP service
+     * 
+     * @param string $jobid Job ID from start_async_generation
+     * @return array Job status with 'status', 'progress', 'error'
+     */
+    public function poll_job_status($jobid)
+    {
+        $endpoint = '/api/jobs/' . urlencode($jobid);
+
+        $response = $this->call_api_extended(
+            $endpoint,
+            '',
+            'GET',
+            ['Content-Type: application/json'],
+            15  // Short timeout for status checks
+        );
+
+        return [
+            'status' => $response['job']['status'] ?? 'unknown',
+            'progress' => $response['job']['progress'] ?? 0,
+            'error' => $response['job']['error'] ?? null,
+            'createdAt' => $response['job']['createdAt'] ?? null,
+            'startedAt' => $response['job']['startedAt'] ?? null,
+            'completedAt' => $response['job']['completedAt'] ?? null
+        ];
+    }
+
+    /**
+     * Get completed job result from NLP service
+     * 
+     * @param string $jobid Job ID
+     * @return array The job result containing questions
+     */
+    public function get_job_result($jobid)
+    {
+        $endpoint = '/api/jobs/' . urlencode($jobid) . '/result';
+
+        $response = $this->call_api($endpoint, '', 'GET', ['Content-Type: application/json']);
+
+        if (empty($response['result'])) {
+            throw new \Exception('Job result is empty or job not completed');
+        }
+
+        return $response['result'];
+    }
+
+    /**
+     * Check remote job status and update the local database (On-Demand Sync)
+     * Used by Long-Polling endpoint.
+     * 
+     * @param int $slideid
+     * @return void
+     */
+    public function check_and_update_job_status($slideid)
+    {
+        global $DB;
+
+        $slide = $DB->get_record('classengage_slides', ['id' => $slideid], '*', MUST_EXIST);
+
+        // Only check if we have a job ID and it's not already final
+        if (empty($slide->nlp_job_id) || in_array($slide->nlp_job_status, ['completed', 'failed', 'idle'])) {
+            return;
+        }
+
+        try {
+            $status = $this->poll_job_status($slide->nlp_job_id);
+
+            // Has it changed?
+            $status_changed = ($slide->nlp_job_status !== $status['status']);
+            $progress_changed = (abs($slide->nlp_job_progress - $status['progress']) >= 5); // 5% granularity update
+
+            if ($status_changed || $progress_changed) {
+                // Don't overwrite if it just finished concurrently, handled by lock usually but being safe
+                $update = new \stdClass();
+                $update->id = $slide->id;
+                $update->nlp_job_status = $status['status'];
+                $update->nlp_job_progress = $status['progress'];
+                $update->timemodified = time(); // Important for long-poll loop detection
+
+                if ($status['status'] === 'failed') {
+                    $update->nlp_job_error = $status['error'];
+                }
+
+                $DB->update_record('classengage_slides', $update);
+
+                // If completed, fetch results immediately
+                if ($status['status'] === 'completed') {
+                    $result = $this->get_job_result($slide->nlp_job_id);
+                    $classengage = $DB->get_record('classengage', ['id' => $slide->classengageid]);
+
+                    // Transaction to store questions safely
+                    $transaction = $DB->start_delegated_transaction();
+                    $questionids = $this->store_questions($result['questions'], $classengage->id, $slideid);
+
+                    $final_update = new \stdClass();
+                    $final_update->id = $slide->id;
+                    $final_update->nlp_questions_count = count($questionids);
+                    $final_update->nlp_job_completed = time();
+                    $final_update->nlp_provider = $result['provider'] ?? null;
+                    $final_update->nlp_model = $result['metadata']['model'] ?? null;
+                    $final_update->nlp_generation_metadata = isset($result['metadata']) ? json_encode($result['metadata']) : null;
+                    $DB->update_record('classengage_slides', $final_update);
+
+                    $transaction->allow_commit();
+                }
+            }
+
+        } catch (\Exception $e) {
+            // Log but don't crash the poll loop - maybe network blip
+            debugging("Error updating job status for slide $slideid: " . $e->getMessage(), DEBUG_DEVELOPER);
+        }
+    }
+
+    /**
+     * Complete async generation flow: poll until done, then store questions
+     * This is the robust replacement for synchronous generation.
+     * 
+     * @param string $docid Document ID
+     * @param int $classengageid Activity instance ID
+     * @param int $slideid Slide ID
+     * @param array $options Generation options
+     * @param int $maxwait Maximum seconds to wait (default 600 = 10 minutes)
+     * @param int $pollinterval Seconds between polls (default 2)
+     * @return array Result with 'questionids', 'metadata', etc.
+     */
+    public function generate_questions_async($docid, $classengageid, $slideid, $options = [], $maxwait = 600, $pollinterval = 2)
+    {
+        // 1. Start async job
+        $jobinfo = $this->start_async_generation($docid, $options);
+        $jobid = $jobinfo['jobId'];
+
+        // 2. Poll until complete (with timeout)
+        $starttime = time();
+        $laststatus = null;
+
+        while (true) {
+            $elapsed = time() - $starttime;
+            if ($elapsed > $maxwait) {
+                throw new \Exception("Generation timed out after {$maxwait} seconds (job: {$jobid})");
+            }
+
+            $status = $this->poll_job_status($jobid);
+            $laststatus = $status;
+
+            if ($status['status'] === 'completed') {
+                break;
+            }
+
+            if ($status['status'] === 'failed') {
+                $errmsg = $status['error'] ?? 'Unknown error';
+                throw new \Exception("Generation failed: {$errmsg}");
+            }
+
+            if ($status['status'] === 'cancelled') {
+                throw new \Exception('Generation was cancelled');
+            }
+
+            // Wait before next poll
+            sleep($pollinterval);
+        }
+
+        // 3. Get result
+        $result = $this->get_job_result($jobid);
+
+        if (empty($result['questions'])) {
+            throw new \Exception('NLP service returned no questions');
+        }
+
+        // 4. Store questions
+        $questionids = $this->store_questions($result['questions'], $classengageid, $slideid);
+
+        return [
+            'questionids' => $questionids,
+            'count' => count($questionids),
+            'jobId' => $jobid,
+            'provider' => $result['provider'] ?? null,
+            'model' => $result['metadata']['model'] ?? null,
+            'analysis' => $result['analysis'] ?? null,
+            'metadata' => $result['metadata'] ?? null
+        ];
+    }
+
+    /**
      * Generate questions from raw text
      * 
      * @param string $text Content text
@@ -288,6 +515,77 @@ class nlp_generator
 
         if (isset($result['error'])) {
             // Handle "success": false case too
+            $errormsg = $result['message'] ?? $result['error'];
+            throw new \Exception('NLP service error: ' . $errormsg);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Extended API helper with configurable timeout and accepted status codes
+     * 
+     * @param string $endpoint API endpoint
+     * @param string $postdata POST data or empty for GET
+     * @param string $method HTTP method
+     * @param array $extraheaders Extra headers
+     * @param int $timeout Request timeout in seconds
+     * @param array $acceptedcodes HTTP status codes to accept as success
+     * @return array Decoded response
+     */
+    protected function call_api_extended($endpoint, $postdata, $method = 'POST', $extraheaders = [], $timeout = 30, $acceptedcodes = [200])
+    {
+        $baseurl = get_config('mod_classengage', 'nlpendpoint');
+        $apikey = get_config('mod_classengage', 'nlpapikey');
+
+        if (empty($baseurl)) {
+            throw new \Exception('NLP endpoint not configured');
+        }
+
+        $baseurl = rtrim($baseurl, '/');
+        if (strpos($endpoint, 'http') === 0) {
+            $url = $endpoint;
+        } else {
+            $url = $baseurl . $endpoint;
+        }
+
+        $headers = $extraheaders;
+        if (!empty($apikey)) {
+            $headers[] = 'Authorization: Bearer ' . $apikey;
+        }
+
+        $options = array(
+            'CURLOPT_RETURNTRANSFER' => true,
+            'CURLOPT_TIMEOUT' => $timeout,
+            'CURLOPT_HTTPHEADER' => $headers,
+        );
+
+        $curl = new \curl();
+
+        if ($method === 'POST') {
+            $response = $curl->post($url, $postdata, $options);
+        } else {
+            $response = $curl->get($url, [], $options);
+        }
+
+        $httpcode = $curl->get_info()['http_code'] ?? 0;
+
+        if ($curl->get_errno()) {
+            throw new \Exception('NLP service connection failed: ' . $curl->error);
+        }
+
+        if (!in_array($httpcode, $acceptedcodes)) {
+            debugging('NLP service returned HTTP ' . $httpcode . '. Response: ' . substr($response, 0, 500), DEBUG_DEVELOPER);
+            throw new \Exception('NLP service returned error (HTTP ' . $httpcode . ')');
+        }
+
+        $result = json_decode($response, true);
+
+        if (!$result) {
+            throw new \Exception('Invalid response from NLP service (invalid JSON)');
+        }
+
+        if (isset($result['error']) && $result['success'] === false) {
             $errormsg = $result['message'] ?? $result['error'];
             throw new \Exception('NLP service error: ' . $errormsg);
         }
