@@ -5,3 +5,6 @@
 
 # But keep README.md (case-sensitive)
 !README.md
+/vendor
+composer.lock
+/amd/build

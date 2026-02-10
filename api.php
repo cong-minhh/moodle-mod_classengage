@@ -174,6 +174,16 @@ function submit_answer($sessionid, $questionid, $answer, $classengageid)
     // Get question.
     $question = $DB->get_record('classengage_questions', array('id' => $questionid), '*', MUST_EXIST);
 
+    // Check if timer has expired (server-side enforcement).
+    $elapsed = time() - $session->questionstarttime;
+    if ($session->timelimit > 0 && $elapsed > $session->timelimit) {
+        return array(
+            'success' => false,
+            'error' => get_string('timeexpired', 'mod_classengage'),
+            'timeexpired' => true
+        );
+    }
+
     // Check if answer is correct.
     $iscorrect = (strtoupper($answer) === strtoupper($question->correctanswer));
 

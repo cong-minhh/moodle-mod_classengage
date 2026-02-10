@@ -2365,3 +2365,47 @@
 .mod-classengage-controlpanel .card-body .d-flex .btn-lg {
   min-width: 180px;
 }
+
+/* ============================================================================
+   TIMER EXPIRED OVERLAY
+   ============================================================================ */
+
+.time-expired-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(220, 53, 69, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  pointer-events: none;
+  border-radius: var(--ce-radius-lg);
+}
+
+.time-expired-text {
+  background: #dc3545;
+  color: white;
+  padding: 15px 30px;
+  border-radius: 8px;
+  font-size: 1.5rem;
+  font-weight: bold;
+  box-shadow: 0 4px 16px rgba(220, 53, 69, 0.3);
+}
+
+#timer-display.expired {
+  color: #dc3545 !important;
+  animation: pulse-timer 1s infinite;
+}
+
+@keyframes pulse-timer {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}

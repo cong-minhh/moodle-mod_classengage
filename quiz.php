@@ -229,9 +229,17 @@ if ($session->status === constants::SESSION_STATUS_ACTIVE || $session->status ==
                 'alert alert-info text-center'
             );
         } else {
-            // Display options
-            $options = json_decode($currentquestion->options, true);
-            if ($options) {
+            // Display options - build from individual option fields
+            $options = [
+                'A' => $currentquestion->optiona ?? null,
+                'B' => $currentquestion->optionb ?? null,
+                'C' => $currentquestion->optionc ?? null,
+                'D' => $currentquestion->optiond ?? null,
+            ];
+            // Filter out null options
+            $options = array_filter($options, function ($v) {
+                return $v !== null && $v !== ''; });
+            if (!empty($options)) {
                 echo html_writer::start_tag('form', array('id' => 'answer-form'));
                 echo html_writer::start_div('question-options');
 
