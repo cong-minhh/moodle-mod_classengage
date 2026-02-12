@@ -26,6 +26,11 @@ require(__DIR__ . '/../../config.php');
 require_once(__DIR__ . '/lib.php');
 require_once(__DIR__ . '/classes/form/upload_slides_form.php');
 
+// Prevent caching
+header('Cache-Control: no-cache, no-store, must-revalidate');
+header('Pragma: no-cache');
+header('Expires: 0');
+
 $id = required_param('id', PARAM_INT); // Course module ID
 $action = optional_param('action', '', PARAM_ALPHA);
 $slideid = optional_param('slideid', 0, PARAM_INT);

@@ -26,6 +26,11 @@ require(__DIR__ . '/../../config.php');
 require_once(__DIR__ . '/lib.php');
 require_once(__DIR__ . '/classes/form/edit_question_form.php');
 
+// Prevent caching - critical for showing newly generated questions
+header('Cache-Control: no-cache, no-store, must-revalidate');
+header('Pragma: no-cache');
+header('Expires: 0');
+
 $id = required_param('id', PARAM_INT); // Course module ID
 $action = optional_param('action', '', PARAM_ALPHA);
 $questionid = optional_param('questionid', 0, PARAM_INT);
@@ -138,6 +143,13 @@ $sql = "SELECT q.*, s.title as slidetitle, s.id as slide_id,
         WHERE q.classengageid = ? 
         ORDER BY q.timecreated DESC";
 $questions = $DB->get_records_sql($sql, array($classengage->id));
+
+// Debug: Check total count
+$totalquestions = $DB->count_records('classengage_questions', ['classengageid' => $classengage->id]);
+if ($totalquestions > 0 && count($questions) === 0) {
+    // This shouldn't happen but if it does, log it
+    debugging("WARNING: Found {$totalquestions} questions in DB but query returned 0. This may indicate a SQL issue.", DEBUG_DEVELOPER);
+}
 
 $manual_questions = [];
 $generated_questions_by_slide = [];

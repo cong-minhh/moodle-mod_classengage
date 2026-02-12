@@ -231,7 +231,7 @@ class slide_processor
     /**
      * Trigger question generation if configured
      *
-     * This is non-blocking - failures won't affect the upload.
+     * This is non-blocking - queues an adhoc task and returns immediately.
      *
      * @param \stored_file $file Stored file
      * @param int $classengageid Activity ID
@@ -244,27 +244,82 @@ class slide_processor
         }
 
         try {
+            global $DB;
+
+            // First inspect the document to get docId.
             $generator = new nlp_generator();
-            $generator->generate_questions_from_file($file, $classengageid, $slideid);
+            $inspection = $generator->inspect_document($file);
+            $docid = $inspection['docId'] ?? null;
+
+            if (empty($docid)) {
+                \debugging('Auto-generation: Document inspection failed for slide ' . $slideid, \DEBUG_DEVELOPER);
+                return;
+            }
+
+            // Mark slide as pending.
+            $DB->update_record('classengage_slides', (object) [
+                'id' => $slideid,
+                'nlp_job_status' => 'pending',
+                'nlp_job_progress' => 0,
+                'nlp_job_error' => null,
+                'timemodified' => time()
+            ]);
+
+            // Queue adhoc task for background generation.
+            $task = new \mod_classengage\task\generate_nlp_task();
+            $task->set_custom_data([
+                'slideid' => $slideid,
+                'classengageid' => $classengageid,
+                'docid' => $docid,
+                'options' => [
+                    'numQuestions' => (int) (\get_config('mod_classengage', 'defaultquestions') ?: 10),
+                    'difficulty' => 'mixed',
+                    'bloomLevel' => 'apply'
+                ],
+                'contextid' => $this->context->id
+            ]);
+            $task->set_component('mod_classengage');
+            \core\task\manager::queue_adhoc_task($task);
+
         } catch (\Exception $e) {
             // Log but don't fail - question generation is optional.
-            debugging('Auto-generation of questions failed for slide ' . $slideid . ': ' .
-                $e->getMessage(), DEBUG_DEVELOPER);
+            \debugging('Auto-generation of questions failed for slide ' . $slideid . ': ' .
+                $e->getMessage(), \DEBUG_DEVELOPER);
         }
     }
 
     /**
      * Check if auto-generation is enabled
      *
-     * @return bool True if NLP service is configured and auto-generation is enabled
+     * @return bool True if any AI provider is configured and auto-generation is enabled
      */
     protected function is_auto_generation_enabled()
     {
-        $nlpendpoint = get_config('mod_classengage', self::CONFIG_NLP_ENDPOINT);
-        $autogenerate = get_config('mod_classengage', self::CONFIG_AUTO_GENERATE);
+        $autogenerate = \get_config('mod_classengage', self::CONFIG_AUTO_GENERATE);
+        if (!$autogenerate) {
+            return false;
+        }
 
-        return !empty($nlpendpoint) && $autogenerate;
+        // Check if any provider is configured.
+        $providers = [
+            'gemini' => 'geminiapikey',
+            'openai' => 'openaiapikey',
+            'anthropic' => 'anthropicapikey',
+            'deepseek' => 'deepseekapikey',
+            'kimi' => 'kimiapikey',
+            'kimicn' => 'kimicnapikey',
+            'local' => 'localendpoint'
+        ];
+
+        foreach ($providers as $key => $configkey) {
+            $value = \get_config('mod_classengage', $configkey);
+            if (!empty($value)) {
+                return true;
+            }
+        }
+
+        // Fallback: check legacy NLP endpoint for backward compatibility.
+        $nlpendpoint = \get_config('mod_classengage', self::CONFIG_NLP_ENDPOINT);
+        return !empty($nlpendpoint);
     }
-
 }
-

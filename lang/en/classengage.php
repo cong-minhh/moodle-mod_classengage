@@ -678,3 +678,75 @@ $string['questionsources'] = 'Source Attribution';
 $string['sourceslides'] = 'Source Pages';
 $string['sourceimages'] = 'Source Images';
 $string['referenceimage'] = 'Reference Image';
+
+// AI Provider Settings
+$string['settings:ai_providers'] = 'AI Question Generation Providers';
+$string['settings:ai_providers_desc'] = 'Configure multiple AI providers for question generation. The system will automatically fall back to the next available provider if one fails.';
+$string['settings:nlpendpoint_deprecated'] = 'Note: External Node.js NLP service is deprecated. The plugin now uses built-in PHP providers (see below).';
+$string['settings:nlpdefaultprovider'] = 'Default Provider';
+$string['settings:nlpdefaultprovider_desc'] = 'The primary AI provider to use for question generation';
+$string['settings:nlpproviderpriority'] = 'Provider Fallback Priority';
+$string['settings:nlpproviderpriority_desc'] = 'Comma-separated list of provider names in fallback order (e.g., gemini,openai,anthropic)';
+$string['settings:nlprequesttimeout'] = 'Request Timeout (seconds)';
+$string['settings:nlprequesttimeout_desc'] = 'Maximum time to wait for AI provider response';
+
+// Provider-specific settings
+$string['settings:gemini'] = 'Google Gemini';
+$string['settings:geminiapikey'] = 'Gemini API Key';
+$string['settings:geminiapikey_desc'] = 'Your Google Gemini API key';
+$string['settings:geminimodel'] = 'Gemini Model';
+$string['settings:geminimodel_desc'] = 'The Gemini model to use (e.g., gemini-2.5-flash)';
+$string['settings:geminiendpoint'] = 'Gemini Endpoint';
+$string['settings:geminiendpoint_desc'] = 'Gemini API base URL';
+
+$string['settings:openai'] = 'OpenAI';
+$string['settings:openaiapikey'] = 'OpenAI API Key';
+$string['settings:openaiapikey_desc'] = 'Your OpenAI API key';
+$string['settings:openaimodel'] = 'OpenAI Model';
+$string['settings:openaimodel_desc'] = 'The OpenAI model to use (e.g., gpt-4o-mini)';
+$string['settings:openaiendpoint'] = 'OpenAI Endpoint';
+$string['settings:openaiendpoint_desc'] = 'OpenAI API base URL';
+
+$string['settings:anthropic'] = 'Anthropic Claude';
+$string['settings:anthropicapikey'] = 'Anthropic API Key';
+$string['settings:anthropicapikey_desc'] = 'Your Anthropic API key';
+$string['settings:anthropicmodel'] = 'Anthropic Model';
+$string['settings:anthropicmodel_desc'] = 'The Claude model to use (e.g., claude-3-5-sonnet-20241022)';
+$string['settings:anthropicendpoint'] = 'Anthropic Endpoint';
+$string['settings:anthropicendpoint_desc'] = 'Anthropic API base URL';
+
+$string['settings:deepseek'] = 'DeepSeek';
+$string['settings:deepseekapikey'] = 'DeepSeek API Key';
+$string['settings:deepseekapikey_desc'] = 'Your DeepSeek API key';
+$string['settings:deepseekmodel'] = 'DeepSeek Model';
+$string['settings:deepseekmodel_desc'] = 'The DeepSeek model to use (e.g., deepseek-chat)';
+$string['settings:deepseekendpoint'] = 'DeepSeek Endpoint';
+$string['settings:deepseekendpoint_desc'] = 'DeepSeek API base URL';
+
+$string['settings:kimi'] = 'Kimi (Moonshot Global)';
+$string['settings:kimiapikey'] = 'Kimi API Key';
+$string['settings:kimiapikey_desc'] = 'Your Kimi API key';
+$string['settings:kimimodel'] = 'Kimi Model';
+$string['settings:kimimodel_desc'] = 'The Kimi model to use (e.g., moonshot-v1-8k)';
+$string['settings:kimiendpoint'] = 'Kimi Endpoint';
+$string['settings:kimiendpoint_desc'] = 'Kimi API base URL';
+
+$string['settings:kimicn'] = 'Kimi (Moonshot China)';
+$string['settings:kimicnapikey'] = 'Kimi CN API Key';
+$string['settings:kimicnapikey_desc'] = 'Your Kimi China API key';
+$string['settings:kimicnmodel'] = 'Kimi CN Model';
+$string['settings:kimicnmodel_desc'] = 'The Kimi China model to use (e.g., moonshot-v1-8k)';
+$string['settings:kimicnendpoint'] = 'Kimi CN Endpoint';
+$string['settings:kimicnendpoint_desc'] = 'Kimi China API base URL';
+
+$string['settings:local'] = 'Local/Ollama';
+$string['settings:localendpoint'] = 'Ollama Endpoint';
+$string['settings:localendpoint_desc'] = 'Your local Ollama server URL (e.g., http://localhost:11434)';
+$string['settings:localmodel'] = 'Ollama Model';
+$string['settings:localmodel_desc'] = 'The Ollama model to use (e.g., qwen3-vl:4b)';
+
+// NLP Diagnostics
+
+$string['nlpdiagnostics'] = 'NLP Environment Diagnostics';
+$string['diagnostics_allgood'] = 'All required components are installed and configured!';
+$string['diagnostics_missing'] = 'Missing required components: {$a}';

@@ -25,11 +25,11 @@
 defined('MOODLE_INTERNAL') || die();
 
 if ($ADMIN->fulltree) {
-    // NLP Service Settings
+    // Legacy NLP Service Settings (deprecated, kept for compatibility)
     $settings->add(new admin_setting_heading(
         'mod_classengage/nlpheading',
         get_string('settings:nlpendpoint', 'mod_classengage'),
-        ''
+        get_string('settings:nlpendpoint_deprecated', 'mod_classengage')
     ));
 
     $settings->add(new admin_setting_configtext(
@@ -53,6 +53,233 @@ if ($ADMIN->fulltree) {
         get_string('settings:nlppublicurl_desc', 'mod_classengage'),
         '',
         PARAM_URL
+    ));
+
+    // AI Provider Settings
+    $settings->add(new admin_setting_heading(
+        'mod_classengage/ai_providers_heading',
+        get_string('settings:ai_providers', 'mod_classengage'),
+        get_string('settings:ai_providers_desc', 'mod_classengage')
+    ));
+
+    $settings->add(new admin_setting_configselect(
+        'mod_classengage/nlpdefaultprovider',
+        get_string('settings:nlpdefaultprovider', 'mod_classengage'),
+        get_string('settings:nlpdefaultprovider_desc', 'mod_classengage'),
+        'gemini',
+        [
+            'gemini' => 'Google Gemini',
+            'openai' => 'OpenAI',
+            'anthropic' => 'Anthropic Claude',
+            'deepseek' => 'DeepSeek',
+            'kimi' => 'Kimi (Global)',
+            'kimicn' => 'Kimi (China)',
+            'local' => 'Local/Ollama',
+        ]
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'mod_classengage/nlpproviderpriority',
+        get_string('settings:nlpproviderpriority', 'mod_classengage'),
+        get_string('settings:nlpproviderpriority_desc', 'mod_classengage'),
+        'gemini,openai,anthropic,deepseek,kimi,kimicn,local'
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'mod_classengage/nlprequesttimeout',
+        get_string('settings:nlprequesttimeout', 'mod_classengage'),
+        get_string('settings:nlprequesttimeout_desc', 'mod_classengage'),
+        '120',
+        PARAM_INT
+    ));
+
+    // Gemini Settings
+    $settings->add(new admin_setting_heading(
+        'mod_classengage/gemini_heading',
+        get_string('settings:gemini', 'mod_classengage'),
+        ''
+    ));
+
+    $settings->add(new admin_setting_configpasswordunmask(
+        'mod_classengage/geminiapikey',
+        get_string('settings:geminiapikey', 'mod_classengage'),
+        get_string('settings:geminiapikey_desc', 'mod_classengage'),
+        ''
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'mod_classengage/geminimodel',
+        get_string('settings:geminimodel', 'mod_classengage'),
+        get_string('settings:geminimodel_desc', 'mod_classengage'),
+        'gemini-2.5-flash'
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'mod_classengage/geminiendpoint',
+        get_string('settings:geminiendpoint', 'mod_classengage'),
+        get_string('settings:geminiendpoint_desc', 'mod_classengage'),
+        'https://generativelanguage.googleapis.com/v1beta'
+    ));
+
+    // OpenAI Settings
+    $settings->add(new admin_setting_heading(
+        'mod_classengage/openai_heading',
+        get_string('settings:openai', 'mod_classengage'),
+        ''
+    ));
+
+    $settings->add(new admin_setting_configpasswordunmask(
+        'mod_classengage/openaiapikey',
+        get_string('settings:openaiapikey', 'mod_classengage'),
+        get_string('settings:openaiapikey_desc', 'mod_classengage'),
+        ''
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'mod_classengage/openaimodel',
+        get_string('settings:openaimodel', 'mod_classengage'),
+        get_string('settings:openaimodel_desc', 'mod_classengage'),
+        'gpt-4o-mini'
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'mod_classengage/openaiendpoint',
+        get_string('settings:openaiendpoint', 'mod_classengage'),
+        get_string('settings:openaiendpoint_desc', 'mod_classengage'),
+        'https://api.openai.com/v1'
+    ));
+
+    // Anthropic Settings
+    $settings->add(new admin_setting_heading(
+        'mod_classengage/anthropic_heading',
+        get_string('settings:anthropic', 'mod_classengage'),
+        ''
+    ));
+
+    $settings->add(new admin_setting_configpasswordunmask(
+        'mod_classengage/anthropicapikey',
+        get_string('settings:anthropicapikey', 'mod_classengage'),
+        get_string('settings:anthropicapikey_desc', 'mod_classengage'),
+        ''
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'mod_classengage/anthropicmodel',
+        get_string('settings:anthropicmodel', 'mod_classengage'),
+        get_string('settings:anthropicmodel_desc', 'mod_classengage'),
+        'claude-3-5-sonnet-20241022'
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'mod_classengage/anthropicendpoint',
+        get_string('settings:anthropicendpoint', 'mod_classengage'),
+        get_string('settings:anthropicendpoint_desc', 'mod_classengage'),
+        'https://api.anthropic.com/v1'
+    ));
+
+    // DeepSeek Settings
+    $settings->add(new admin_setting_heading(
+        'mod_classengage/deepseek_heading',
+        get_string('settings:deepseek', 'mod_classengage'),
+        ''
+    ));
+
+    $settings->add(new admin_setting_configpasswordunmask(
+        'mod_classengage/deepseekapikey',
+        get_string('settings:deepseekapikey', 'mod_classengage'),
+        get_string('settings:deepseekapikey_desc', 'mod_classengage'),
+        ''
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'mod_classengage/deepseekmodel',
+        get_string('settings:deepseekmodel', 'mod_classengage'),
+        get_string('settings:deepseekmodel_desc', 'mod_classengage'),
+        'deepseek-chat'
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'mod_classengage/deepseekendpoint',
+        get_string('settings:deepseekendpoint', 'mod_classengage'),
+        get_string('settings:deepseekendpoint_desc', 'mod_classengage'),
+        'https://api.deepseek.com/v1'
+    ));
+
+    // Kimi Settings
+    $settings->add(new admin_setting_heading(
+        'mod_classengage/kimi_heading',
+        get_string('settings:kimi', 'mod_classengage'),
+        ''
+    ));
+
+    $settings->add(new admin_setting_configpasswordunmask(
+        'mod_classengage/kimiapikey',
+        get_string('settings:kimiapikey', 'mod_classengage'),
+        get_string('settings:kimiapikey_desc', 'mod_classengage'),
+        ''
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'mod_classengage/kimimodel',
+        get_string('settings:kimimodel', 'mod_classengage'),
+        get_string('settings:kimimodel_desc', 'mod_classengage'),
+        'moonshot-v1-8k'
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'mod_classengage/kimiendpoint',
+        get_string('settings:kimiendpoint', 'mod_classengage'),
+        get_string('settings:kimiendpoint_desc', 'mod_classengage'),
+        'https://api.moonshot.ai/v1'
+    ));
+
+    // Kimi CN Settings
+    $settings->add(new admin_setting_heading(
+        'mod_classengage/kimicn_heading',
+        get_string('settings:kimicn', 'mod_classengage'),
+        ''
+    ));
+
+    $settings->add(new admin_setting_configpasswordunmask(
+        'mod_classengage/kimicnapikey',
+        get_string('settings:kimicnapikey', 'mod_classengage'),
+        get_string('settings:kimicnapikey_desc', 'mod_classengage'),
+        ''
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'mod_classengage/kimicnmodel',
+        get_string('settings:kimicnmodel', 'mod_classengage'),
+        get_string('settings:kimicnmodel_desc', 'mod_classengage'),
+        'moonshot-v1-8k'
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'mod_classengage/kimicnendpoint',
+        get_string('settings:kimicnendpoint', 'mod_classengage'),
+        get_string('settings:kimicnendpoint_desc', 'mod_classengage'),
+        'https://api.moonshot.cn/v1'
+    ));
+
+    // Local/Ollama Settings
+    $settings->add(new admin_setting_heading(
+        'mod_classengage/local_heading',
+        get_string('settings:local', 'mod_classengage'),
+        ''
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'mod_classengage/localendpoint',
+        get_string('settings:localendpoint', 'mod_classengage'),
+        get_string('settings:localendpoint_desc', 'mod_classengage'),
+        'http://localhost:11434'
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'mod_classengage/localmodel',
+        get_string('settings:localmodel', 'mod_classengage'),
+        get_string('settings:localmodel_desc', 'mod_classengage'),
+        'qwen3-vl:4b'
     ));
 
     $settings->add(new admin_setting_configcheckbox(
@@ -169,4 +396,3 @@ if ($ADMIN->fulltree) {
         PARAM_INT
     ));
 }
-

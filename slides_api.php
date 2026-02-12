@@ -18,7 +18,7 @@
  * API endpoint for slide management operations
  *
  * This endpoint handles slide-related write operations:
- * - NLP question generation (async, queued)
+ * - NLP question generation (async, queued via adhoc task)
  * - NLP job status polling
  *
  * ARCHITECTURE PRINCIPLE:
@@ -70,24 +70,7 @@ try {
             $generator = new \mod_classengage\nlp_generator();
             $inspection = $generator->inspect_document($file);
 
-            // Process image URLs to full URLs (NLP returns relative /assets/... paths)
-            // Use public URL for browser access (required for Docker), fallback to endpoint
-            $nlppublicurl = get_config('mod_classengage', 'nlppublicurl');
-            $nlpbaseurl = rtrim(!empty($nlppublicurl) ? $nlppublicurl : get_config('mod_classengage', 'nlpendpoint'), '/');
-            if (!empty($inspection['pages'])) {
-                foreach ($inspection['pages'] as &$page) {
-                    if (!empty($page['images'])) {
-                        foreach ($page['images'] as &$img) {
-                            if (!empty($img['url']) && strpos($img['url'], 'http') !== 0) {
-                                // Convert relative URL to full URL
-                                $img['url'] = $nlpbaseurl . $img['url'];
-                            }
-                        }
-                        unset($img);
-                    }
-                }
-                unset($page);
-            }
+            // Image URLs are now served via Moodle pluginfile (no external URL conversion needed)
 
             $response = [
                 'success' => true,
@@ -107,92 +90,53 @@ try {
                 throw new Exception('Invalid JSON options');
             }
 
-            // Mark as running.
-            $DB->update_record('classengage_slides', (object) [
-                'id' => $slideid,
-                'nlp_job_status' => 'running',
-                'nlp_job_progress' => 10,
-                'nlp_job_error' => null,
-                'nlp_job_started' => time(),
-                'timemodified' => time()
-            ]);
-
-            require_once(__DIR__ . '/classes/nlp_generator.php');
-            $generator = new \mod_classengage\nlp_generator();
-
-            // Sanitize and prepare options
-            $safe_options = [
-                'numQuestions' => (int) ($options['numQuestions'] ?? 10),
-                'difficulty' => $options['difficulty'] ?? 'medium',
-                'bloomLevel' => $options['bloomLevel'] ?? 'apply',
-                'difficultyDistribution' => $options['difficultyDistribution'] ?? null,
-                'bloomDistribution' => $options['bloomDistribution'] ?? null,
-                'includeSlides' => $options['includeSlides'] ?? [],
-                'includeImages' => $options['includeImages'] ?? []
-            ];
-
-            // Ensure includes are arrays of strings (API requirement)
-            if (!empty($safe_options['includeSlides'])) {
-                $safe_options['includeSlides'] = array_map('strval', $safe_options['includeSlides']);
+            // Prevent duplicate generation if already running.
+            if (($slide->nlp_job_status ?? 'idle') === 'running') {
+                $response = [
+                    'success' => false,
+                    'error' => 'Generation already in progress for this slide'
+                ];
+                break;
             }
 
-            // Use async generation with internal polling (robust, no timeouts)
-            $result = $generator->generate_questions_async(
-                $docid,
-                $classengage->id,
-                $slideid,
-                $safe_options,
-                600,  // 10 minute max wait
-                2     // poll every 2 seconds
-            );
-
-            // Update slide with success and metadata.
+            // Mark as pending and enqueue adhoc task.
             $DB->update_record('classengage_slides', (object) [
                 'id' => $slideid,
-                'status' => 'completed',
-                'nlp_job_status' => 'completed',
-                'nlp_job_progress' => 100,
-                'nlp_questions_count' => $result['count'],
-                'nlp_job_completed' => time(),
-                'nlp_provider' => $result['provider'] ?? null,
-                'nlp_model' => $result['model'] ?? null,
-                'nlp_generation_metadata' => $result['metadata'] ? json_encode($result['metadata']) : null,
-                'nlp_job_id' => $result['jobId'] ?? null,
+                'nlp_job_status' => 'pending',
+                'nlp_job_progress' => 0,
+                'nlp_job_error' => null,
+                'nlp_job_started' => null,
+                'nlp_job_completed' => null,
                 'timemodified' => time()
             ]);
 
-            // Trigger event.
-            $event = \mod_classengage\event\questions_generated::create([
-                'objectid' => $slideid,
-                'context' => $context,
-                'other' => ['classengageid' => $classengage->id, 'count' => $result['count']]
+            // Create and queue the adhoc task.
+            $task = new \mod_classengage\task\generate_nlp_task();
+            $task->set_custom_data([
+                'slideid' => $slideid,
+                'classengageid' => $classengage->id,
+                'docid' => $docid,
+                'options' => $options,
+                'contextid' => $context->id
             ]);
-            $event->trigger();
+            $task->set_component('mod_classengage');
+
+            debugging("ClassEngage: Queuing adhoc task for slide {$slideid} with docid {$docid}", DEBUG_DEVELOPER);
+
+            \core\task\manager::queue_adhoc_task($task);
+
+            debugging("ClassEngage: Adhoc task queued successfully for slide {$slideid}", DEBUG_DEVELOPER);
 
             $response = [
                 'success' => true,
-                'status' => 'completed',
-                'count' => $result['count'],
-                'expected' => $safe_options['numQuestions'],
-                'provider' => $result['provider'],
-                'model' => $result['model'],
-                'jobId' => $result['jobId'] ?? null,
-                'message' => $result['count'] . ' questions generated successfully'
+                'status' => 'pending',
+                'progress' => 5,
+                'message' => 'Question generation queued successfully. Check status with nlpstatus action.'
             ];
-
-            // Include analysis if available
-            if (!empty($result['analysis'])) {
-                $response['analysis'] = $result['analysis'];
-            }
-
-            // Include plan summary if available
-            if (!empty($result['metadata']['plan'])) {
-                $response['plan'] = $result['metadata']['plan'];
-            }
             break;
 
         case 'generatenlp':
-            // SYNCHRONOUS NLP generation - directly calls the NLP service and waits for response.
+            // ASYNC NLP generation - queues adhoc task and returns immediately.
             require_capability('mod/classengage:uploadslides', $context);
 
             // Prevent duplicate generation if already running.
@@ -204,129 +148,58 @@ try {
                 break;
             }
 
-            try {
-                // Mark as running.
-                $DB->update_record('classengage_slides', (object) [
-                    'id' => $slideid,
-                    'nlp_job_status' => 'running',
-                    'nlp_job_progress' => 10,
-                    'nlp_job_error' => null,
-                    'nlp_job_started' => time(),
-                    'timemodified' => time()
-                ]);
-
-                // Get the stored file.
-                $fs = get_file_storage();
-                $files = $fs->get_area_files($context->id, 'mod_classengage', 'slides', $slideid, 'id', false);
-
-                if (empty($files)) {
-                    throw new Exception('Slide file not found');
-                }
-
-                $file = reset($files);
-
-                // Generate questions via NLP service (synchronous call).
-                require_once(__DIR__ . '/classes/nlp_generator.php');
-                $generator = new \mod_classengage\nlp_generator();
-                $questions = $generator->generate_questions_from_file($file, $classengage->id, $slideid);
-
-                // Update slide with success.
-                $DB->update_record('classengage_slides', (object) [
-                    'id' => $slideid,
-                    'status' => 'completed',
-                    'nlp_job_status' => 'completed',
-                    'nlp_job_progress' => 100,
-                    'nlp_questions_count' => count($questions),
-                    'nlp_job_completed' => time(),
-                    'timemodified' => time()
-                ]);
-
-                // Trigger event.
-                $event = \mod_classengage\event\questions_generated::create([
-                    'objectid' => $slideid,
-                    'context' => $context,
-                    'other' => ['classengageid' => $classengage->id, 'count' => count($questions)]
-                ]);
-                $event->trigger();
-
-                $response = [
-                    'success' => true,
-                    'status' => 'completed',
-                    'progress' => 100,
-                    'count' => count($questions),
-                    'message' => count($questions) . ' questions generated successfully'
-                ];
-
-            } catch (Exception $e) {
-                // Update slide with failure.
-                $DB->update_record('classengage_slides', (object) [
-                    'id' => $slideid,
-                    'nlp_job_status' => 'failed',
-                    'nlp_job_error' => $e->getMessage(),
-                    'nlp_job_completed' => time(),
-                    'timemodified' => time()
-                ]);
-
-                $response = [
-                    'success' => false,
-                    'status' => 'failed',
-                    'error' => $e->getMessage()
-                ];
+            // Check if already completed - allow regeneration by resetting first
+            if (($slide->nlp_job_status ?? 'idle') === 'completed') {
+                // Clear existing questions to allow regeneration
+                $DB->delete_records('classengage_questions', ['slideid' => $slideid]);
             }
-            break;
 
-        case 'nlpstatus':
-            // "Smart Long-Polling" endpoint.
-            // 1. Client holds connection open (wait=true).
-            // 2. Server polls internal service.
-            // 3. Returns immediately on change or timeout.
+            // Mark as pending and enqueue adhoc task.
+            $DB->update_record('classengage_slides', (object) [
+                'id' => $slideid,
+                'nlp_job_status' => 'pending',
+                'nlp_job_progress' => 0,
+                'nlp_job_error' => null,
+                'nlp_job_started' => null,
+                'nlp_job_completed' => null,
+                'timemodified' => time()
+            ]);
 
-            require_capability('mod/classengage:uploadslides', $context);
-            $wait = optional_param('wait', false, PARAM_BOOL);
-
-            // Close session lock immediately so UI remains responsive in other tabs.
-            \core\session\manager::write_close();
-
-            $maxwidth = 15; // Max hold time in seconds
-            $starttime = time();
-
-            require_once(__DIR__ . '/classes/nlp_generator.php');
-            $generator = new \mod_classengage\nlp_generator();
-
-            while (true) {
-                // Check current DB status
-                $slide = $DB->get_record('classengage_slides', ['id' => $slideid], '*', MUST_EXIST);
-                $dbtimemodified = $slide->timemodified;
-
-                // Sync with NLP service to get latest truth
-                $generator->check_and_update_job_status($slideid);
-
-                // Re-fetch to see if anything changed
-                $slide = $DB->get_record('classengage_slides', ['id' => $slideid], '*', MUST_EXIST);
-
-                // If finished, failed, or progress changed significantly, break and return
-                // Or if we are not in 'wait' mode (standard poll), break immediately
-                if (
-                    !$wait ||
-                    $slide->nlp_job_status === 'completed' ||
-                    $slide->nlp_job_status === 'failed' ||
-                    $slide->timemodified > $dbtimemodified
-                ) {
-                    break;
-                }
-
-                // Timeout check
-                if (time() - $starttime >= $maxwidth) {
-                    break;
-                }
-
-                sleep(2); // Wait before next internal check
-            }
+            // Create and queue the adhoc task - it will do inspection internally.
+            $task = new \mod_classengage\task\generate_nlp_task();
+            $task->set_custom_data([
+                'slideid' => $slideid,
+                'classengageid' => $classengage->id,
+                'docid' => null, // Will be determined by task
+                'options' => [], // Default options for simple generation
+                'contextid' => $context->id
+            ]);
+            $task->set_component('mod_classengage');
+            \core\task\manager::queue_adhoc_task($task);
 
             $response = [
                 'success' => true,
-                'status' => $slide->nlp_job_status ?? 'idle',
-                'progress' => (int) ($slide->nlp_job_progress ?? 0)
+                'status' => 'pending',
+                'message' => 'Question generation started. This may take a few minutes depending on the AI provider.'
+            ];
+            break;
+
+        case 'nlpstatus':
+            // Poll endpoint for job status.
+            require_capability('mod/classengage:uploadslides', $context);
+
+            $slide = $DB->get_record('classengage_slides', ['id' => $slideid], '*', MUST_EXIST);
+
+            $status = $slide->nlp_job_status ?? 'idle';
+            $progress = (int) ($slide->nlp_job_progress ?? 0);
+
+            // Debug logging to help diagnose stuck jobs.
+            debugging("ClassEngage nlpstatus: slide={$slideid} status={$status} progress={$progress}", DEBUG_DEVELOPER);
+
+            $response = [
+                'success' => true,
+                'status' => $status,
+                'progress' => $progress
             ];
 
             if (($slide->nlp_job_status ?? 'idle') === 'completed') {
@@ -339,14 +212,16 @@ try {
                     $response['duration'] = (int) $slide->nlp_job_completed - (int) $slide->nlp_job_started;
                 }
 
-                // Parse metadata for distribution info
+                // Parse metadata for additional info
                 if (!empty($slide->nlp_generation_metadata)) {
                     $meta = json_decode($slide->nlp_generation_metadata, true);
                     if ($meta) {
                         $response['metadata'] = [
-                            'chunks' => $meta['chunksProcessed'] ?? null,
-                            'tokensUsed' => $meta['tokensUsed'] ?? null,
-                            'analysisTime' => $meta['analysisTime'] ?? null,
+                            'generated' => $meta['generated'] ?? null,
+                            'expected' => $meta['requested'] ?? null,
+                            'selectedSlides' => $meta['selectedSlides'] ?? [],
+                            'selectedImages' => $meta['selectedImages'] ?? [],
+                            'plan' => $meta['plan'] ?? null,
                         ];
                     }
                 }

@@ -507,13 +507,15 @@ define([
         },
         dataType: "json",
         success: function (response) {
-          if (response.success && response.status === "running") {
-            // Job started, begin Smart Polling
+          if (response.success && (response.status === "running" || response.status === "pending")) {
+            // Job started (or queued), begin Smart Polling
             self.updateProgress(5, "Job queued...");
             self.pollStatus(0);
           } else if (response.success && response.status === "completed") {
             self.updateProgress(100, "Done!");
             self.showSuccess(response);
+          } else if (response.success === false && response.error) {
+            self.showError(response.error);
           } else {
             self.showError(
               response.error || "Unknown error starting generation",
@@ -603,14 +605,27 @@ define([
               }
             } else if (response.status === "failed") {
               self.showError(response.error);
-            } else {
-              // Still running - update UI and poll again IMMEDIATELY
+            } else if (response.status === "pending" || response.status === "running") {
+              // Job is queued or running - update UI and poll again
               var progress = response.progress || 0;
-              if (progress < 10) {
-                progress = 10;
+              var statusText = response.status === "pending" ? "Waiting in queue..." : "Generating...";
+              if (progress < 5) {
+                progress = 5;
               }
 
-              self.updateProgress(progress, "Generating...");
+              self.updateProgress(progress, statusText);
+              $("#floater-percent").text(progress + "%");
+
+              // Call immediately for next long-poll window
+              self.pollStatus(0);
+            } else {
+              // Unknown status - still poll but show generic message
+              progress = response.progress || 0;
+              if (progress < 5) {
+                progress = 5;
+              }
+
+              self.updateProgress(progress, "Processing...");
               $("#floater-percent").text(progress + "%");
 
               // Call immediately for next long-poll window

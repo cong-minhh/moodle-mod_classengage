@@ -49,7 +49,7 @@ class generate_nlp_task extends \core\task\adhoc_task
      */
     public function get_name(): string
     {
-        return get_string('task:generatenlp', 'mod_classengage');
+        return \get_string('task:generatenlp', 'mod_classengage');
     }
 
     /**
@@ -62,88 +62,106 @@ class generate_nlp_task extends \core\task\adhoc_task
     {
         global $DB;
 
-        $data = $this->get_custom_data();
-        $slideid = $data->slideid;
-        $contextid = $data->contextid;
-        $classengageid = $data->classengageid;
-
         $starttime = microtime(true);
-        mtrace("ClassEngage NLP: Starting generation for slide {$slideid}");
-
-        // IDEMPOTENCY: Exit early if slide no longer exists or already completed.
-        $slide = $DB->get_record('classengage_slides', ['id' => $slideid]);
-        if (!$slide) {
-            mtrace("ClassEngage NLP: Slide {$slideid} not found, aborting");
-            return;
-        }
-
-        if ($slide->nlp_job_status === 'completed') {
-            mtrace("ClassEngage NLP: Slide {$slideid} already completed, skipping");
-            return;
-        }
-
-        // Mark as running with timestamp.
-        $this->update_slide_status($slideid, 'running', 10, null, [
-            'nlp_job_started' => time(),
-            'nlp_job_error' => null
-        ]);
+        $slideid = 0;
+        $contextid = 0;
+        $classengageid = 0;
+        $docid = null;
+        $options = [];
 
         try {
+            $data = $this->get_custom_data();
+
+            // Validate custom data exists.
+            if (empty($data)) {
+                \mtrace("ClassEngage NLP: ERROR - No custom data provided to task");
+                throw new \Exception('Task custom data is empty');
+            }
+
+            // Extract and validate required fields.
+            $slideid = (int)($data->slideid ?? 0);
+            $contextid = (int)($data->contextid ?? 0);
+            $classengageid = (int)($data->classengageid ?? 0);
+            $docid = $data->docid ?? null;
+            $options = (array)($data->options ?? []);
+
+            if ($slideid <= 0) {
+                \mtrace("ClassEngage NLP: ERROR - Invalid slide ID: {$slideid}");
+                throw new \Exception('Invalid slide ID in task data');
+            }
+
+            // IDEMPOTENCY: Exit early if slide no longer exists.
+            $slide = $DB->get_record('classengage_slides', ['id' => $slideid]);
+            if (!$slide) {
+                \mtrace("ClassEngage NLP: Slide {$slideid} not found, aborting");
+                return;
+            }
+
+            \mtrace("ClassEngage NLP: Slide {$slideid} found, current status: " . ($slide->nlp_job_status ?? 'null'));
+
+            // Exit early if already completed.
+            if ($slide->nlp_job_status === 'completed') {
+                \mtrace("ClassEngage NLP: Slide {$slideid} already completed, skipping");
+                return;
+            }
+
+            // Mark as running with timestamp - this is critical for UI feedback.
+            \mtrace("ClassEngage NLP: Updating slide {$slideid} status to 'running' at 10%");
+            $this->update_slide_status($slideid, 'running', 10, null, [
+                'nlp_job_started' => time(),
+                'nlp_job_error' => null
+            ]);
+
+            // Verify the update worked.
+            $verify = $DB->get_record('classengage_slides', ['id' => $slideid], 'nlp_job_status, nlp_job_progress');
+            if ($verify) {
+                \mtrace("ClassEngage NLP: Status updated to {$verify->nlp_job_status} at {$verify->nlp_job_progress}%");
+            }
+
             // Progress: 10% - Starting.
             $this->log_progress($slideid, 10, 'Initializing NLP engine...');
 
-            // Get the stored file.
-            $fs = get_file_storage();
-            $context = \context::instance_by_id($contextid);
-            $files = $fs->get_area_files($contextid, 'mod_classengage', 'slides', $slideid, 'id', false);
+            // Get the stored file for inspection if docid not provided.
+            if (empty($docid)) {
+                $this->log_progress($slideid, 15, 'Inspecting document...');
+                $fs = get_file_storage();
+                $context = \context::instance_by_id($contextid);
+                $files = $fs->get_area_files($contextid, 'mod_classengage', 'slides', $slideid, 'id', false);
 
-            if (empty($files)) {
-                throw new \Exception('Slide file not found');
+                if (empty($files)) {
+                    throw new \Exception('Slide file not found');
+                }
+
+                $file = reset($files);
+
+                require_once(__DIR__ . '/../nlp_generator.php');
+                $generator = new \mod_classengage\nlp_generator();
+                $inspection = $generator->inspect_document($file);
+                $docid = $inspection['docId'];
+                \mtrace("ClassEngage NLP: Document inspected, docid: {$docid}");
             }
-
-            $file = reset($files);
-
-            // Progress: 20% - File loaded.
-            $this->update_slide_status($slideid, 'running', 20);
-            $this->log_progress($slideid, 20, 'Analyzing slide content...');
 
             // Progress: 40% - Pre-processing.
             $this->update_slide_status($slideid, 'running', 40);
-            $this->log_progress($slideid, 40, 'Inspecting document...');
+            $this->log_progress($slideid, 40, 'Processing document content...');
 
-            // Generate questions via NLP service using async flow.
+            // Generate questions via internal PHP NLP engine.
             require_once(__DIR__ . '/../nlp_generator.php');
             $generator = new \mod_classengage\nlp_generator();
 
-            // First inspect the document to get docId.
-            $inspection = $generator->inspect_document($file);
-            $docid = $inspection['docId'] ?? null;
-
-            if (empty($docid)) {
-                throw new \Exception('Document inspection failed - no docId returned');
-            }
-
-            $this->log_progress($slideid, 50, 'Document inspected, starting generation...');
-
-            // Progress: 60% - NLP processing with async polling.
+            // Progress: 60% - NLP processing.
             $this->update_slide_status($slideid, 'running', 60);
-            $this->log_progress($slideid, 60, 'Processing with NLP engine (async)...');
+            $this->log_progress($slideid, 60, 'Generating questions with AI...');
 
-            // Use async generation with internal polling
-            // This is more robust - uses job queue on NLP service side
-            $result = $generator->generate_questions_async(
+            // Use internal generation (no external HTTP dependency).
+            $result = $generator->generate_questions_from_document(
                 $docid,
                 $classengageid,
                 $slideid,
-                [
-                    'numQuestions' => $data->numquestions ?? 10,
-                    'difficulty' => $data->difficulty ?? 'mixed'
-                ],
-                600,  // 10 minute max wait
-                3     // poll every 3 seconds
+                $options
             );
 
-            $questions = $result['questionids'] ?? [];
+            $questionids = $result['questionids'] ?? [];
 
             // Progress: 90% - Storing results.
             $this->update_slide_status($slideid, 'running', 90);
@@ -152,36 +170,53 @@ class generate_nlp_task extends \core\task\adhoc_task
             // Update slide with success.
             $duration = microtime(true) - $starttime;
             $this->update_slide_status($slideid, 'completed', 100, null, [
-                'status' => 'completed',
-                'nlp_questions_count' => count($questions),
-                'nlp_job_completed' => time()
+                'nlp_questions_count' => count($questionids),
+                'nlp_job_completed' => time(),
+                'nlp_provider' => $result['provider'] ?? null,
+                'nlp_model' => $result['model'] ?? null,
+                'nlp_generation_metadata' => !empty($result['metadata']) ? json_encode($result['metadata']) : null
             ]);
 
             // Log success for monitoring and capacity planning.
-            mtrace(sprintf(
-                "ClassEngage NLP: Completed slide %d - %d questions generated in %.2fs",
+            \mtrace(sprintf(
+                "ClassEngage NLP: Completed slide %d - %d questions generated in %.2fs using %s",
                 $slideid,
-                count($questions),
-                $duration
+                count($questionids),
+                $duration,
+                $result['provider'] ?? 'unknown'
             ));
 
+            // Purge Moodle caches to ensure questions appear immediately
+            \purge_caches();
+
             // Trigger event (once only per successful generation).
+            $context = \context::instance_by_id($contextid);
             $event = \mod_classengage\event\questions_generated::create([
                 'objectid' => $slideid,
                 'context' => $context,
-                'other' => ['classengageid' => $classengageid, 'count' => count($questions)]
+                'other' => ['classengageid' => $classengageid, 'count' => count($questionids)]
             ]);
             $event->trigger();
 
         } catch (\Exception $e) {
             $duration = microtime(true) - $starttime;
 
-            // Update slide with failure.
-            $this->update_slide_status($slideid, 'failed', $slide->nlp_job_progress ?? 0, $e->getMessage(), [
-                'nlp_job_completed' => time()
-            ]);
+            // Update slide with failure - use current progress if available.
+            $currentprogress = 10; // Default to 10% if we fail early
+            if ($slideid > 0) {
+                $slide = $DB->get_record('classengage_slides', ['id' => $slideid], 'nlp_job_progress, nlp_job_status');
+                if ($slide && $slide->nlp_job_status === 'running') {
+                    $currentprogress = (int)$slide->nlp_job_progress;
+                }
+            }
 
-            mtrace(sprintf(
+            if ($slideid > 0) {
+                $this->update_slide_status($slideid, 'failed', $currentprogress, $e->getMessage(), [
+                    'nlp_job_completed' => time()
+                ]);
+            }
+
+            \mtrace(sprintf(
                 "ClassEngage NLP: FAILED slide %d after %.2fs - %s",
                 $slideid,
                 $duration,
@@ -226,6 +261,6 @@ class generate_nlp_task extends \core\task\adhoc_task
      */
     private function log_progress(int $slideid, int $progress, string $message): void
     {
-        mtrace("ClassEngage NLP: Slide {$slideid} - {$progress}% - {$message}");
+        \mtrace("ClassEngage NLP: Slide {$slideid} - {$progress}% - {$message}");
     }
 }

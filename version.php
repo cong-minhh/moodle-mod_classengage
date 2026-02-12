@@ -25,8 +25,8 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'mod_classengage';
-$plugin->version = 2026012803;  // YYYYMMDDXX format - Async Generation UUID Support
+$plugin->version = 2026021200;  // YYYYMMDDXX format - PHP Native NLP Engine
 $plugin->requires = 2022041900; // Moodle 4.0 or later
 $plugin->maturity = MATURITY_BETA;
-$plugin->release = 'v1.8.1-beta';
+$plugin->release = 'v2.0.0-beta';
 

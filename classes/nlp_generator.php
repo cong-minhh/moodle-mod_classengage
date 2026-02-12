@@ -15,10 +15,17 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * NLP question generation class (stub implementation)
+ * Internal NLP question generation engine for ClassEngage.
+ *
+ * This class replaces the external Node.js HTTP dependency with an
+ * in-plugin PHP pipeline for:
+ * - Document inspection (PDF, PPTX, DOCX, TXT)
+ * - Image extraction and pluginfile delivery
+ * - Multi-provider LLM generation
+ * - Session analytics insights
  *
  * @package    mod_classengage
- * @copyright  2025 Danielle
+ * @copyright  2026 Danielle
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -26,587 +33,2367 @@ namespace mod_classengage;
 
 defined('MOODLE_INTERNAL') || die();
 
-require_once($CFG->libdir . '/filelib.php');
-
 /**
- * NLP question generator class
+ * NLP generator class.
  */
-class nlp_generator
-{
+class nlp_generator {
+    /** @var string Temporary cache subdirectory name. */
+    private const CACHE_SUBDIR = 'mod_classengage_nlp';
+    /** @var string File area used for extracted image assets. */
+    private const ASSET_FILEAREA = 'nlpassets';
+    /** @var array Supported provider identifiers. */
+    private const PROVIDERS = ['gemini', 'openai', 'anthropic', 'deepseek', 'kimi', 'kimicn', 'local'];
 
     /**
-     * Generate quiz questions from file using NLP service
-     * This is the main entry point - sends file directly to Node.js service
+     * Inspect document content and return pages/images inventory.
      *
      * @param \stored_file $file Moodle stored file
-     * @param int $classengageid Activity instance ID
-     * @param int $slideid Slide ID
-     * @param int $numquestions Number of questions to generate (optional)
-     * @return array Array of generated question IDs
+     * @return array
      */
-    /**
-     * Inspect document content to get structure (pages/images)
-     * 
-     * @param \stored_file $file Moodle stored file
-     * @return array Document inspection result with docId and pages
-     */
-    public function inspect_document($file)
-    {
-        $endpoint = '/api/documents/inspect';
+    public function inspect_document($file) {
+        if (!$file instanceof \stored_file) {
+            throw new \Exception('Invalid file object for inspection');
+        }
 
-        // Create temporary file from stored_file
-        $tmpfile = tempnam(sys_get_temp_dir(), 'moodle_nlp_inspect_');
-        $file->copy_content_to($tmpfile);
+        $docid = $this->build_doc_id($file);
+        $slideid = (int)$file->get_itemid();
+        $contextid = (int)$file->get_contextid();
+
+        // Check cache but validate it has actual content.
+        $cached = $this->load_doc_cache($docid);
+        if (!empty($cached) && (int)($cached['slideId'] ?? 0) === $slideid) {
+            $pages = $cached['pages'] ?? [];
+            // Only use cache if it has actual pages with content.
+            if (!empty($pages) && is_array($pages)) {
+                // Check at least first page has text or images.
+                $firstPage = $pages[0] ?? null;
+                if ($firstPage && (!empty($firstPage['text']) || !empty($firstPage['images']))) {
+                    \debugging("ClassEngage NLP: Using cached inspection for docid=$docid", \DEBUG_DEVELOPER);
+                    return [
+                        'docId' => $docid,
+                        'pages' => $pages,
+                    ];
+                }
+            }
+            \debugging("ClassEngage NLP: Cache invalid (empty content), re-inspecting docid=$docid", \DEBUG_DEVELOPER);
+        }
+
+        $tmpfile = $this->create_temp_copy($file);
+        $filename = $file->get_filename();
+        $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
 
         try {
-            $postdata = array(
-                'file' => new \CURLFile($tmpfile, $file->get_mimetype(), $file->get_filename())
-            );
+            switch ($extension) {
+                case 'pdf':
+                    $pages = $this->inspect_pdf($tmpfile, $contextid, $slideid, $docid);
+                    break;
+                case 'pptx':
+                    $pages = $this->inspect_pptx($tmpfile, $contextid, $slideid, $docid);
+                    break;
+                case 'docx':
+                    $pages = $this->inspect_docx($tmpfile, $contextid, $slideid, $docid);
+                    break;
+                case 'txt':
+                    $pages = $this->inspect_text($tmpfile);
+                    break;
+                default:
+                    // Best-effort fallback for unsupported extensions.
+                    $pages = $this->inspect_binary_fallback($tmpfile);
+            }
 
-            // We need to construct multipart manually to handle file upload correctly with Moodle's curl class
-            // or use the helper method similar to generate_questions_from_file
+            $cachedata = [
+                'docId' => $docid,
+                'slideId' => $slideid,
+                'contextId' => $contextid,
+                'filename' => $filename,
+                'mimetype' => $file->get_mimetype(),
+                'pages' => $pages,
+                'createdAt' => time(),
+            ];
 
-            $boundary = '----WebKitFormBoundary' . uniqid();
-            $delimiter = "\r\n";
+            $this->save_doc_cache($docid, $cachedata);
 
-            $body = '';
-            // Add file
-            $body .= '--' . $boundary . $delimiter;
-            $body .= 'Content-Disposition: form-data; name="file"; filename="' . $file->get_filename() . '"' . $delimiter;
-            $body .= 'Content-Type: ' . $file->get_mimetype() . $delimiter . $delimiter;
-            $body .= file_get_contents($tmpfile) . $delimiter;
-            $body .= '--' . $boundary . '--' . $delimiter;
-
-            $headers = array('Content-Type: multipart/form-data; boundary=' . $boundary);
-
-            $response = $this->call_api($endpoint, $body, 'POST', $headers);
-            return $response;
-
+            return [
+                'docId' => $docid,
+                'pages' => $pages,
+            ];
         } finally {
-            if (file_exists($tmpfile)) {
-                unlink($tmpfile);
+            if (is_file($tmpfile)) {
+                @unlink($tmpfile);
             }
         }
     }
 
     /**
-     * Generate questions from a previously inspected document
-     * 
-     * @param string $docid Document ID from inspection
+     * Clear the inspection cache for a document.
+     *
+     * @param string $docid Document ID
+     * @return bool True if cache was cleared
+     */
+    public function clear_doc_cache(string $docid): bool {
+        $dir = \make_temp_directory(self::CACHE_SUBDIR);
+        $path = $dir . '/' . $docid . '.json';
+        if (is_file($path)) {
+            return @unlink($path);
+        }
+        return false;
+    }
+
+    /**
+     * Generate questions from an inspected document and store in DB.
+     *
+     * @param string $docid
      * @param int $classengageid
      * @param int $slideid
-     * @param array $options Generation options (includeSlides, includeImages, etc.)
-     * @return array Result with 'questionids', 'metadata', 'provider', 'model', 'analysis'
+     * @param array $options
+     * @return array
      */
-    public function generate_questions_from_document($docid, $classengageid, $slideid, $options = [])
-    {
-        $endpoint = '/api/documents/generate';
+    public function generate_questions_from_document($docid, $classengageid, $slideid, $options = []) {
+        $cache = $this->load_doc_cache($docid);
+        if (empty($cache)) {
+            throw new \Exception('Document not found in local inspection cache');
+        }
 
-        $payload = array(
-            'docId' => $docid,
-            'options' => $options
+        if ((int)($cache['slideId'] ?? 0) !== (int)$slideid) {
+            throw new \Exception('Document/slide mismatch');
+        }
+
+        $generationinput = $this->build_generation_input($cache, $options);
+        $text = $generationinput['text'];
+        $images = $generationinput['images'];
+
+        if (trim($text) === '' && empty($images)) {
+            throw new \Exception('No selected content available for generation');
+        }
+
+        $numquestions = (int)($options['numQuestions'] ?? \get_config('mod_classengage', 'defaultquestions') ?: 10);
+        if ($numquestions < 1) {
+            $numquestions = 1;
+        }
+
+        $prompt = $this->build_generation_prompt($text, $images, $options, $numquestions);
+        $providerresponse = $this->request_provider_response($prompt, $images, 'questions');
+
+        $parsed = $this->parse_questions_response(
+            $providerresponse['text'],
+            $numquestions,
+            $images,
+            $generationinput['selectedslides'],
+            $options
         );
 
-        // Ensure defaults
-        if (!isset($payload['options']['numQuestions'])) {
-            $payload['options']['numQuestions'] = get_config('mod_classengage', 'defaultquestions') ?: 10;
-        }
+        $questionids = $this->store_questions($parsed['questions'], $classengageid, $slideid);
 
-        $response = $this->call_api($endpoint, json_encode($payload), 'POST', ['Content-Type: application/json']);
+        $metadata = [
+            'provider' => $providerresponse['provider'],
+            'model' => $providerresponse['model'],
+            'requested' => $numquestions,
+            'generated' => count($questionids),
+            'selectedSlides' => $generationinput['selectedslides'],
+            'selectedImages' => array_values(array_map(static function(array $img): string {
+                return $img['imageId'];
+            }, $images)),
+            'plan' => $this->build_plan_metadata($options),
+            'generatedAt' => time(),
+        ];
 
-        if (empty($response['questions'])) {
-            throw new \Exception('NLP service returned no questions');
-        }
-
-        $questionids = $this->store_questions($response['questions'], $classengageid, $slideid);
-
-        // Return extended response with metadata
         return [
             'questionids' => $questionids,
             'count' => count($questionids),
-            'provider' => $response['provider'] ?? null,
-            'model' => $response['metadata']['model'] ?? null,
-            'analysis' => $response['analysis'] ?? null,
-            'metadata' => $response['metadata'] ?? null
+            'provider' => $providerresponse['provider'],
+            'model' => $providerresponse['model'],
+            'analysis' => $parsed['analysis'],
+            'metadata' => $metadata,
         ];
     }
 
     /**
-     * Start async question generation from a document (non-blocking)
-     * Returns immediately with a job ID for polling.
-     * 
-     * @param string $docid Document ID from prior inspection
-     * @param array $options Generation options
-     * @return array Contains 'jobId', 'statusUrl', 'resultUrl'
+     * Compatibility stub for legacy async contract.
+     *
+     * @param string $docid
+     * @param array $options
+     * @return array
      */
-    public function start_async_generation($docid, $options = [])
-    {
-        $endpoint = '/api/documents/generate-async';
-
-        $payload = array(
+    public function start_async_generation($docid, $options = []) {
+        return [
+            'jobId' => null,
             'docId' => $docid,
-            'options' => $options
-        );
-
-        // Ensure defaults
-        if (!isset($payload['options']['numQuestions'])) {
-            $payload['options']['numQuestions'] = get_config('mod_classengage', 'defaultquestions') ?: 10;
-        }
-
-        $response = $this->call_api_extended(
-            $endpoint,
-            json_encode($payload),
-            'POST',
-            ['Content-Type: application/json'],
-            30,   // Short timeout - this returns quickly
-            [200, 202]  // Accept both 200 and 202
-        );
-
-        if (empty($response['jobId'])) {
-            throw new \Exception('NLP service did not return a jobId');
-        }
-
-        return [
-            'jobId' => $response['jobId'],
-            'docId' => $response['docId'] ?? $docid,
-            'statusUrl' => $response['statusUrl'] ?? null,
-            'resultUrl' => $response['resultUrl'] ?? null,
-            'message' => $response['message'] ?? 'Job queued'
+            'statusUrl' => null,
+            'resultUrl' => null,
+            'message' => 'Local PHP mode uses Moodle adhoc tasks for async execution',
         ];
     }
 
     /**
-     * Poll job status from NLP service
-     * 
-     * @param string $jobid Job ID from start_async_generation
-     * @return array Job status with 'status', 'progress', 'error'
+     * Compatibility stub for legacy async contract.
+     *
+     * @param string $jobid
+     * @return array
      */
-    public function poll_job_status($jobid)
-    {
-        $endpoint = '/api/jobs/' . urlencode($jobid);
-
-        $response = $this->call_api_extended(
-            $endpoint,
-            '',
-            'GET',
-            ['Content-Type: application/json'],
-            15  // Short timeout for status checks
-        );
-
+    public function poll_job_status($jobid) {
         return [
-            'status' => $response['job']['status'] ?? 'unknown',
-            'progress' => $response['job']['progress'] ?? 0,
-            'error' => $response['job']['error'] ?? null,
-            'createdAt' => $response['job']['createdAt'] ?? null,
-            'startedAt' => $response['job']['startedAt'] ?? null,
-            'completedAt' => $response['job']['completedAt'] ?? null
+            'status' => 'unknown',
+            'progress' => 0,
+            'error' => null,
+            'createdAt' => null,
+            'startedAt' => null,
+            'completedAt' => null,
         ];
     }
 
     /**
-     * Get completed job result from NLP service
-     * 
-     * @param string $jobid Job ID
-     * @return array The job result containing questions
+     * Compatibility stub for legacy async contract.
+     *
+     * @param string $jobid
+     * @return array
      */
-    public function get_job_result($jobid)
-    {
-        $endpoint = '/api/jobs/' . urlencode($jobid) . '/result';
-
-        $response = $this->call_api($endpoint, '', 'GET', ['Content-Type: application/json']);
-
-        if (empty($response['result'])) {
-            throw new \Exception('Job result is empty or job not completed');
-        }
-
-        return $response['result'];
+    public function get_job_result($jobid) {
+        throw new \Exception('External NLP job result endpoint is not available in local PHP mode');
     }
 
     /**
-     * Check remote job status and update the local database (On-Demand Sync)
-     * Used by Long-Polling endpoint.
-     * 
+     * No-op in local PHP mode (status is updated directly by adhoc task).
+     *
      * @param int $slideid
      * @return void
      */
-    public function check_and_update_job_status($slideid)
-    {
-        global $DB;
-
-        $slide = $DB->get_record('classengage_slides', ['id' => $slideid], '*', MUST_EXIST);
-
-        // Only check if we have a job ID and it's not already final
-        if (empty($slide->nlp_job_id) || in_array($slide->nlp_job_status, ['completed', 'failed', 'idle'])) {
-            return;
-        }
-
-        try {
-            $status = $this->poll_job_status($slide->nlp_job_id);
-
-            // Has it changed?
-            $status_changed = ($slide->nlp_job_status !== $status['status']);
-            $progress_changed = (abs($slide->nlp_job_progress - $status['progress']) >= 5); // 5% granularity update
-
-            if ($status_changed || $progress_changed) {
-                // Don't overwrite if it just finished concurrently, handled by lock usually but being safe
-                $update = new \stdClass();
-                $update->id = $slide->id;
-                $update->nlp_job_status = $status['status'];
-                $update->nlp_job_progress = $status['progress'];
-                $update->timemodified = time(); // Important for long-poll loop detection
-
-                if ($status['status'] === 'failed') {
-                    $update->nlp_job_error = $status['error'];
-                }
-
-                $DB->update_record('classengage_slides', $update);
-
-                // If completed, fetch results immediately
-                if ($status['status'] === 'completed') {
-                    $result = $this->get_job_result($slide->nlp_job_id);
-                    $classengage = $DB->get_record('classengage', ['id' => $slide->classengageid]);
-
-                    // Transaction to store questions safely
-                    $transaction = $DB->start_delegated_transaction();
-                    $questionids = $this->store_questions($result['questions'], $classengage->id, $slideid);
-
-                    $final_update = new \stdClass();
-                    $final_update->id = $slide->id;
-                    $final_update->nlp_questions_count = count($questionids);
-                    $final_update->nlp_job_completed = time();
-                    $final_update->nlp_provider = $result['provider'] ?? null;
-                    $final_update->nlp_model = $result['metadata']['model'] ?? null;
-                    $final_update->nlp_generation_metadata = isset($result['metadata']) ? json_encode($result['metadata']) : null;
-                    $DB->update_record('classengage_slides', $final_update);
-
-                    $transaction->allow_commit();
-                }
-            }
-
-        } catch (\Exception $e) {
-            // Log but don't crash the poll loop - maybe network blip
-            debugging("Error updating job status for slide $slideid: " . $e->getMessage(), DEBUG_DEVELOPER);
-        }
+    public function check_and_update_job_status($slideid) {
+        return;
     }
 
     /**
-     * Complete async generation flow: poll until done, then store questions
-     * This is the robust replacement for synchronous generation.
-     * 
-     * @param string $docid Document ID
-     * @param int $classengageid Activity instance ID
-     * @param int $slideid Slide ID
-     * @param array $options Generation options
-     * @param int $maxwait Maximum seconds to wait (default 600 = 10 minutes)
-     * @param int $pollinterval Seconds between polls (default 2)
-     * @return array Result with 'questionids', 'metadata', etc.
+     * Compatibility wrapper for older call sites.
+     *
+     * @param string $docid
+     * @param int $classengageid
+     * @param int $slideid
+     * @param array $options
+     * @param int $maxwait
+     * @param int $pollinterval
+     * @return array
      */
-    public function generate_questions_async($docid, $classengageid, $slideid, $options = [], $maxwait = 600, $pollinterval = 2)
-    {
-        // 1. Start async job
-        $jobinfo = $this->start_async_generation($docid, $options);
-        $jobid = $jobinfo['jobId'];
+    public function generate_questions_async($docid, $classengageid, $slideid, $options = [], $maxwait = 600, $pollinterval = 2) {
+        $result = $this->generate_questions_from_document($docid, $classengageid, $slideid, $options);
+        $result['jobId'] = null;
+        return $result;
+    }
 
-        // 2. Poll until complete (with timeout)
-        $starttime = time();
-        $laststatus = null;
-
-        while (true) {
-            $elapsed = time() - $starttime;
-            if ($elapsed > $maxwait) {
-                throw new \Exception("Generation timed out after {$maxwait} seconds (job: {$jobid})");
-            }
-
-            $status = $this->poll_job_status($jobid);
-            $laststatus = $status;
-
-            if ($status['status'] === 'completed') {
-                break;
-            }
-
-            if ($status['status'] === 'failed') {
-                $errmsg = $status['error'] ?? 'Unknown error';
-                throw new \Exception("Generation failed: {$errmsg}");
-            }
-
-            if ($status['status'] === 'cancelled') {
-                throw new \Exception('Generation was cancelled');
-            }
-
-            // Wait before next poll
-            sleep($pollinterval);
+    /**
+     * Generate questions from raw text and store in DB.
+     *
+     * @param string $text
+     * @param int $classengageid
+     * @param int $numquestions
+     * @param string $difficulty
+     * @return array
+     */
+    public function generate_questions_from_text($text, $classengageid, $numquestions = 10, $difficulty = 'medium') {
+        $text = trim((string)$text);
+        if ($text === '') {
+            throw new \Exception('Text content cannot be empty');
         }
 
-        // 3. Get result
-        $result = $this->get_job_result($jobid);
+        $options = [
+            'numQuestions' => max(1, (int)$numquestions),
+            'difficulty' => $difficulty,
+            'bloomLevel' => 'apply',
+        ];
 
-        if (empty($result['questions'])) {
-            throw new \Exception('NLP service returned no questions');
+        $prompt = $this->build_generation_prompt($text, [], $options, (int)$options['numQuestions']);
+        $providerresponse = $this->request_provider_response($prompt, [], 'questions');
+        $parsed = $this->parse_questions_response($providerresponse['text'], (int)$options['numQuestions'], [], [], $options);
+
+        return $this->store_questions($parsed['questions'], $classengageid, 0);
+    }
+
+    /**
+     * Analyze session data using configured LLM providers.
+     *
+     * @param array $sessiondata
+     * @param array $options
+     * @return array
+     */
+    public function analyze_session($sessiondata, $options = []) {
+        $prompt = $this->build_analysis_prompt($sessiondata, $options);
+        $response = $this->request_provider_response($prompt, [], 'text');
+
+        $parsed = $this->try_decode_json_payload($response['text']);
+        if (!is_array($parsed)) {
+            return [
+                'summary' => 'Analysis generated but provider did not return valid JSON.',
+                'strengths' => ['Could not parse AI output into the expected structure.'],
+                'areas_for_improvement' => [],
+                'actionable_advice' => ['Please retry analysis or switch provider settings.'],
+                'provider' => $response['provider'],
+                'model' => $response['model'],
+            ];
         }
-
-        // 4. Store questions
-        $questionids = $this->store_questions($result['questions'], $classengageid, $slideid);
 
         return [
-            'questionids' => $questionids,
-            'count' => count($questionids),
-            'jobId' => $jobid,
-            'provider' => $result['provider'] ?? null,
-            'model' => $result['metadata']['model'] ?? null,
-            'analysis' => $result['analysis'] ?? null,
-            'metadata' => $result['metadata'] ?? null
+            'summary' => (string)($parsed['summary'] ?? ''),
+            'strengths' => $this->normalize_string_list($parsed['strengths'] ?? []),
+            'areas_for_improvement' => $this->normalize_string_list($parsed['areas_for_improvement'] ?? []),
+            'actionable_advice' => $this->normalize_string_list($parsed['actionable_advice'] ?? []),
+            'provider' => $response['provider'],
+            'model' => $response['model'],
         ];
     }
 
     /**
-     * Generate questions from raw text
-     * 
-     * @param string $text Content text
+     * Legacy compatibility: inspect + generate from full document.
+     *
+     * @param \stored_file $file
      * @param int $classengageid
-     * @param int $numquestions
-     * @param string $difficulty
-     * @return array Array of generated question IDs
+     * @param int $slideid
+     * @param int|null $numquestions
+     * @return array
      */
-    public function generate_questions_from_text($text, $classengageid, $numquestions = 10, $difficulty = 'medium')
-    {
-        $endpoint = '/api/generate';
+    public function generate_questions_from_file($file, $classengageid, $slideid, $numquestions = null) {
+        $inspection = $this->inspect_document($file);
+        $options = [
+            'numQuestions' => $numquestions === null
+                ? ((int)(\get_config('mod_classengage', 'defaultquestions') ?: 10))
+                : max(1, (int)$numquestions),
+            'difficulty' => 'mixed',
+            'bloomLevel' => 'apply',
+        ];
 
-        $payload = array(
-            'text' => $text,
-            'numQuestions' => $numquestions,
-            'difficulty' => $difficulty
-        );
-
-        $response = $this->call_api($endpoint, json_encode($payload), 'POST', ['Content-Type: application/json']);
-
-        if (empty($response['questions'])) {
-            throw new \Exception('NLP service returned no questions');
-        }
-
-        // For text generation, slideid is 0 (or null)
-        return $this->store_questions($response['questions'], $classengageid, 0);
+        $result = $this->generate_questions_from_document($inspection['docId'], $classengageid, $slideid, $options);
+        return $result['questionids'];
     }
 
     /**
-     * Analyze class session data using AI
-     * 
-     * @param array $sessiondata
-     * @param array $options
-     * @return array Analysis result
+     * Check if required PDF tools are available.
+     *
+     * @return array Status of each tool
      */
-    public function analyze_session($sessiondata, $options = [])
-    {
-        $endpoint = '/api/analyze-session';
+    public function check_pdf_tools(): array {
+        $status = [
+            'pdftotext' => false,
+            'pdfinfo' => false,
+            'imagick' => false,
+            'shell_exec' => false,
+        ];
 
-        $payload = array(
-            'session_data' => $sessiondata,
-            'options' => $options
-        );
+        if (function_exists('shell_exec')) {
+            $status['shell_exec'] = true;
+            $status['pdftotext'] = !empty(shell_exec('which pdftotext 2>/dev/null'));
+            $status['pdfinfo'] = !empty(shell_exec('which pdfinfo 2>/dev/null'));
+        }
 
-        return $this->call_api($endpoint, json_encode($payload), 'POST', ['Content-Type: application/json']);
+        $status['imagick'] = class_exists('\Imagick');
+
+        return $status;
     }
 
     /**
-     * Legacy method for backward compatibility
+     * Inspect PDF file.
+     *
+     * @param string $filepath
+     * @param int $contextid
+     * @param int $slideid
+     * @param string $docid
+     * @return array
      */
-    public function generate_questions_from_file($file, $classengageid, $slideid, $numquestions = null)
-    {
-        // This could be refactored to use inspect -> generate flow, 
-        // but for now keeping the direct file upload endpoint if the API supports it
-        // or mapping to the new flow.
-        // Assuming the API still supports /api/generate-from-files as per doc
-
-        $endpoint = '/api/generate-from-files';
-
-        if ($numquestions === null) {
-            $numquestions = get_config('mod_classengage', 'defaultquestions') ?: 10;
+    private function inspect_pdf(string $filepath, int $contextid, int $slideid, string $docid): array {
+        // Verify file exists and is readable.
+        if (!is_file($filepath) || !is_readable($filepath)) {
+            throw new \Exception('PDF file not accessible: ' . $filepath);
         }
 
-        // Create temporary file from stored_file
-        $tmpfile = tempnam(sys_get_temp_dir(), 'moodle_nlp_');
-        $file->copy_content_to($tmpfile);
+        // Check if required tools are available.
+        $tools = $this->check_pdf_tools();
+        $missingTools = [];
 
-        try {
-            $boundary = '----WebKitFormBoundary' . uniqid();
-            $delimiter = "\r\n";
+        if (!$tools['shell_exec']) {
+            $missingTools[] = 'shell_exec (PHP function)';
+        }
+        if (!$tools['pdftotext']) {
+            $missingTools[] = 'pdftotext (Poppler utils)';
+        }
 
-            $postdata = '';
-            $postdata .= '--' . $boundary . $delimiter;
-            $postdata .= 'Content-Disposition: form-data; name="numQuestions"' . $delimiter . $delimiter;
-            $postdata .= $numquestions . $delimiter;
+        if (!empty($missingTools)) {
+            $errorMsg = 'PDF extraction requires the following tools which are not available: ' . implode(', ', $missingTools) . '. ';
+            $errorMsg .= 'If running in Docker, add this to your Dockerfile: RUN apt-get update && apt-get install -y poppler-utils';
+            throw new \Exception($errorMsg);
+        }
 
-            $postdata .= '--' . $boundary . $delimiter;
-            $postdata .= 'Content-Disposition: form-data; name="files"; filename="' . $file->get_filename() . '"' . $delimiter;
-            $postdata .= 'Content-Type: ' . $file->get_mimetype() . $delimiter . $delimiter;
-            $postdata .= file_get_contents($tmpfile) . $delimiter;
-            $postdata .= '--' . $boundary . '--' . $delimiter;
+        $texts = $this->extract_pdf_text_by_page($filepath);
+        $pagecount = max(1, count($texts));
 
-            $headers = array('Content-Type: multipart/form-data; boundary=' . $boundary);
-
-            $result = $this->call_api($endpoint, $postdata, 'POST', $headers);
-
-            return $this->store_questions($result['questions'], $classengageid, $slideid);
-
-        } finally {
-            if (file_exists($tmpfile)) {
-                unlink($tmpfile);
+        // Try to get more accurate page count from Imagick.
+        if ($tools['imagick']) {
+            try {
+                $probe = new \Imagick();
+                $probe->pingImage($filepath);
+                $imagickPageCount = (int)$probe->getNumberImages();
+                if ($imagickPageCount > 0) {
+                    $pagecount = max($pagecount, $imagickPageCount);
+                }
+                $probe->clear();
+                $probe->destroy();
+            } catch (\Exception $e) {
+                \debugging('ClassEngage NLP PDF page probe failed: ' . $e->getMessage(), \DEBUG_DEVELOPER);
             }
         }
+
+        \debugging("ClassEngage NLP: Processing PDF with $pagecount pages", \DEBUG_DEVELOPER);
+
+        $pages = [];
+        $successCount = 0;
+
+        for ($i = 1; $i <= $pagecount; $i++) {
+            $images = [];
+            $text = $texts[$i] ?? '';
+
+            // Render page preview image using Imagick.
+            // OPTIMIZED: Use lower resolution for faster processing
+            if ($tools['imagick']) {
+                try {
+                    $imagick = new \Imagick();
+                    // Use 72 DPI for faster rendering (still sufficient for question context)
+                    $imagick->setResolution(72, 72);
+                    $imagick->readImage($filepath . '[' . ($i - 1) . ']');
+                    $imagick->setImageFormat('png');
+                    // Scale down to max 800px width to reduce file size and processing time
+                    $imagick->scaleImage(800, 0);
+                    $blob = $imagick->getImageBlob();
+
+                    if (strlen($blob) > 0) {
+                        $hash = substr(sha1($blob), 0, 6);
+                        $imageid = 'img_' . $i . '_1_' . $hash;
+
+                        $saved = $this->save_image_asset(
+                            $contextid,
+                            $slideid,
+                            $docid,
+                            $imageid,
+                            $blob,
+                            'image/png',
+                            'page_' . $i . '_preview.png'
+                        );
+
+                        $images[] = [
+                            'imageId' => $imageid,
+                            'label' => 'Page ' . $i . ' preview',
+                            'source' => 'PDF page ' . $i,
+                            'url' => $saved['url'],
+                            'filename' => $saved['filename'],
+                            'mimetype' => 'image/png',
+                        ];
+                    }
+
+                    $imagick->clear();
+                    $imagick->destroy();
+                } catch (\Exception $e) {
+                    \debugging('ClassEngage NLP PDF image render failed on page ' . $i . ': ' . $e->getMessage(), \DEBUG_DEVELOPER);
+                }
+            }
+
+            $pages[] = [
+                'page' => $i,
+                'text' => $text,
+                'images' => $images,
+            ];
+
+            if (!empty($text) || !empty($images)) {
+                $successCount++;
+            }
+        }
+
+        \debugging("ClassEngage NLP: PDF inspection complete - $successCount/$pagecount pages have content", \DEBUG_DEVELOPER);
+
+        // Validate that we actually extracted something.
+        if ($successCount === 0) {
+            throw new \Exception('PDF extraction failed: no text or images could be extracted from any page');
+        }
+
+        return $pages;
     }
 
     /**
-     * Helper to make API calls
+     * Inspect PPTX file.
+     *
+     * @param string $filepath
+     * @param int $contextid
+     * @param int $slideid
+     * @param string $docid
+     * @return array
      */
-    protected function call_api($endpoint, $postdata, $method = 'POST', $extraheaders = [])
-    {
-        $baseurl = get_config('mod_classengage', 'nlpendpoint');
-        $apikey = get_config('mod_classengage', 'nlpapikey');
-
-        if (empty($baseurl)) {
-            throw new \Exception('NLP endpoint not configured');
+    private function inspect_pptx(string $filepath, int $contextid, int $slideid, string $docid): array {
+        $zip = new \ZipArchive();
+        if ($zip->open($filepath) !== true) {
+            throw new \Exception('Unable to open PPTX archive');
         }
 
-        $baseurl = rtrim($baseurl, '/');
-        // Handle if user put full URL or just base
-        if (strpos($endpoint, 'http') === 0) {
-            $url = $endpoint;
-        } else {
-            // Remove /api prefix from endpoint if baseurl already has it, or robust joining
-            // User provided baseurl: http://localhost:3000
-            // Endpoint: /api/generate
-            $url = $baseurl . $endpoint;
+        $slides = [];
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $name = (string)$zip->getNameIndex($i);
+            if (preg_match('#^ppt/slides/slide([0-9]+)\.xml$#', $name, $matches)) {
+                $slides[(int)$matches[1]] = $name;
+            }
+        }
+        ksort($slides);
+
+        $pages = [];
+        $seenhashes = [];
+
+        foreach ($slides as $slidenum => $slidename) {
+            $xml = (string)$zip->getFromName($slidename);
+            $text = $this->extract_xml_text($xml, '/<a:t[^>]*>(.*?)<\/a:t>/si');
+
+            $images = [];
+            $relsname = dirname($slidename) . '/_rels/' . basename($slidename) . '.rels';
+            $relsxml = (string)$zip->getFromName($relsname);
+
+            if ($relsxml !== '') {
+                $targets = [];
+                if (preg_match_all('/<Relationship[^>]*Type="[^"]*\/image"[^>]*Target="([^"]+)"/i', $relsxml, $matches)) {
+                    $targets = $matches[1];
+                }
+
+                $order = 0;
+                foreach ($targets as $target) {
+                    $entry = $this->normalize_zip_target($slidename, $target);
+                    $binary = $zip->getFromName($entry);
+                    if ($binary === false || $binary === '') {
+                        continue;
+                    }
+
+                    $hash = md5($binary);
+                    if (isset($seenhashes[$hash])) {
+                        continue;
+                    }
+                    $seenhashes[$hash] = true;
+
+                    $order++;
+                    $ext = strtolower(pathinfo($entry, PATHINFO_EXTENSION));
+                    $mimetype = $this->mime_from_extension($ext);
+                    if ($mimetype === '') {
+                        continue;
+                    }
+
+                    $imageid = 'img_' . $slidenum . '_' . $order . '_' . substr($hash, 0, 6);
+                    $saved = $this->save_image_asset(
+                        $contextid,
+                        $slideid,
+                        $docid,
+                        $imageid,
+                        $binary,
+                        $mimetype,
+                        basename($entry)
+                    );
+
+                    $images[] = [
+                        'imageId' => $imageid,
+                        'label' => 'Slide ' . $slidenum . ' image ' . $order,
+                        'source' => basename($entry),
+                        'url' => $saved['url'],
+                        'filename' => $saved['filename'],
+                        'mimetype' => $mimetype,
+                    ];
+                }
+            }
+
+            $pages[] = [
+                'page' => $slidenum,
+                'text' => $text,
+                'images' => $images,
+            ];
         }
 
-        $headers = $extraheaders;
-        if (!empty($apikey)) {
-            $headers[] = 'Authorization: Bearer ' . $apikey;
+        $zip->close();
+        return $pages;
+    }
+
+    /**
+     * Inspect DOCX file.
+     *
+     * @param string $filepath
+     * @param int $contextid
+     * @param int $slideid
+     * @param string $docid
+     * @return array
+     */
+    private function inspect_docx(string $filepath, int $contextid, int $slideid, string $docid): array {
+        $zip = new \ZipArchive();
+        if ($zip->open($filepath) !== true) {
+            throw new \Exception('Unable to open DOCX archive');
         }
 
-        $options = array(
-            'CURLOPT_RETURNTRANSFER' => true,
-            'CURLOPT_TIMEOUT' => 120,
-            'CURLOPT_HTTPHEADER' => $headers,
+        $documentxml = (string)$zip->getFromName('word/document.xml');
+        $text = $this->extract_xml_text($documentxml, '/<w:t[^>]*>(.*?)<\/w:t>/si');
+
+        $images = [];
+        $seenhashes = [];
+        $order = 0;
+
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $entry = (string)$zip->getNameIndex($i);
+            if (!preg_match('#^word/media/[^/]+\.(png|jpe?g|gif|bmp|webp)$#i', $entry)) {
+                continue;
+            }
+
+            $binary = $zip->getFromName($entry);
+            if ($binary === false || $binary === '') {
+                continue;
+            }
+
+            $hash = md5($binary);
+            if (isset($seenhashes[$hash])) {
+                continue;
+            }
+            $seenhashes[$hash] = true;
+
+            $order++;
+            $ext = strtolower(pathinfo($entry, PATHINFO_EXTENSION));
+            $mimetype = $this->mime_from_extension($ext);
+            if ($mimetype === '') {
+                continue;
+            }
+
+            $imageid = 'img_1_' . $order . '_' . substr($hash, 0, 6);
+            $saved = $this->save_image_asset(
+                $contextid,
+                $slideid,
+                $docid,
+                $imageid,
+                $binary,
+                $mimetype,
+                basename($entry)
+            );
+
+            $images[] = [
+                'imageId' => $imageid,
+                'label' => 'Document image ' . $order,
+                'source' => basename($entry),
+                'url' => $saved['url'],
+                'filename' => $saved['filename'],
+                'mimetype' => $mimetype,
+            ];
+        }
+
+        $zip->close();
+
+        return [[
+            'page' => 1,
+            'text' => $text,
+            'images' => $images,
+        ]];
+    }
+
+    /**
+     * Inspect plain text file.
+     *
+     * @param string $filepath
+     * @return array
+     */
+    private function inspect_text(string $filepath): array {
+        $content = @file_get_contents($filepath);
+        $text = is_string($content) ? trim($content) : '';
+
+        return [[
+            'page' => 1,
+            'text' => $this->normalize_text($text),
+            'images' => [],
+        ]];
+    }
+
+    /**
+     * Inspect unknown/binary formats with a conservative text-only fallback.
+     *
+     * @param string $filepath
+     * @return array
+     */
+    private function inspect_binary_fallback(string $filepath): array {
+        $content = @file_get_contents($filepath);
+        $text = '';
+
+        if (is_string($content) && $content !== '') {
+            // Keep printable ASCII and whitespace only.
+            $text = preg_replace('/[^\x09\x0A\x0D\x20-\x7E]/', ' ', $content);
+            $text = $this->normalize_text($text);
+        }
+
+        return [[
+            'page' => 1,
+            'text' => $text,
+            'images' => [],
+        ]];
+    }
+
+    /**
+     * Build generation input from cached document and options.
+     *
+     * @param array $cache
+     * @param array $options
+     * @return array
+     */
+    private function build_generation_input(array $cache, array $options): array {
+        $pages = $cache['pages'] ?? [];
+        $docid = (string)$cache['docId'];
+        $slideid = (int)$cache['slideId'];
+        $contextid = (int)$cache['contextId'];
+
+        $requestedslides = array_values(array_filter(array_map('intval', (array)($options['includeSlides'] ?? []))));
+        $selectedslides = empty($requestedslides)
+            ? array_values(array_map(static function(array $page): int {
+                return (int)$page['page'];
+            }, $pages))
+            : $requestedslides;
+
+        $slidemap = array_fill_keys($selectedslides, true);
+        $textparts = [];
+
+        foreach ($pages as $page) {
+            $pagenum = (int)$page['page'];
+            if (!isset($slidemap[$pagenum])) {
+                continue;
+            }
+
+            $text = trim((string)($page['text'] ?? ''));
+            if ($text !== '') {
+                $textparts[] = '--- Page ' . $pagenum . ' ---' . "\n" . $text;
+            }
+        }
+
+        $hasimageselection = array_key_exists('includeImages', $options);
+        $requestedimageids = array_values(array_filter(array_map('strval', (array)($options['includeImages'] ?? []))));
+        $imagemap = array_fill_keys($requestedimageids, true);
+
+        $images = [];
+        $fs = \get_file_storage();
+
+        // OPTIMIZATION: Limit images to prevent slow API calls and timeouts
+        $maxImages = 10; // Maximum number of images to process
+        $imageCount = 0;
+
+        foreach ($pages as $page) {
+            $pagenum = (int)$page['page'];
+            $fromselectedslide = isset($slidemap[$pagenum]);
+
+            foreach ((array)($page['images'] ?? []) as $image) {
+                // Skip if we've reached the image limit
+                if ($imageCount >= $maxImages) {
+                    break 2; // Break out of both loops
+                }
+
+                $imageid = (string)($image['imageId'] ?? '');
+                if ($imageid === '') {
+                    continue;
+                }
+
+                if ($hasimageselection) {
+                    if (!isset($imagemap[$imageid])) {
+                        continue;
+                    }
+                } else if (!$fromselectedslide) {
+                    // Default mode: include images from selected slides only.
+                    continue;
+                }
+
+                $filename = (string)($image['filename'] ?? '');
+                if ($filename === '') {
+                    continue;
+                }
+
+                $filepath = '/' . $docid . '/';
+                $stored = $fs->get_file(
+                    $contextid,
+                    'mod_classengage',
+                    self::ASSET_FILEAREA,
+                    $slideid,
+                    $filepath,
+                    $filename
+                );
+
+                if (!$stored) {
+                    continue;
+                }
+
+                $binary = $stored->get_content();
+                $mimetype = (string)($image['mimetype'] ?? $stored->get_mimetype());
+
+                $images[] = [
+                    'imageId' => $imageid,
+                    'label' => (string)($image['label'] ?? $imageid),
+                    'url' => (string)($image['url'] ?? ''),
+                    'mimetype' => $mimetype,
+                    'data' => base64_encode($binary),
+                ];
+                $imageCount++;
+            }
+        }
+
+        // Log warning if images were truncated
+        if ($imageCount >= $maxImages) {
+            \debugging("ClassEngage NLP: Image limit reached ({$maxImages}). Some images were skipped for faster processing.", \DEBUG_DEVELOPER);
+        }
+
+        return [
+            'text' => $this->normalize_text(implode("\n\n", $textparts)),
+            'images' => $images,
+            'selectedslides' => array_values($selectedslides),
+        ];
+    }
+
+    /**
+     * Request a provider response with fallback across configured providers.
+     *
+     * @param string $prompt
+     * @param array $images
+     * @param string $mode questions|text
+     * @return array
+     */
+    private function request_provider_response(string $prompt, array $images, string $mode = 'questions'): array {
+        $order = $this->get_provider_order();
+        $errors = [];
+
+        foreach ($order as $provider) {
+            $config = $this->get_provider_config($provider);
+            if (!$this->provider_is_configured($provider, $config)) {
+                continue;
+            }
+
+            try {
+                if ($mode === 'text') {
+                    $result = $this->call_provider_text($provider, $config, $prompt);
+                } else {
+                    $result = $this->call_provider_questions($provider, $config, $prompt, $images);
+                }
+
+                return [
+                    'provider' => $provider,
+                    'model' => $result['model'] ?? $config['model'],
+                    'text' => $result['text'] ?? '',
+                ];
+            } catch (\Exception $e) {
+                $errors[] = $provider . ': ' . $e->getMessage();
+                \debugging('ClassEngage NLP provider failure - ' . $provider . ': ' . $e->getMessage(), \DEBUG_DEVELOPER);
+            }
+        }
+
+        if (empty($errors)) {
+            throw new \Exception('No NLP providers configured. Configure API keys in plugin settings.');
+        }
+
+        throw new \Exception('All configured NLP providers failed: ' . implode(' | ', $errors));
+    }
+
+    /**
+     * Provider question generation dispatcher.
+     *
+     * @param string $provider
+     * @param array $config
+     * @param string $prompt
+     * @param array $images
+     * @return array
+     */
+    private function call_provider_questions(string $provider, array $config, string $prompt, array $images): array {
+        $timeout = (int)($config['timeout'] ?? 120);
+
+        switch ($provider) {
+            case 'gemini':
+                return $this->call_gemini($config, $prompt, $images, true, $timeout);
+
+            case 'openai':
+                return $this->call_openai_compatible($config, $prompt, $images, true, true, $timeout);
+
+            case 'anthropic':
+                return $this->call_anthropic($config, $prompt, $images, true, $timeout);
+
+            case 'deepseek':
+                return $this->call_openai_compatible($config, $prompt, [], false, false, $timeout);
+
+            case 'kimi':
+                return $this->call_openai_compatible($config, $prompt, [], false, false, $timeout);
+
+            case 'kimicn':
+                return $this->call_openai_compatible($config, $prompt, [], false, false, $timeout);
+
+            case 'local':
+                return $this->call_local($config, $prompt, $images, true, $timeout);
+
+            default:
+                throw new \Exception('Unsupported provider: ' . $provider);
+        }
+    }
+
+    /**
+     * Provider text generation dispatcher.
+     *
+     * @param string $provider
+     * @param array $config
+     * @param string $prompt
+     * @return array
+     */
+    private function call_provider_text(string $provider, array $config, string $prompt): array {
+        $timeout = (int)($config['timeout'] ?? 120);
+
+        switch ($provider) {
+            case 'gemini':
+                return $this->call_gemini($config, $prompt, [], false, $timeout);
+
+            case 'openai':
+            case 'deepseek':
+            case 'kimi':
+            case 'kimicn':
+                return $this->call_openai_compatible($config, $prompt, [], false, false, $timeout);
+
+            case 'anthropic':
+                return $this->call_anthropic($config, $prompt, [], false, $timeout);
+
+            case 'local':
+                return $this->call_local($config, $prompt, [], false, $timeout);
+
+            default:
+                throw new \Exception('Unsupported provider: ' . $provider);
+        }
+    }
+
+    /**
+     * Call Gemini provider.
+     *
+     * @param array $config
+     * @param string $prompt
+     * @param array $images
+     * @param bool $jsonmode
+     * @param int $timeout
+     * @return array
+     */
+    private function call_gemini(array $config, string $prompt, array $images, bool $jsonmode, int $timeout): array {
+        $apikey = (string)$config['apikey'];
+        $model = (string)$config['model'];
+        $endpoint = rtrim((string)$config['endpoint'], '/');
+
+        $normalizedmodel = preg_replace('#^models/#', '', $model);
+        $url = $endpoint . '/models/' . $normalizedmodel . ':generateContent?key=' . urlencode($apikey);
+
+        $parts = [['text' => $prompt]];
+        foreach ($images as $image) {
+            $parts[] = ['text' => 'Image reference ID: ' . $image['imageId'] . '. Use this value in question_image when relevant.'];
+            $parts[] = [
+                'inline_data' => [
+                    'mime_type' => $image['mimetype'],
+                    'data' => $image['data'],
+                ],
+            ];
+        }
+
+        $payload = [
+            'contents' => [[
+                'role' => 'user',
+                'parts' => $parts,
+            ]],
+            'generationConfig' => [
+                'temperature' => 0.2,
+            ],
+        ];
+
+        if ($jsonmode) {
+            $payload['generationConfig']['responseMimeType'] = 'application/json';
+        }
+
+        $data = $this->http_json_request(
+            $url,
+            $payload,
+            ['Content-Type: application/json'],
+            $timeout
         );
 
-        $curl = new \curl();
-
-        if ($method === 'POST') {
-            $response = $curl->post($url, $postdata, $options);
-        } else {
-            $response = $curl->get($url, $postdata, $options);
+        $text = '';
+        foreach ((array)($data['candidates'][0]['content']['parts'] ?? []) as $part) {
+            if (!empty($part['text'])) {
+                $text .= (string)$part['text'];
+            }
         }
 
-        $httpcode = $curl->get_info()['http_code'] ?? 0;
-
-        if ($curl->get_errno()) {
-            throw new \Exception('NLP service connection failed: ' . $curl->error);
+        if (trim($text) === '') {
+            $feedback = (string)($data['promptFeedback']['blockReason'] ?? 'Empty Gemini response');
+            throw new \Exception($feedback);
         }
 
-        if ($httpcode !== 200) {
-            debugging('NLP service returned HTTP ' . $httpcode . '. Response: ' . substr($response, 0, 500), DEBUG_DEVELOPER);
-            throw new \Exception('NLP service returned error (HTTP ' . $httpcode . ')');
-        }
-
-        $result = json_decode($response, true);
-
-        if (!$result) {
-            throw new \Exception('Invalid response from NLP service (invalid JSON)');
-        }
-
-        if (isset($result['error'])) {
-            // Handle "success": false case too
-            $errormsg = $result['message'] ?? $result['error'];
-            throw new \Exception('NLP service error: ' . $errormsg);
-        }
-
-        return $result;
+        return [
+            'text' => $text,
+            'model' => (string)($data['modelVersion'] ?? $model),
+        ];
     }
 
     /**
-     * Extended API helper with configurable timeout and accepted status codes
-     * 
-     * @param string $endpoint API endpoint
-     * @param string $postdata POST data or empty for GET
-     * @param string $method HTTP method
-     * @param array $extraheaders Extra headers
-     * @param int $timeout Request timeout in seconds
-     * @param array $acceptedcodes HTTP status codes to accept as success
-     * @return array Decoded response
+     * Call OpenAI-compatible provider.
+     *
+     * @param array $config
+     * @param string $prompt
+     * @param array $images
+     * @param bool $multimodal
+     * @param bool $jsonmode
+     * @param int $timeout
+     * @return array
      */
-    protected function call_api_extended($endpoint, $postdata, $method = 'POST', $extraheaders = [], $timeout = 30, $acceptedcodes = [200])
-    {
-        $baseurl = get_config('mod_classengage', 'nlpendpoint');
-        $apikey = get_config('mod_classengage', 'nlpapikey');
-
-        if (empty($baseurl)) {
-            throw new \Exception('NLP endpoint not configured');
+    private function call_openai_compatible(
+        array $config,
+        string $prompt,
+        array $images,
+        bool $multimodal,
+        bool $jsonmode,
+        int $timeout
+    ): array {
+        $endpoint = rtrim((string)$config['endpoint'], '/');
+        if (!preg_match('#/v[0-9]+$#', $endpoint)) {
+            $endpoint .= '/v1';
         }
 
-        $baseurl = rtrim($baseurl, '/');
-        if (strpos($endpoint, 'http') === 0) {
-            $url = $endpoint;
+        $url = $endpoint . '/chat/completions';
+        $model = (string)$config['model'];
+
+        if ($multimodal && !empty($images)) {
+            $usercontent = [['type' => 'text', 'text' => $prompt]];
+            foreach ($images as $image) {
+                $usercontent[] = [
+                    'type' => 'text',
+                    'text' => 'Image reference ID: ' . $image['imageId'] . '. Use this value in question_image when relevant.',
+                ];
+                $usercontent[] = [
+                    'type' => 'image_url',
+                    'image_url' => [
+                        'url' => 'data:' . $image['mimetype'] . ';base64,' . $image['data'],
+                    ],
+                ];
+            }
         } else {
-            $url = $baseurl . $endpoint;
+            $usercontent = $prompt;
         }
 
-        $headers = $extraheaders;
-        if (!empty($apikey)) {
-            $headers[] = 'Authorization: Bearer ' . $apikey;
+        $payload = [
+            'model' => $model,
+            'messages' => [
+                [
+                    'role' => 'system',
+                    'content' => 'You are an expert educator. Follow output instructions exactly and return JSON only.',
+                ],
+                [
+                    'role' => 'user',
+                    'content' => $usercontent,
+                ],
+            ],
+            'temperature' => 0.2,
+            'max_tokens' => 4096,
+        ];
+
+        if ($jsonmode) {
+            $payload['response_format'] = ['type' => 'json_object'];
         }
 
-        $options = array(
+        $headers = [
+            'Authorization: Bearer ' . $config['apikey'],
+            'Content-Type: application/json',
+        ];
+
+        $data = $this->http_json_request($url, $payload, $headers, $timeout);
+
+        $content = $data['choices'][0]['message']['content'] ?? '';
+        if (is_array($content)) {
+            $tmp = '';
+            foreach ($content as $item) {
+                if (is_array($item) && !empty($item['text'])) {
+                    $tmp .= (string)$item['text'];
+                }
+            }
+            $content = $tmp;
+        }
+
+        $content = trim((string)$content);
+        if ($content === '') {
+            throw new \Exception('Provider returned empty completion content');
+        }
+
+        return [
+            'text' => $content,
+            'model' => (string)($data['model'] ?? $model),
+        ];
+    }
+
+    /**
+     * Call Anthropic provider.
+     *
+     * @param array $config
+     * @param string $prompt
+     * @param array $images
+     * @param bool $jsonmode
+     * @param int $timeout
+     * @return array
+     */
+    private function call_anthropic(array $config, string $prompt, array $images, bool $jsonmode, int $timeout): array {
+        $endpoint = rtrim((string)$config['endpoint'], '/');
+        $url = $endpoint . '/messages';
+        $model = (string)$config['model'];
+
+        $content = [['type' => 'text', 'text' => $prompt]];
+        foreach ($images as $image) {
+            $content[] = [
+                'type' => 'text',
+                'text' => 'Image reference ID: ' . $image['imageId'] . '. Use this value in question_image when relevant.',
+            ];
+            $content[] = [
+                'type' => 'image',
+                'source' => [
+                    'type' => 'base64',
+                    'media_type' => $image['mimetype'],
+                    'data' => $image['data'],
+                ],
+            ];
+        }
+
+        $payload = [
+            'model' => $model,
+            'max_tokens' => $jsonmode ? 4096 : 1400,
+            'temperature' => 0.2,
+            'messages' => [[
+                'role' => 'user',
+                'content' => $content,
+            ]],
+        ];
+
+        $headers = [
+            'x-api-key: ' . $config['apikey'],
+            'anthropic-version: 2023-06-01',
+            'Content-Type: application/json',
+        ];
+
+        $data = $this->http_json_request($url, $payload, $headers, $timeout);
+
+        $text = '';
+        foreach ((array)($data['content'] ?? []) as $item) {
+            if (($item['type'] ?? '') === 'text') {
+                $text .= (string)($item['text'] ?? '');
+            }
+        }
+
+        if (trim($text) === '') {
+            throw new \Exception('Anthropic returned empty text content');
+        }
+
+        return [
+            'text' => $text,
+            'model' => (string)($data['model'] ?? $model),
+        ];
+    }
+
+    /**
+     * Call local Ollama-compatible provider.
+     *
+     * @param array $config
+     * @param string $prompt
+     * @param array $images
+     * @param bool $jsonmode
+     * @param int $timeout
+     * @return array
+     */
+    private function call_local(array $config, string $prompt, array $images, bool $jsonmode, int $timeout): array {
+        $endpoint = rtrim((string)$config['endpoint'], '/');
+        $url = $endpoint . '/api/generate';
+        $model = (string)$config['model'];
+
+        $payload = [
+            'model' => $model,
+            'prompt' => $prompt,
+            'stream' => false,
+            'options' => [
+                'temperature' => 0.1,
+                'num_ctx' => 4096,
+            ],
+        ];
+
+        if ($jsonmode) {
+            $payload['format'] = 'json';
+        }
+
+        if (!empty($images)) {
+            $payload['images'] = array_values(array_map(static function(array $image): string {
+                return $image['data'];
+            }, $images));
+        }
+
+        $data = $this->http_json_request(
+            $url,
+            $payload,
+            ['Content-Type: application/json'],
+            $timeout
+        );
+
+        if (!empty($data['error'])) {
+            throw new \Exception((string)$data['error']);
+        }
+
+        $text = trim((string)($data['response'] ?? ''));
+        if ($text === '') {
+            $text = trim((string)($data['thinking'] ?? ''));
+        }
+
+        if ($text === '') {
+            throw new \Exception('Local provider returned an empty response');
+        }
+
+        return [
+            'text' => $text,
+            'model' => $model,
+        ];
+    }
+
+    /**
+     * Parse and normalize generated questions response.
+     *
+     * @param string $raw
+     * @param int $expectedcount
+     * @param array $selectedimages
+     * @param array $selectedslides
+     * @param array $options
+     * @return array
+     */
+    private function parse_questions_response(
+        string $raw,
+        int $expectedcount,
+        array $selectedimages,
+        array $selectedslides,
+        array $options
+    ): array {
+        $decoded = $this->decode_json_payload($raw);
+        $analysis = null;
+
+        if (isset($decoded['analysis']) && is_string($decoded['analysis'])) {
+            $analysis = trim($decoded['analysis']);
+        }
+
+        if (isset($decoded['result']) && is_array($decoded['result'])) {
+            if (isset($decoded['result']['analysis']) && is_string($decoded['result']['analysis'])) {
+                $analysis = trim($decoded['result']['analysis']);
+            }
+            if (isset($decoded['result']['questions']) && is_array($decoded['result']['questions'])) {
+                $rows = $decoded['result']['questions'];
+            } else {
+                $rows = [];
+            }
+        } else if (isset($decoded['questions']) && is_array($decoded['questions'])) {
+            $rows = $decoded['questions'];
+        } else if ($this->is_list_array($decoded)) {
+            $rows = $decoded;
+        } else {
+            $rows = [];
+        }
+
+        $imagemap = [];
+        foreach ($selectedimages as $image) {
+            $imagemap[(string)$image['imageId']] = $image;
+        }
+
+        $defaultdifficulty = $this->normalize_difficulty((string)($options['difficulty'] ?? 'medium'));
+        if ($defaultdifficulty === 'mixed') {
+            $defaultdifficulty = 'medium';
+        }
+
+        $defaultbloom = $this->normalize_bloom_level((string)($options['bloomLevel'] ?? 'apply'));
+        if ($defaultbloom === '') {
+            $defaultbloom = 'apply';
+        }
+
+        $sources = [
+            'slides' => array_values(array_map('intval', $selectedslides)),
+            'images' => array_values(array_map(static function(array $image): array {
+                return [
+                    'imageId' => $image['imageId'],
+                    'label' => $image['label'],
+                    'url' => $image['url'],
+                    'reason' => 'Selected for generation',
+                ];
+            }, $selectedimages)),
+        ];
+
+        $questions = [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $question = $this->sanitize_question_row(
+                $row,
+                $imagemap,
+                $sources,
+                $defaultdifficulty,
+                $defaultbloom
+            );
+
+            if (!empty($question)) {
+                $questions[] = $question;
+            }
+        }
+
+        if (empty($questions)) {
+            throw new \Exception('Provider response did not contain valid questions');
+        }
+
+        if (count($questions) > $expectedcount) {
+            $questions = array_slice($questions, 0, $expectedcount);
+        }
+
+        return [
+            'questions' => $questions,
+            'analysis' => $analysis,
+        ];
+    }
+
+    /**
+     * Sanitize single question row.
+     *
+     * @param array $row
+     * @param array $imagemap
+     * @param array $sources
+     * @param string $defaultdifficulty
+     * @param string $defaultbloom
+     * @return array|null
+     */
+    private function sanitize_question_row(
+        array $row,
+        array $imagemap,
+        array $sources,
+        string $defaultdifficulty,
+        string $defaultbloom
+    ): ?array {
+        $questiontext = trim((string)(
+            $row['questiontext'] ??
+            $row['question'] ??
+            $row['questionText'] ??
+            ''
+        ));
+
+        if ($questiontext === '') {
+            return null;
+        }
+
+        $options = $this->extract_option_map($row);
+        if (empty($options)) {
+            return null;
+        }
+
+        $correctraw = $row['correctanswer'] ?? $row['correctAnswer'] ?? $row['answer'] ?? null;
+        $correctanswer = $this->normalize_correct_answer($correctraw, $options);
+        if ($correctanswer === null) {
+            return null;
+        }
+
+        $difficulty = $this->normalize_difficulty((string)($row['difficulty'] ?? $defaultdifficulty));
+        if ($difficulty === 'mixed') {
+            $difficulty = $defaultdifficulty;
+        }
+
+        $bloomraw = (string)(
+            $row['cognitive_level'] ??
+            $row['cognitiveLevel'] ??
+            $row['bloomlevel'] ??
+            $row['bloomLevel'] ??
+            $row['bloom_level'] ??
+            $defaultbloom
+        );
+        $bloom = $this->normalize_bloom_level($bloomraw);
+        if ($bloom === '') {
+            $bloom = $defaultbloom;
+        }
+
+        $imagecandidate = (string)($row['question_image'] ?? $row['imageId'] ?? $row['image_id'] ?? '');
+        $questionimage = $this->resolve_question_image($imagecandidate, $imagemap);
+
+        $rationale = trim((string)($row['rationale'] ?? $row['explanation'] ?? ''));
+        if ($rationale === '') {
+            $rationale = null;
+        }
+
+        return [
+            'questiontext' => $questiontext,
+            'optiona' => $options['A'],
+            'optionb' => $options['B'],
+            'optionc' => $options['C'],
+            'optiond' => $options['D'],
+            'correctanswer' => $correctanswer,
+            'difficulty' => $difficulty,
+            'cognitive_level' => $bloom,
+            'bloomlevel' => $bloom,
+            'rationale' => $rationale,
+            'question_image' => $questionimage,
+            'sources' => $sources,
+        ];
+    }
+
+    /**
+     * Extract A/B/C/D option map from provider row.
+     *
+     * @param array $row
+     * @return array|null
+     */
+    private function extract_option_map(array $row): ?array {
+        $a = trim((string)($row['optiona'] ?? $row['optionA'] ?? ''));
+        $b = trim((string)($row['optionb'] ?? $row['optionB'] ?? ''));
+        $c = trim((string)($row['optionc'] ?? $row['optionC'] ?? ''));
+        $d = trim((string)($row['optiond'] ?? $row['optionD'] ?? ''));
+
+        if ($a !== '' && $b !== '' && $c !== '' && $d !== '') {
+            return ['A' => $a, 'B' => $b, 'C' => $c, 'D' => $d];
+        }
+
+        $options = $row['options'] ?? $row['choices'] ?? null;
+        if (!is_array($options)) {
+            return null;
+        }
+
+        // Associative map with letter keys.
+        $letters = ['A', 'B', 'C', 'D'];
+        $assoc = [];
+        foreach ($letters as $letter) {
+            if (isset($options[$letter])) {
+                $assoc[$letter] = trim((string)$options[$letter]);
+            } else if (isset($options[strtolower($letter)])) {
+                $assoc[$letter] = trim((string)$options[strtolower($letter)]);
+            }
+        }
+
+        if (count($assoc) === 4 && $assoc['A'] !== '' && $assoc['B'] !== '' && $assoc['C'] !== '' && $assoc['D'] !== '') {
+            return $assoc;
+        }
+
+        // Indexed list.
+        if ($this->is_list_array($options) && count($options) >= 4) {
+            $vals = array_values($options);
+            $map = [
+                'A' => trim((string)$vals[0]),
+                'B' => trim((string)$vals[1]),
+                'C' => trim((string)$vals[2]),
+                'D' => trim((string)$vals[3]),
+            ];
+            if ($map['A'] !== '' && $map['B'] !== '' && $map['C'] !== '' && $map['D'] !== '') {
+                return $map;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Resolve question image to a URL.
+     *
+     * @param string $candidate
+     * @param array $imagemap
+     * @return string|null
+     */
+    private function resolve_question_image(string $candidate, array $imagemap): ?string {
+        $candidate = trim($candidate);
+        if ($candidate === '') {
+            return null;
+        }
+
+        if (isset($imagemap[$candidate])) {
+            return (string)$imagemap[$candidate]['url'];
+        }
+
+        if (preg_match('/(img_[a-zA-Z0-9_]+)/', $candidate, $matches) && isset($imagemap[$matches[1]])) {
+            return (string)$imagemap[$matches[1]]['url'];
+        }
+
+        if (filter_var($candidate, FILTER_VALIDATE_URL)) {
+            return $candidate;
+        }
+
+        if (ctype_digit($candidate)) {
+            $index = (int)$candidate;
+            $images = array_values($imagemap);
+            if (isset($images[$index])) {
+                return (string)$images[$index]['url'];
+            }
+            if ($index > 0 && isset($images[$index - 1])) {
+                return (string)$images[$index - 1]['url'];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Normalize correct answer into A/B/C/D.
+     *
+     * @param mixed $value
+     * @param array $options
+     * @return string|null
+     */
+    private function normalize_correct_answer($value, array $options): ?string {
+        if ($value === null) {
+            return null;
+        }
+
+        $normalized = strtoupper(trim((string)$value));
+        if (in_array($normalized, ['A', 'B', 'C', 'D'], true)) {
+            return $normalized;
+        }
+
+        $numbermap = ['1' => 'A', '2' => 'B', '3' => 'C', '4' => 'D'];
+        if (isset($numbermap[$normalized])) {
+            return $numbermap[$normalized];
+        }
+
+        if (preg_match('/\b([ABCD])\b/', $normalized, $matches)) {
+            return $matches[1];
+        }
+
+        foreach ($options as $letter => $optiontext) {
+            $trimmedoption = trim((string)$optiontext);
+            if ($trimmedoption === '') {
+                continue;
+            }
+
+            if (strcasecmp($normalized, strtoupper($trimmedoption)) === 0) {
+                return $letter;
+            }
+
+            if (strpos($normalized, strtoupper($trimmedoption)) !== false) {
+                return $letter;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Normalize difficulty value.
+     *
+     * @param string $difficulty
+     * @return string
+     */
+    private function normalize_difficulty(string $difficulty): string {
+        $difficulty = strtolower(trim($difficulty));
+        if (in_array($difficulty, ['easy', 'medium', 'hard', 'mixed'], true)) {
+            return $difficulty;
+        }
+
+        if ($difficulty === 'difficult') {
+            return 'hard';
+        }
+
+        return 'medium';
+    }
+
+    /**
+     * Normalize bloom/cognitive value.
+     *
+     * @param string $bloom
+     * @return string
+     */
+    private function normalize_bloom_level(string $bloom): string {
+        $bloom = strtolower(trim($bloom));
+        $aliases = [
+            'remembering' => 'remember',
+            'comprehend' => 'understand',
+            'comprehension' => 'understand',
+            'application' => 'apply',
+            'analysis' => 'analyze',
+            'evaluation' => 'evaluate',
+            'creation' => 'create',
+        ];
+
+        if (isset($aliases[$bloom])) {
+            $bloom = $aliases[$bloom];
+        }
+
+        if (in_array($bloom, ['remember', 'understand', 'apply', 'analyze', 'evaluate', 'create'], true)) {
+            return $bloom;
+        }
+
+        return '';
+    }
+
+    /**
+     * Build generation prompt.
+     *
+     * @param string $text
+     * @param array $images
+     * @param array $options
+     * @param int $numquestions
+     * @return string
+     */
+    private function build_generation_prompt(string $text, array $images, array $options, int $numquestions): string {
+        $difficulty = strtolower((string)($options['difficulty'] ?? 'mixed'));
+        $bloom = strtolower((string)($options['bloomLevel'] ?? 'apply'));
+
+        $difficultydist = $this->normalize_distribution(
+            $options['difficultyDistribution'] ?? null,
+            ['easy', 'medium', 'hard']
+        );
+
+        $bloomdist = $this->normalize_distribution(
+            $options['bloomDistribution'] ?? null,
+            ['remember', 'understand', 'apply', 'analyze', 'evaluate', 'create']
+        );
+
+        $textlimit = 80000; // Reduced from 120000 for faster processing
+        if (\core_text::strlen($text) > $textlimit) {
+            $text = \core_text::substr($text, 0, $textlimit) . '...[content truncated for performance]';
+        }
+
+        $imageinventory = 'None';
+        if (!empty($images)) {
+            $lines = [];
+            foreach ($images as $image) {
+                $lines[] = '- ' . $image['imageId'] . ': ' . ($image['label'] ?? $image['imageId']);
+            }
+            $imageinventory = implode("\n", $lines);
+        }
+
+        $isimageonly = trim($text) === '' && !empty($images);
+
+        $prompt = [];
+        $prompt[] = 'You are an expert educator. Generate multiple-choice questions from the provided material.';
+        $prompt[] = '';
+        $prompt[] = 'Return ONLY valid JSON with this schema:';
+        $prompt[] = '{"questions":[{"questiontext":"...","optiona":"...","optionb":"...","optionc":"...","optiond":"...","correctanswer":"A","difficulty":"medium","cognitive_level":"apply","rationale":"..."}]}';
+        $prompt[] = 'correctanswer must be A, B, C, or D.';
+        $prompt[] = '';
+        $prompt[] = 'Requirements:';
+        $prompt[] = '- ' . $numquestions . ' questions total';
+        $prompt[] = '- Difficulty: ' . $difficulty;
+        $prompt[] = '- Bloom level: ' . $bloom;
+
+        if (!empty($difficultydist)) {
+            $prompt[] = '- Difficulty distribution: ' . json_encode($difficultydist);
+        }
+        if (!empty($bloomdist)) {
+            $prompt[] = '- Bloom distribution: ' . json_encode($bloomdist);
+        }
+
+        $prompt[] = '';
+        $prompt[] = 'Available image IDs:';
+        $prompt[] = $imageinventory;
+        $prompt[] = '';
+        $prompt[] = $isimageonly
+            ? 'No text content is available. Build questions from the attached images and image IDs.'
+            : 'Source text:';
+
+        if (!$isimageonly) {
+            $prompt[] = $text;
+        }
+
+        return implode("\n", $prompt);
+    }
+
+    /**
+     * Build session analysis prompt.
+     *
+     * @param array $sessiondata
+     * @param array $options
+     * @return string
+     */
+    private function build_analysis_prompt(array $sessiondata, array $options = []): string {
+        $json = json_encode($sessiondata, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+
+        return implode("\n", [
+            'You are an expert pedagogy analyst.',
+            'Analyze this class session data and return concise recommendations.',
+            'Output ONLY valid JSON with this schema:',
+            '{"summary":"...","strengths":["..."],"areas_for_improvement":["..."],"actionable_advice":["..."]}',
+            '',
+            'Session data:',
+            $json ?: '{}',
+        ]);
+    }
+
+    /**
+     * Decode JSON payload from potentially wrapped model output.
+     *
+     * @param string $raw
+     * @return array
+     */
+    private function decode_json_payload(string $raw): array {
+        $decoded = $this->try_decode_json_payload($raw);
+        if (!is_array($decoded)) {
+            throw new \Exception('Invalid JSON payload from provider');
+        }
+        return $decoded;
+    }
+
+    /**
+     * Try decode JSON payload.
+     *
+     * @param string $raw
+     * @return array|null
+     */
+    private function try_decode_json_payload(string $raw): ?array {
+        $clean = trim($raw);
+        if ($clean === '') {
+            return null;
+        }
+
+        $clean = preg_replace('/<think>[\s\S]*?<\/think>/i', '', $clean);
+        $clean = preg_replace('/```(?:json)?/i', '', $clean);
+        $clean = str_replace('```', '', $clean);
+        $clean = trim($clean);
+
+        // Try direct decode first.
+        $direct = json_decode($clean, true);
+        if (is_array($direct)) {
+            return $direct;
+        }
+
+        $startbrace = strpos($clean, '{');
+        $startbracket = strpos($clean, '[');
+
+        if ($startbrace === false && $startbracket === false) {
+            return null;
+        }
+
+        if ($startbracket !== false && ($startbrace === false || $startbracket < $startbrace)) {
+            $start = $startbracket;
+            $end = strrpos($clean, ']');
+        } else {
+            $start = $startbrace;
+            $end = strrpos($clean, '}');
+        }
+
+        if ($start === false || $end === false || $end <= $start) {
+            return null;
+        }
+
+        $candidate = substr($clean, $start, $end - $start + 1);
+        $candidate = preg_replace('/,\s*([}\]])/', '$1', $candidate);
+
+        $decoded = json_decode($candidate, true);
+        if (!is_array($decoded)) {
+            return null;
+        }
+
+        return $decoded;
+    }
+
+    /**
+     * Perform JSON HTTP POST request.
+     *
+     * @param string $url
+     * @param array $payload
+     * @param array $headers
+     * @param int $timeout
+     * @return array
+     */
+    private function http_json_request(string $url, array $payload, array $headers, int $timeout): array {
+        $curl = new \curl();
+        $options = [
             'CURLOPT_RETURNTRANSFER' => true,
             'CURLOPT_TIMEOUT' => $timeout,
             'CURLOPT_HTTPHEADER' => $headers,
-        );
+        ];
 
-        $curl = new \curl();
+        $body = json_encode($payload, JSON_UNESCAPED_SLASHES);
+        $response = $curl->post($url, $body, $options);
 
-        if ($method === 'POST') {
-            $response = $curl->post($url, $postdata, $options);
-        } else {
-            $response = $curl->get($url, [], $options);
-        }
-
-        $httpcode = $curl->get_info()['http_code'] ?? 0;
-
+        $httpcode = (int)($curl->get_info()['http_code'] ?? 0);
         if ($curl->get_errno()) {
-            throw new \Exception('NLP service connection failed: ' . $curl->error);
+            throw new \Exception('Connection failed: ' . $curl->error);
         }
 
-        if (!in_array($httpcode, $acceptedcodes)) {
-            debugging('NLP service returned HTTP ' . $httpcode . '. Response: ' . substr($response, 0, 500), DEBUG_DEVELOPER);
-            throw new \Exception('NLP service returned error (HTTP ' . $httpcode . ')');
+        if ($httpcode < 200 || $httpcode >= 300) {
+            $snippet = is_string($response) ? trim(substr($response, 0, 600)) : '';
+            throw new \Exception('HTTP ' . $httpcode . ' ' . $snippet);
         }
 
-        $result = json_decode($response, true);
-
-        if (!$result) {
-            throw new \Exception('Invalid response from NLP service (invalid JSON)');
+        $decoded = json_decode((string)$response, true);
+        if (!is_array($decoded)) {
+            throw new \Exception('Invalid JSON response from provider');
         }
 
-        if (isset($result['error']) && $result['success'] === false) {
-            $errormsg = $result['message'] ?? $result['error'];
-            throw new \Exception('NLP service error: ' . $errormsg);
+        return $decoded;
+    }
+
+    /**
+     * Build provider order from settings.
+     *
+     * @return array
+     */
+    private function get_provider_order(): array {
+        $default = (string)(\get_config('mod_classengage', 'nlpdefaultprovider') ?: 'gemini');
+        $prioritycsv = (string)(\get_config('mod_classengage', 'nlpproviderpriority')
+            ?: 'gemini,openai,anthropic,deepseek,kimi,kimicn,local');
+
+        $priority = array_values(array_filter(array_map('trim', explode(',', strtolower($prioritycsv)))));
+        $ordered = [];
+
+        $push = static function(string $provider) use (&$ordered): void {
+            if (!in_array($provider, $ordered, true)) {
+                $ordered[] = $provider;
+            }
+        };
+
+        $push(strtolower($default));
+        foreach ($priority as $provider) {
+            $push($provider);
+        }
+        foreach (self::PROVIDERS as $provider) {
+            $push($provider);
+        }
+
+        return array_values(array_filter($ordered, static function(string $provider): bool {
+            return in_array($provider, self::PROVIDERS, true);
+        }));
+    }
+
+    /**
+     * Get provider configuration.
+     *
+     * @param string $provider
+     * @return array
+     */
+    private function get_provider_config(string $provider): array {
+        $timeout = (int)(\get_config('mod_classengage', 'nlprequesttimeout') ?: 120);
+        if ($timeout < 15) {
+            $timeout = 15;
+        }
+
+        switch ($provider) {
+            case 'gemini':
+                return [
+                    'apikey' => (string)\get_config('mod_classengage', 'geminiapikey'),
+                    'model' => (string)(\get_config('mod_classengage', 'geminimodel') ?: 'gemini-2.5-flash'),
+                    'endpoint' => (string)(\get_config('mod_classengage', 'geminiendpoint') ?: 'https://generativelanguage.googleapis.com/v1beta'),
+                    'timeout' => $timeout,
+                ];
+
+            case 'openai':
+                return [
+                    'apikey' => (string)\get_config('mod_classengage', 'openaiapikey'),
+                    'model' => (string)(\get_config('mod_classengage', 'openaimodel') ?: 'gpt-4o-mini'),
+                    'endpoint' => (string)(\get_config('mod_classengage', 'openaiendpoint') ?: 'https://api.openai.com/v1'),
+                    'timeout' => $timeout,
+                ];
+
+            case 'anthropic':
+                return [
+                    'apikey' => (string)\get_config('mod_classengage', 'anthropicapikey'),
+                    'model' => (string)(\get_config('mod_classengage', 'anthropicmodel') ?: 'claude-3-5-sonnet-20241022'),
+                    'endpoint' => (string)(\get_config('mod_classengage', 'anthropicendpoint') ?: 'https://api.anthropic.com/v1'),
+                    'timeout' => $timeout,
+                ];
+
+            case 'deepseek':
+                return [
+                    'apikey' => (string)\get_config('mod_classengage', 'deepseekapikey'),
+                    'model' => (string)(\get_config('mod_classengage', 'deepseekmodel') ?: 'deepseek-chat'),
+                    'endpoint' => (string)(\get_config('mod_classengage', 'deepseekendpoint') ?: 'https://api.deepseek.com/v1'),
+                    'timeout' => $timeout,
+                ];
+
+            case 'kimi':
+                return [
+                    'apikey' => (string)\get_config('mod_classengage', 'kimiapikey'),
+                    'model' => (string)(\get_config('mod_classengage', 'kimimodel') ?: 'moonshot-v1-8k'),
+                    'endpoint' => (string)(\get_config('mod_classengage', 'kimiendpoint') ?: 'https://api.moonshot.ai/v1'),
+                    'timeout' => $timeout,
+                ];
+
+            case 'kimicn':
+                return [
+                    'apikey' => (string)\get_config('mod_classengage', 'kimicnapikey'),
+                    'model' => (string)(\get_config('mod_classengage', 'kimicnmodel') ?: 'moonshot-v1-8k'),
+                    'endpoint' => (string)(\get_config('mod_classengage', 'kimicnendpoint') ?: 'https://api.moonshot.cn/v1'),
+                    'timeout' => $timeout,
+                ];
+
+            case 'local':
+                return [
+                    'apikey' => '',
+                    'model' => (string)(\get_config('mod_classengage', 'localmodel') ?: 'qwen3-vl:4b'),
+                    'endpoint' => (string)(\get_config('mod_classengage', 'localendpoint') ?: ''),
+                    'timeout' => max($timeout, 180),
+                ];
+
+            default:
+                return [
+                    'apikey' => '',
+                    'model' => '',
+                    'endpoint' => '',
+                    'timeout' => $timeout,
+                ];
+        }
+    }
+
+    /**
+     * Check whether provider has usable configuration.
+     *
+     * @param string $provider
+     * @param array $config
+     * @return bool
+     */
+    private function provider_is_configured(string $provider, array $config): bool {
+        if ($provider === 'local') {
+            return trim((string)($config['endpoint'] ?? '')) !== '';
+        }
+
+        return trim((string)($config['apikey'] ?? '')) !== '';
+    }
+
+    /**
+     * Create deterministic doc ID.
+     *
+     * @param \stored_file $file
+     * @return string
+     */
+    private function build_doc_id(\stored_file $file): string {
+        $seed = $file->get_contenthash() . ':' . $file->get_filesize() . ':' . $file->get_filename();
+        return 'doc_' . substr(sha1($seed), 0, 16);
+    }
+
+    /**
+     * Create temp copy of stored file.
+     *
+     * @param \stored_file $file
+     * @return string
+     */
+    private function create_temp_copy(\stored_file $file): string {
+        $tmpfile = tempnam(sys_get_temp_dir(), 'classengage_nlp_');
+        $ext = strtolower(pathinfo($file->get_filename(), PATHINFO_EXTENSION));
+
+        if ($ext !== '') {
+            $withExt = $tmpfile . '.' . $ext;
+            if (@rename($tmpfile, $withExt)) {
+                $tmpfile = $withExt;
+            }
+        }
+
+        $file->copy_content_to($tmpfile);
+        return $tmpfile;
+    }
+
+    /**
+     * Save extracted image asset in Moodle file API.
+     *
+     * @param int $contextid
+     * @param int $slideid
+     * @param string $docid
+     * @param string $imageid
+     * @param string $binary
+     * @param string $mimetype
+     * @param string $originalname
+     * @return array
+     */
+    private function save_image_asset(
+        int $contextid,
+        int $slideid,
+        string $docid,
+        string $imageid,
+        string $binary,
+        string $mimetype,
+        string $originalname
+    ): array {
+        $ext = $this->extension_from_mime($mimetype);
+        if ($ext === '') {
+            $ext = strtolower(pathinfo($originalname, PATHINFO_EXTENSION));
+        }
+        if ($ext === '') {
+            $ext = 'png';
+        }
+
+        $filename = $imageid . '.' . $ext;
+        $filepath = '/' . $docid . '/';
+
+        $fs = \get_file_storage();
+        $existing = $fs->get_file($contextid, 'mod_classengage', self::ASSET_FILEAREA, $slideid, $filepath, $filename);
+        if ($existing) {
+            $existing->delete();
+        }
+
+        $filerecord = [
+            'contextid' => $contextid,
+            'component' => 'mod_classengage',
+            'filearea' => self::ASSET_FILEAREA,
+            'itemid' => $slideid,
+            'filepath' => $filepath,
+            'filename' => $filename,
+            'userid' => 0,
+            'mimetype' => $mimetype,
+            'timecreated' => time(),
+            'timemodified' => time(),
+        ];
+
+        $fs->create_file_from_string($filerecord, $binary);
+
+        $url = \moodle_url::make_pluginfile_url(
+            $contextid,
+            'mod_classengage',
+            self::ASSET_FILEAREA,
+            $slideid,
+            $filepath,
+            $filename
+        )->out(false);
+
+        return [
+            'filename' => $filename,
+            'url' => $url,
+        ];
+    }
+
+    /**
+     * Save inspection cache to temp directory.
+     *
+     * @param string $docid
+     * @param array $data
+     * @return void
+     */
+    private function save_doc_cache(string $docid, array $data): void {
+        $dir = \make_temp_directory(self::CACHE_SUBDIR);
+        $path = $dir . '/' . $docid . '.json';
+        file_put_contents($path, json_encode($data, JSON_UNESCAPED_SLASHES));
+    }
+
+    /**
+     * Load inspection cache from temp directory.
+     *
+     * @param string $docid
+     * @return array|null
+     */
+    private function load_doc_cache(string $docid): ?array {
+        $dir = \make_temp_directory(self::CACHE_SUBDIR);
+        $path = $dir . '/' . $docid . '.json';
+        if (!is_file($path)) {
+            return null;
+        }
+
+        $raw = @file_get_contents($path);
+        if (!is_string($raw) || trim($raw) === '') {
+            return null;
+        }
+
+        $decoded = json_decode($raw, true);
+        return is_array($decoded) ? $decoded : null;
+    }
+
+    /**
+     * Extract text from XML with regex and normalize.
+     *
+     * @param string $xml
+     * @param string $pattern
+     * @return string
+     */
+    private function extract_xml_text(string $xml, string $pattern): string {
+        if ($xml === '') {
+            return '';
+        }
+
+        $parts = [];
+        if (preg_match_all($pattern, $xml, $matches)) {
+            foreach ($matches[1] as $part) {
+                $decoded = html_entity_decode((string)$part, ENT_QUOTES | ENT_XML1, 'UTF-8');
+                $decoded = trim(strip_tags($decoded));
+                if ($decoded !== '') {
+                    $parts[] = $decoded;
+                }
+            }
+        }
+
+        return $this->normalize_text(implode(' ', $parts));
+    }
+
+    /**
+     * Normalize free text whitespace.
+     *
+     * @param string $text
+     * @return string
+     */
+    private function normalize_text(string $text): string {
+        $text = str_replace("\0", ' ', $text);
+        $text = preg_replace('/\r\n?/', "\n", $text);
+        $text = preg_replace('/[ \t]+/', ' ', $text);
+        $text = preg_replace('/\n{3,}/', "\n\n", $text);
+        return trim($text);
+    }
+
+    /**
+     * Normalize relationship target to ZIP entry path.
+     *
+     * @param string $baseentry
+     * @param string $target
+     * @return string
+     */
+    private function normalize_zip_target(string $baseentry, string $target): string {
+        $target = str_replace('\\', '/', $target);
+        if (strpos($target, '/') === 0) {
+            return ltrim($target, '/');
+        }
+
+        $baseparts = explode('/', trim(dirname($baseentry), '/'));
+        $targetparts = explode('/', $target);
+
+        foreach ($targetparts as $part) {
+            if ($part === '' || $part === '.') {
+                continue;
+            }
+
+            if ($part === '..') {
+                array_pop($baseparts);
+            } else {
+                $baseparts[] = $part;
+            }
+        }
+
+        return implode('/', $baseparts);
+    }
+
+    /**
+     * Extract PDF text with pdftotext and split by pages.
+     *
+     * @param string $filepath
+     * @return array
+     */
+    private function extract_pdf_text_by_page(string $filepath): array {
+        if (!function_exists('shell_exec')) {
+            throw new \Exception('PDF extraction requires shell_exec PHP function which is disabled. Please enable it or install a PDF extraction plugin.');
+        }
+
+        // Check if pdftotext is available.
+        if (empty(shell_exec('which pdftotext 2>/dev/null'))) {
+            throw new \Exception(
+                'PDF extraction requires pdftotext (Poppler utils) which is not installed. ' .
+                'If running in Docker, add this to your Dockerfile: RUN apt-get update && apt-get install -y poppler-utils'
+            );
+        }
+
+        // First try: extract with layout preservation and form feed separators.
+        $command = 'pdftotext -layout -enc UTF-8 ' . escapeshellarg($filepath) . ' - 2>&1';
+        $output = shell_exec($command);
+
+        // Check for errors.
+        if (!is_string($output)) {
+            \debugging('ClassEngage NLP: pdftotext returned null', \DEBUG_DEVELOPER);
+            return [];
+        }
+
+        // Check for common errors in output.
+        if (strpos($output, 'Error') === 0 || strpos($output, 'I/O Error') !== false) {
+            \debugging('ClassEngage NLP: pdftotext error: ' . substr($output, 0, 200), \DEBUG_DEVELOPER);
+            return [];
+        }
+
+        $trimmed = trim($output);
+        if ($trimmed === '') {
+            \debugging('ClassEngage NLP: pdftotext returned empty output', \DEBUG_DEVELOPER);
+            return [];
+        }
+
+        // Split by form feed character (page break).
+        $chunks = preg_split('/\f/u', $output);
+        $result = [];
+
+        foreach ($chunks as $index => $chunk) {
+            $text = $this->normalize_text((string)$chunk);
+            if ($text !== '') {
+                $result[$index + 1] = $text;
+            }
+        }
+
+        // If we got results, return them.
+        if (!empty($result)) {
+            \debugging('ClassEngage NLP: Extracted text from ' . count($result) . ' pages using form feed separation', \DEBUG_DEVELOPER);
+            return $result;
+        }
+
+        // Fallback: if no form feeds, try to get page count from pdfinfo and extract per-page.
+        $pageCount = $this->get_pdf_page_count($filepath);
+        if ($pageCount > 0) {
+            \debugging('ClassEngage NLP: Attempting per-page extraction for ' . $pageCount . ' pages', \DEBUG_DEVELOPER);
+            for ($page = 1; $page <= $pageCount; $page++) {
+                $cmd = 'pdftotext -layout -enc UTF-8 -f ' . $page . ' -l ' . $page . ' ' . escapeshellarg($filepath) . ' - 2>/dev/null';
+                $pageOutput = shell_exec($cmd);
+                if (is_string($pageOutput)) {
+                    $text = $this->normalize_text($pageOutput);
+                    if ($text !== '') {
+                        $result[$page] = $text;
+                    }
+                }
+            }
+        }
+
+        // Last resort: return all text as single page.
+        if (empty($result) && $trimmed !== '') {
+            $result[1] = $this->normalize_text($output);
+            \debugging('ClassEngage NLP: Returning all text as single page (no page breaks detected)', \DEBUG_DEVELOPER);
         }
 
         return $result;
     }
 
+    /**
+     * Get PDF page count using pdfinfo.
+     *
+     * @param string $filepath
+     * @return int
+     */
+    private function get_pdf_page_count(string $filepath): int {
+        if (!function_exists('shell_exec')) {
+            return 0;
+        }
+
+        $pdfinfo = shell_exec('which pdfinfo 2>/dev/null');
+        if (empty($pdfinfo)) {
+            return 0;
+        }
+
+        $output = shell_exec('pdfinfo ' . escapeshellarg($filepath) . ' 2>/dev/null');
+        if (!is_string($output)) {
+            return 0;
+        }
+
+        if (preg_match('/Pages:\s*(\d+)/', $output, $matches)) {
+            return (int)$matches[1];
+        }
+
+        return 0;
+    }
 
     /**
-     * Store generated questions in database
+     * Convert extension to MIME type.
+     *
+     * @param string $ext
+     * @return string
+     */
+    private function mime_from_extension(string $ext): string {
+        $ext = strtolower(ltrim($ext, '.'));
+        switch ($ext) {
+            case 'png':
+                return 'image/png';
+            case 'jpg':
+            case 'jpeg':
+                return 'image/jpeg';
+            case 'gif':
+                return 'image/gif';
+            case 'bmp':
+                return 'image/bmp';
+            case 'webp':
+                return 'image/webp';
+            default:
+                return '';
+        }
+    }
+
+    /**
+     * Convert MIME type to extension.
+     *
+     * @param string $mimetype
+     * @return string
+     */
+    private function extension_from_mime(string $mimetype): string {
+        $mimetype = strtolower(trim($mimetype));
+        switch ($mimetype) {
+            case 'image/png':
+                return 'png';
+            case 'image/jpeg':
+                return 'jpg';
+            case 'image/gif':
+                return 'gif';
+            case 'image/bmp':
+                return 'bmp';
+            case 'image/webp':
+                return 'webp';
+            default:
+                return '';
+        }
+    }
+
+    /**
+     * Normalize optional distribution map.
+     *
+     * @param mixed $distribution
+     * @param array $allowed
+     * @return array
+     */
+    private function normalize_distribution($distribution, array $allowed): array {
+        if (!is_array($distribution)) {
+            return [];
+        }
+
+        $allowedmap = array_fill_keys($allowed, true);
+        $normalized = [];
+
+        foreach ($distribution as $key => $value) {
+            $k = strtolower(trim((string)$key));
+            if (!isset($allowedmap[$k])) {
+                continue;
+            }
+
+            $count = (int)$value;
+            if ($count <= 0) {
+                continue;
+            }
+
+            $normalized[$k] = $count;
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * Build metadata plan summary.
+     *
+     * @param array $options
+     * @return array
+     */
+    private function build_plan_metadata(array $options): array {
+        return [
+            'difficultyDistribution' => $this->normalize_distribution(
+                $options['difficultyDistribution'] ?? null,
+                ['easy', 'medium', 'hard']
+            ),
+            'bloomDistribution' => $this->normalize_distribution(
+                $options['bloomDistribution'] ?? null,
+                ['remember', 'understand', 'apply', 'analyze', 'evaluate', 'create']
+            ),
+        ];
+    }
+
+    /**
+     * Normalize list of strings.
+     *
+     * @param mixed $value
+     * @return array
+     */
+    private function normalize_string_list($value): array {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $result = [];
+        foreach ($value as $item) {
+            $text = trim((string)$item);
+            if ($text !== '') {
+                $result[] = $text;
+            }
+        }
+        return $result;
+    }
+
+    /**
+     * Check if array is list-like.
+     *
+     * @param mixed $value
+     * @return bool
+     */
+    private function is_list_array($value): bool {
+        if (!is_array($value)) {
+            return false;
+        }
+        return array_values($value) === $value;
+    }
+
+    /**
+     * Store generated questions in database.
      *
      * @param array $questions
      * @param int $classengageid
      * @param int $slideid
-     * @return array Array of question IDs
+     * @return array
      */
-    protected function store_questions($questions, $classengageid, $slideid)
-    {
+    protected function store_questions($questions, $classengageid, $slideid) {
         global $DB;
 
-        $questionids = array();
+        $questionids = [];
         $now = time();
 
         foreach ($questions as $q) {
@@ -617,28 +2404,28 @@ class nlp_generator
             $question->questiontype = 'multichoice';
             $question->optiona = $q['optiona'];
             $question->optionb = $q['optionb'];
-            $question->optionc = $q['optionc'];
-            $question->optiond = $q['optiond'];
+            $question->optionc = $q['optionc'] ?? '';
+            $question->optiond = $q['optiond'] ?? '';
             $question->correctanswer = $q['correctanswer'];
             $question->difficulty = $q['difficulty'] ?? 'medium';
-            // Check multiple possible key names for bloom/cognitive level
             $question->bloomlevel = $q['bloomLevel'] ?? $q['bloomlevel'] ?? $q['bloom_level']
                 ?? $q['cognitiveLevel'] ?? $q['cognitive_level'] ?? null;
             $question->rationale = $q['rationale'] ?? null;
-            // Store source attribution (slides and images used for generation)
             $question->sources = !empty($q['sources']) ? json_encode($q['sources']) : null;
-            // Store the specific image path this question references (relative, e.g., /assets/img_xxx?docId=yyy)
-            // Full URL is constructed at display time using nlppublicurl config
             $question->question_image = $q['question_image'] ?? null;
             $question->status = 'pending';
             $question->source = 'nlp';
             $question->timecreated = $now;
             $question->timemodified = $now;
 
-            $questionids[] = $DB->insert_record('classengage_questions', $question);
+            $questionid = $DB->insert_record('classengage_questions', $question);
+            if ($questionid) {
+                $questionids[] = $questionid;
+            }
         }
+
+        \debugging("ClassEngage NLP: Stored " . count($questionids) . " questions for classengageid={$classengageid}, slideid={$slideid}", \DEBUG_DEVELOPER);
 
         return $questionids;
     }
 }
-
