@@ -91,6 +91,110 @@ mod/classengage/
 3. Go to **Site administration > Notifications** to trigger the database update.
 4. Configure the plugin settings (NLP endpoint, API keys) in **Site administration > Plugins > Activity modules > In-class Learning Engagement**.
 
+### Docker Installation for PDF Processing
+
+The NLP features require `pdftotext` (for text extraction) and `Imagick` (for image extraction from PDFs). If using Docker, use the provided custom Dockerfile:
+
+1. **Copy the custom Dockerfile:**
+   ```bash
+   cp bin/Dockerfile.custom /path/to/your/moodle-docker/
+   ```
+
+2. **Update docker-compose.yml** to use the custom image:
+   ```yaml
+   services:
+     webserver:
+       build:
+         context: .
+         dockerfile: Dockerfile.custom
+       # ... other config
+   ```
+
+3. **Rebuild and start:**
+   ```bash
+   docker-compose down
+   docker-compose build --no-cache webserver
+   docker-compose up -d
+   ```
+
+The custom Dockerfile includes:
+- `poppler-utils` for PDF text extraction
+- `Imagick` PHP extension for image processing
+- Cron daemon for automatic Moodle task execution
+
+### NLP Provider Configuration
+
+The plugin supports multiple AI providers for question generation. Configure your preferred provider in **Site administration > Plugins > Activity modules > In-class Learning Engagement > NLP Settings**.
+
+#### Gemini (Default)
+
+1. Get an API key from [Google AI Studio](https://aistudio.google.com/)
+2. In plugin settings:
+   - **Default provider**: `gemini`
+   - **Gemini API Key**: Enter your API key
+   - **Gemini Model**: `gemini-1.5-flash` (recommended for speed) or `gemini-1.5-pro`
+   - **Request Timeout**: `120` seconds
+
+#### OpenAI
+
+1. Get an API key from [OpenAI Platform](https://platform.openai.com/)
+2. In plugin settings:
+   - **Default provider**: `openai`
+   - **OpenAI API Key**: Enter your API key
+   - **OpenAI Model**: `gpt-4o` or `gpt-4o-mini`
+   - **Endpoint**: `https://api.openai.com/v1`
+   - **Request Timeout**: `120` seconds
+
+#### Anthropic
+
+1. Get an API key from [Anthropic Console](https://console.anthropic.com/)
+2. In plugin settings:
+   - **Default provider**: `anthropic`
+   - **Anthropic API Key**: Enter your API key
+   - **Anthropic Model**: `claude-sonnet-4-20250514` or `claude-haiku-3-20250514`
+   - **Endpoint**: `https://api.anthropic.com/v1`
+   - **Request Timeout**: `120` seconds
+
+#### DeepSeek
+
+1. Get an API key from [DeepSeek Platform](https://platform.deepseek.com/)
+2. In plugin settings:
+   - **Default provider**: `deepseek`
+   - **DeepSeek API Key**: Enter your API key
+   - **DeepSeek Model**: `deepseek-chat`
+   - **Endpoint**: `https://api.deepseek.com/v1`
+   - **Request Timeout**: `120` seconds
+
+#### Local/Ollama
+
+For offline or self-hosted AI:
+
+1. Install [Ollama](https://ollama.com/)
+2. Pull a model: `ollama pull llama3.2`
+3. In plugin settings:
+   - **Default provider**: `local`
+   - **Local Endpoint**: `http://localhost:11434`
+   - **Local Model**: `llama3.2`
+   - **Request Timeout**: `300` seconds
+
+#### Provider Priority
+
+You can configure fallback providers. If the first provider fails, the system will try the next:
+
+```
+gemini,openai,anthropic,deepseek,local
+```
+
+### Troubleshooting NLP Issues
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| Questions generate but don't appear | Cron not running | Ensure Moodle cron runs every minute |
+| PDF text not extracted | Missing `pdftotext` | Install `poppler-utils` in Docker |
+| Images not processing | ImageMagick blocked | Fix ImageMagick security policy |
+| Generation times out | Large PDF or slow API | Reduce image resolution or increase timeout |
+| Questions stored with classengageid=0 | Variable bug (v1.0.0) | Update to v1.0.1+ |
+
 ### Clicker Integration Setup
 
 To enable physical clicker support (or to use the Web Services API for testing), you must configure Moodle Web Services. Follow these steps **in order**.
