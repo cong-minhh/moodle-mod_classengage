@@ -62,6 +62,166 @@ if ($ADMIN->fulltree) {
         0
     ));
 
+    // NLP Provider Settings
+    $settings->add(new admin_setting_heading(
+        'mod_classengage/nlpprovidersheading',
+        get_string('settings:nlpproviders', 'mod_classengage'),
+        get_string('settings:nlpproviders_desc', 'mod_classengage')
+    ));
+
+    $provideroptions = [
+        'gemini' => 'Gemini',
+        'openai' => 'OpenAI',
+        'anthropic' => 'Anthropic',
+        'deepseek' => 'DeepSeek',
+        'kimi' => 'Kimi',
+        'kimicn' => 'Kimi CN',
+    ];
+
+    $settings->add(new admin_setting_configselect(
+        'mod_classengage/nlp_default_provider',
+        get_string('settings:nlpdefaultprovider', 'mod_classengage'),
+        get_string('settings:nlpdefaultprovider_desc', 'mod_classengage'),
+        'gemini',
+        $provideroptions
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'mod_classengage/nlp_provider_priority',
+        get_string('settings:nlpproviderpriority', 'mod_classengage'),
+        get_string('settings:nlpproviderpriority_desc', 'mod_classengage'),
+        'gemini,openai,anthropic,deepseek,kimi,kimicn',
+        PARAM_TEXT
+    ));
+
+    // Gemini
+    $settings->add(new admin_setting_configpasswordunmask(
+        'mod_classengage/gemini_api_key',
+        get_string('settings:geminiapikey', 'mod_classengage'),
+        get_string('settings:geminiapikey_desc', 'mod_classengage'),
+        ''
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'mod_classengage/gemini_model',
+        get_string('settings:geminimodel', 'mod_classengage'),
+        get_string('settings:geminimodel_desc', 'mod_classengage'),
+        'gemini-2.5-flash',
+        PARAM_TEXT
+    ));
+
+    // OpenAI
+    $settings->add(new admin_setting_configpasswordunmask(
+        'mod_classengage/openai_api_key',
+        get_string('settings:openaiapikey', 'mod_classengage'),
+        get_string('settings:openaiapikey_desc', 'mod_classengage'),
+        ''
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'mod_classengage/openai_model',
+        get_string('settings:openaimodel', 'mod_classengage'),
+        get_string('settings:openaimodel_desc', 'mod_classengage'),
+        'gpt-4o',
+        PARAM_TEXT
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'mod_classengage/openai_base_url',
+        get_string('settings:openaibaseurl', 'mod_classengage'),
+        get_string('settings:openaibaseurl_desc', 'mod_classengage'),
+        'https://api.openai.com/v1',
+        PARAM_URL
+    ));
+
+    // Anthropic
+    $settings->add(new admin_setting_configpasswordunmask(
+        'mod_classengage/anthropic_api_key',
+        get_string('settings:anthropicapikey', 'mod_classengage'),
+        get_string('settings:anthropicapikey_desc', 'mod_classengage'),
+        ''
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'mod_classengage/anthropic_model',
+        get_string('settings:anthropicmodel', 'mod_classengage'),
+        get_string('settings:anthropicmodel_desc', 'mod_classengage'),
+        'claude-3-5-sonnet-20241022',
+        PARAM_TEXT
+    ));
+
+    // DeepSeek
+    $settings->add(new admin_setting_configpasswordunmask(
+        'mod_classengage/deepseek_api_key',
+        get_string('settings:deepseekapikey', 'mod_classengage'),
+        get_string('settings:deepseekapikey_desc', 'mod_classengage'),
+        ''
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'mod_classengage/deepseek_model',
+        get_string('settings:deepseekmodel', 'mod_classengage'),
+        get_string('settings:deepseekmodel_desc', 'mod_classengage'),
+        'deepseek-chat',
+        PARAM_TEXT
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'mod_classengage/deepseek_base_url',
+        get_string('settings:deepseekbaseurl', 'mod_classengage'),
+        get_string('settings:deepseekbaseurl_desc', 'mod_classengage'),
+        'https://api.deepseek.com/v1',
+        PARAM_URL
+    ));
+
+    // Kimi
+    $settings->add(new admin_setting_configpasswordunmask(
+        'mod_classengage/kimi_api_key',
+        get_string('settings:kimiapikey', 'mod_classengage'),
+        get_string('settings:kimiapikey_desc', 'mod_classengage'),
+        ''
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'mod_classengage/kimi_model',
+        get_string('settings:kimimodel', 'mod_classengage'),
+        get_string('settings:kimimodel_desc', 'mod_classengage'),
+        'moonshotai/kimi-k2:free',
+        PARAM_TEXT
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'mod_classengage/kimi_base_url',
+        get_string('settings:kimibaseurl', 'mod_classengage'),
+        get_string('settings:kimibaseurl_desc', 'mod_classengage'),
+        'https://api.moonshot.ai/v1',
+        PARAM_URL
+    ));
+
+    // Kimi CN
+    $settings->add(new admin_setting_configpasswordunmask(
+        'mod_classengage/kimicn_api_key',
+        get_string('settings:kimicnapikey', 'mod_classengage'),
+        get_string('settings:kimicnapikey_desc', 'mod_classengage'),
+        ''
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'mod_classengage/kimicn_model',
+        get_string('settings:kimicnmodel', 'mod_classengage'),
+        get_string('settings:kimicnmodel_desc', 'mod_classengage'),
+        'moonshot-v1-8k',
+        PARAM_TEXT
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'mod_classengage/kimicn_base_url',
+        get_string('settings:kimicnbaseurl', 'mod_classengage'),
+        get_string('settings:kimicnbaseurl_desc', 'mod_classengage'),
+        'https://api.moonshot.cn/v1',
+        PARAM_URL
+    ));
+
     // File Upload Settings
     $settings->add(new admin_setting_heading(
         'mod_classengage/fileheading',
@@ -170,3 +330,15 @@ if ($ADMIN->fulltree) {
     ));
 }
 
+$stringmanager = get_string_manager();
+$providerstesttitle = 'Test NLP Providers';
+if ($stringmanager->string_exists('settings:nlpproviderstest', 'mod_classengage')) {
+    $providerstesttitle = get_string('settings:nlpproviderstest', 'mod_classengage');
+}
+
+$ADMIN->add('modsettings', new admin_externalpage(
+    'classengage_nlpproviderstest',
+    $providerstesttitle,
+    new moodle_url('/mod/classengage/test_providers.php'),
+    'moodle/site:config'
+));

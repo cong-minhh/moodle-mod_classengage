@@ -165,10 +165,14 @@ class edit_question_form extends \moodleform
                         $url = $img['url'] ?? '';
 
                         // Build public URL for images
-                        $publicurl = get_config('mod_classengage', 'nlppublicurl');
-                        $baseurl = !empty($publicurl) ? $publicurl : get_config('mod_classengage', 'nlpendpoint');
                         if ($url && strpos($url, 'http') !== 0) {
-                            $url = rtrim($baseurl, '/') . $url;
+                            if (strpos($url, '/mod/classengage/asset.php') === 0) {
+                                $url = $CFG->wwwroot . $url;
+                            } else {
+                                $publicurl = get_config('mod_classengage', 'nlppublicurl');
+                                $baseurl = !empty($publicurl) ? $publicurl : get_config('mod_classengage', 'nlpendpoint');
+                                $url = !empty($baseurl) ? (rtrim($baseurl, '/') . $url) : ($CFG->wwwroot . $url);
+                            }
                         }
 
                         if ($url) {
@@ -243,4 +247,3 @@ class edit_question_form extends \moodleform
         return implode(', ', $ranges);
     }
 }
-

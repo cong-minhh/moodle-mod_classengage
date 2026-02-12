@@ -177,7 +177,8 @@ define([
 
       // Process pages for template
       this.pages.forEach(function (page) {
-        var shorttext = page.text.replace(/<[^>]+>/g, "").substring(0, 100);
+        var pagetext = page.text || "";
+        var shorttext = pagetext.replace(/<[^>]+>/g, "").substring(0, 100);
         var images = [];
 
         if (page.images) {
@@ -204,8 +205,8 @@ define([
             Templates.render("mod_classengage/generator_slide_row", {
               pagenum: page.page,
               shorttext: shorttext,
-              fulltext: page.text, // For popup
-              hasmore: page.text.length > 100,
+               fulltext: pagetext, // For popup
+               hasmore: pagetext.length > 100,
               images: images,
             }),
           );
@@ -218,7 +219,8 @@ define([
       // Correct approach:
       var promises = [];
       this.pages.forEach(function (page) {
-        var shorttext = page.text.replace(/<[^>]+>/g, "").substring(0, 100);
+        var pagetext = page.text || "";
+        var shorttext = pagetext.replace(/<[^>]+>/g, "").substring(0, 100);
         var images = [];
         if (page.images) {
           page.images.forEach(function (img) {
@@ -237,8 +239,8 @@ define([
           Templates.render("mod_classengage/generator_slide_row", {
             pagenum: page.page,
             shorttext: shorttext,
-            fulltext: page.text,
-            hasmore: page.text.length > 100,
+            fulltext: pagetext,
+            hasmore: pagetext.length > 100,
             images: images,
           }),
         );
@@ -484,7 +486,10 @@ define([
 
       // Initialize Progress
       if (self.updateProgress) {
-        self.updateProgress(0, "Sending request...");
+        self.updateProgress(
+          10,
+          "Generating questions. This can take a few minutes depending on the provider.",
+        );
       }
 
       // Bind Minimize Button
@@ -509,7 +514,7 @@ define([
         success: function (response) {
           if (response.success && response.status === "running") {
             // Job started, begin Smart Polling
-            self.updateProgress(5, "Job queued...");
+            self.updateProgress(10, "Job queued...");
             self.pollStatus(0);
           } else if (response.success && response.status === "completed") {
             self.updateProgress(100, "Done!");
@@ -535,15 +540,12 @@ define([
 
       if (statusText) {
         root.find("#progress-status-text").text(statusText);
-        if (percent < 20) {
-          root.find("#progress-detail").text("Initializing NLP Engine...");
-        } else if (percent < 50) {
-          root.find("#progress-detail").text("Analyzing content...");
-        } else if (percent < 80) {
-          root.find("#progress-detail").text("Generating questions...");
-        } else if (percent < 100) {
-          root.find("#progress-detail").text("Finalizing...");
-        }
+        root
+          .find("#progress-detail")
+          .text(
+            statusText ||
+              "Generating questions. This can take a few minutes depending on the provider.",
+          );
       }
     },
 

@@ -260,11 +260,18 @@ class slide_processor
      */
     protected function is_auto_generation_enabled()
     {
-        $nlpendpoint = get_config('mod_classengage', self::CONFIG_NLP_ENDPOINT);
         $autogenerate = get_config('mod_classengage', self::CONFIG_AUTO_GENERATE);
+        if (empty($autogenerate)) {
+            return false;
+        }
 
-        return !empty($nlpendpoint) && $autogenerate;
+        try {
+            $manager = new \mod_classengage\nlp\provider_manager();
+            $provider = $manager->select_provider(false);
+            return $provider->is_configured();
+        } catch (\Exception $e) {
+            return false;
+        }
     }
 
 }
-

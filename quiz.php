@@ -198,8 +198,13 @@ if ($session->status === constants::SESSION_STATUS_ACTIVE || $session->status ==
             // Construct full URL from stored path
             $imagesrc = $currentquestion->question_image;
             if (strpos($imagesrc, '/') === 0) {
-                $nlppublicurl = rtrim(get_config('mod_classengage', 'nlppublicurl'), '/');
-                $imagesrc = $nlppublicurl . $imagesrc;
+                if (strpos($imagesrc, '/mod/classengage/asset.php') === 0) {
+                    $imagesrc = $CFG->wwwroot . $imagesrc;
+                } else {
+                    $nlppublicurl = rtrim(get_config('mod_classengage', 'nlppublicurl'), '/');
+                    $baseurl = !empty($nlppublicurl) ? $nlppublicurl : rtrim(get_config('mod_classengage', 'nlpendpoint'), '/');
+                    $imagesrc = !empty($baseurl) ? $baseurl . $imagesrc : ($CFG->wwwroot . $imagesrc);
+                }
             }
             echo html_writer::start_div('question-image text-center mb-3');
             echo html_writer::empty_tag('img', array(

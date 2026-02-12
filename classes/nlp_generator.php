@@ -15,10 +15,10 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * NLP question generation class (stub implementation)
+ * NLP question generation class (local PHP implementation).
  *
  * @package    mod_classengage
- * @copyright  2025 Danielle
+ * @copyright  2026 Danielle
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -28,585 +28,239 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->libdir . '/filelib.php');
 
-/**
- * NLP question generator class
- */
-class nlp_generator
-{
+use mod_classengage\nlp\provider_manager;
+use mod_classengage\nlp\file_processing_service;
+use mod_classengage\nlp\content_filter;
+use mod_classengage\nlp\storage\document_storage;
+use mod_classengage\nlp\storage\image_asset_storage;
 
+class nlp_generator {
     /**
-     * Generate quiz questions from file using NLP service
-     * This is the main entry point - sends file directly to Node.js service
+     * Inspect document content to get structure (pages/images).
      *
-     * @param \stored_file $file Moodle stored file
-     * @param int $classengageid Activity instance ID
-     * @param int $slideid Slide ID
-     * @param int $numquestions Number of questions to generate (optional)
-     * @return array Array of generated question IDs
-     */
-    /**
-     * Inspect document content to get structure (pages/images)
-     * 
      * @param \stored_file $file Moodle stored file
      * @return array Document inspection result with docId and pages
      */
-    public function inspect_document($file)
-    {
-        $endpoint = '/api/documents/inspect';
+    public function inspect_document($file): array {
+        global $DB;
 
-        // Create temporary file from stored_file
-        $tmpfile = tempnam(sys_get_temp_dir(), 'moodle_nlp_inspect_');
-        $file->copy_content_to($tmpfile);
-
-        try {
-            $postdata = array(
-                'file' => new \CURLFile($tmpfile, $file->get_mimetype(), $file->get_filename())
-            );
-
-            // We need to construct multipart manually to handle file upload correctly with Moodle's curl class
-            // or use the helper method similar to generate_questions_from_file
-
-            $boundary = '----WebKitFormBoundary' . uniqid();
-            $delimiter = "\r\n";
-
-            $body = '';
-            // Add file
-            $body .= '--' . $boundary . $delimiter;
-            $body .= 'Content-Disposition: form-data; name="file"; filename="' . $file->get_filename() . '"' . $delimiter;
-            $body .= 'Content-Type: ' . $file->get_mimetype() . $delimiter . $delimiter;
-            $body .= file_get_contents($tmpfile) . $delimiter;
-            $body .= '--' . $boundary . '--' . $delimiter;
-
-            $headers = array('Content-Type: multipart/form-data; boundary=' . $boundary);
-
-            $response = $this->call_api($endpoint, $body, 'POST', $headers);
-            return $response;
-
-        } finally {
-            if (file_exists($tmpfile)) {
-                unlink($tmpfile);
+        $contextid = $file->get_contextid();
+        $slideid = (int) $file->get_itemid();
+        $classengageid = 0;
+        if ($slideid) {
+            $slide = $DB->get_record('classengage_slides', ['id' => $slideid]);
+            if ($slide) {
+                $classengageid = (int) $slide->classengageid;
             }
         }
+
+        $docinfo = document_storage::ensure_document($file, $contextid, $classengageid, $slideid);
+        $docid = $docinfo['docId'];
+        $extraction = document_storage::get_extraction($docid);
+
+        if ($extraction === null) {
+            $processor = new file_processing_service();
+            $extraction = $processor->process(
+                $docinfo['path'],
+                $file->get_filename(),
+                [
+                    'docId' => $docid,
+                ]
+            );
+            document_storage::save_extraction($docid, $extraction);
+        }
+
+        return [
+            'docId' => $docid,
+            'pages' => $extraction['pages'] ?? [],
+        ];
     }
 
     /**
-     * Generate questions from a previously inspected document
-     * 
-     * @param string $docid Document ID from inspection
+     * Generate questions from a previously inspected document.
+     *
+     * @param string $docid
      * @param int $classengageid
      * @param int $slideid
-     * @param array $options Generation options (includeSlides, includeImages, etc.)
-     * @return array Result with 'questionids', 'metadata', 'provider', 'model', 'analysis'
+     * @param array $options
+     * @return array
      */
-    public function generate_questions_from_document($docid, $classengageid, $slideid, $options = [])
-    {
-        $endpoint = '/api/documents/generate';
+    public function generate_questions_from_document(string $docid, int $classengageid, int $slideid, array $options = []): array {
+        $options = $this->apply_defaults($options);
 
-        $payload = array(
-            'docId' => $docid,
-            'options' => $options
-        );
-
-        // Ensure defaults
-        if (!isset($payload['options']['numQuestions'])) {
-            $payload['options']['numQuestions'] = get_config('mod_classengage', 'defaultquestions') ?: 10;
+        $extraction = document_storage::get_extraction($docid);
+        if ($extraction === null) {
+            $meta = document_storage::get_metadata($docid);
+            $processor = new file_processing_service();
+            $extraction = $processor->process(
+                $meta['path'],
+                $meta['originalname'],
+                [
+                    'docId' => $docid,
+                ]
+            );
+            document_storage::save_extraction($docid, $extraction);
         }
 
-        $response = $this->call_api($endpoint, json_encode($payload), 'POST', ['Content-Type: application/json']);
+        $options['docId'] = $docid;
+        $filtered = content_filter::apply($extraction, $options);
 
-        if (empty($response['questions'])) {
-            throw new \Exception('NLP service returned no questions');
+        $payload = $filtered['text'];
+        if (!empty($filtered['images'])) {
+            $payload = [
+                'text' => $filtered['text'] ?? '',
+                'images' => $filtered['images'],
+            ];
         }
 
-        $questionids = $this->store_questions($response['questions'], $classengageid, $slideid);
+        $distributionplan = $this->build_distribution_plan($options);
+        if ($distributionplan) {
+            $options['distributionPlan'] = $distributionplan;
+        }
+        $options['imageMetadata'] = $filtered['imageMetadata'] ?? [];
 
-        // Return extended response with metadata
+        $manager = new provider_manager();
+        $provider = $manager->select_provider(!empty($filtered['images']));
+
+        $result = $provider->generate_questions($payload, $options);
+        if (empty($result['questions'])) {
+            throw new \Exception('AI provider returned no questions');
+        }
+
+        if (!empty($distributionplan)) {
+            if (!isset($result['metadata'])) {
+                $result['metadata'] = [];
+            }
+            $result['metadata']['plan'] = $distributionplan['breakdown'] ?? null;
+        }
+
+        $sources = $filtered['sources'] ?? [];
+        $questions = $this->normalize_question_images($result['questions'], $docid, $filtered['imageMetadata'] ?? [], $sources);
+
+        $questionids = $this->store_questions($questions, $classengageid, $slideid);
+
         return [
             'questionids' => $questionids,
             'count' => count($questionids),
-            'provider' => $response['provider'] ?? null,
-            'model' => $response['metadata']['model'] ?? null,
-            'analysis' => $response['analysis'] ?? null,
-            'metadata' => $response['metadata'] ?? null
+            'provider' => $result['provider'] ?? $provider->get_name(),
+            'model' => $result['metadata']['model'] ?? $provider->get_current_model(),
+            'analysis' => $result['analysis'] ?? null,
+            'metadata' => $result['metadata'] ?? null,
         ];
     }
 
     /**
-     * Start async question generation from a document (non-blocking)
-     * Returns immediately with a job ID for polling.
-     * 
-     * @param string $docid Document ID from prior inspection
-     * @param array $options Generation options
-     * @return array Contains 'jobId', 'statusUrl', 'resultUrl'
+     * Generate questions with async interface (local implementation).
+     *
+     * @param string $docid
+     * @param int $classengageid
+     * @param int $slideid
+     * @param array $options
+     * @param int $maxwait
+     * @param int $pollinterval
+     * @return array
      */
-    public function start_async_generation($docid, $options = [])
-    {
-        $endpoint = '/api/documents/generate-async';
-
-        $payload = array(
-            'docId' => $docid,
-            'options' => $options
-        );
-
-        // Ensure defaults
-        if (!isset($payload['options']['numQuestions'])) {
-            $payload['options']['numQuestions'] = get_config('mod_classengage', 'defaultquestions') ?: 10;
-        }
-
-        $response = $this->call_api_extended(
-            $endpoint,
-            json_encode($payload),
-            'POST',
-            ['Content-Type: application/json'],
-            30,   // Short timeout - this returns quickly
-            [200, 202]  // Accept both 200 and 202
-        );
-
-        if (empty($response['jobId'])) {
-            throw new \Exception('NLP service did not return a jobId');
-        }
-
-        return [
-            'jobId' => $response['jobId'],
-            'docId' => $response['docId'] ?? $docid,
-            'statusUrl' => $response['statusUrl'] ?? null,
-            'resultUrl' => $response['resultUrl'] ?? null,
-            'message' => $response['message'] ?? 'Job queued'
-        ];
+    public function generate_questions_async(string $docid, int $classengageid, int $slideid, array $options = [], int $maxwait = 600, int $pollinterval = 2): array {
+        $result = $this->generate_questions_from_document($docid, $classengageid, $slideid, $options);
+        $result['jobId'] = 'local_' . uniqid();
+        return $result;
     }
 
     /**
-     * Poll job status from NLP service
-     * 
-     * @param string $jobid Job ID from start_async_generation
-     * @return array Job status with 'status', 'progress', 'error'
-     */
-    public function poll_job_status($jobid)
-    {
-        $endpoint = '/api/jobs/' . urlencode($jobid);
-
-        $response = $this->call_api_extended(
-            $endpoint,
-            '',
-            'GET',
-            ['Content-Type: application/json'],
-            15  // Short timeout for status checks
-        );
-
-        return [
-            'status' => $response['job']['status'] ?? 'unknown',
-            'progress' => $response['job']['progress'] ?? 0,
-            'error' => $response['job']['error'] ?? null,
-            'createdAt' => $response['job']['createdAt'] ?? null,
-            'startedAt' => $response['job']['startedAt'] ?? null,
-            'completedAt' => $response['job']['completedAt'] ?? null
-        ];
-    }
-
-    /**
-     * Get completed job result from NLP service
-     * 
-     * @param string $jobid Job ID
-     * @return array The job result containing questions
-     */
-    public function get_job_result($jobid)
-    {
-        $endpoint = '/api/jobs/' . urlencode($jobid) . '/result';
-
-        $response = $this->call_api($endpoint, '', 'GET', ['Content-Type: application/json']);
-
-        if (empty($response['result'])) {
-            throw new \Exception('Job result is empty or job not completed');
-        }
-
-        return $response['result'];
-    }
-
-    /**
-     * Check remote job status and update the local database (On-Demand Sync)
-     * Used by Long-Polling endpoint.
-     * 
+     * No-op job status sync (local implementation).
+     *
      * @param int $slideid
      * @return void
      */
-    public function check_and_update_job_status($slideid)
-    {
-        global $DB;
-
-        $slide = $DB->get_record('classengage_slides', ['id' => $slideid], '*', MUST_EXIST);
-
-        // Only check if we have a job ID and it's not already final
-        if (empty($slide->nlp_job_id) || in_array($slide->nlp_job_status, ['completed', 'failed', 'idle'])) {
-            return;
-        }
-
-        try {
-            $status = $this->poll_job_status($slide->nlp_job_id);
-
-            // Has it changed?
-            $status_changed = ($slide->nlp_job_status !== $status['status']);
-            $progress_changed = (abs($slide->nlp_job_progress - $status['progress']) >= 5); // 5% granularity update
-
-            if ($status_changed || $progress_changed) {
-                // Don't overwrite if it just finished concurrently, handled by lock usually but being safe
-                $update = new \stdClass();
-                $update->id = $slide->id;
-                $update->nlp_job_status = $status['status'];
-                $update->nlp_job_progress = $status['progress'];
-                $update->timemodified = time(); // Important for long-poll loop detection
-
-                if ($status['status'] === 'failed') {
-                    $update->nlp_job_error = $status['error'];
-                }
-
-                $DB->update_record('classengage_slides', $update);
-
-                // If completed, fetch results immediately
-                if ($status['status'] === 'completed') {
-                    $result = $this->get_job_result($slide->nlp_job_id);
-                    $classengage = $DB->get_record('classengage', ['id' => $slide->classengageid]);
-
-                    // Transaction to store questions safely
-                    $transaction = $DB->start_delegated_transaction();
-                    $questionids = $this->store_questions($result['questions'], $classengage->id, $slideid);
-
-                    $final_update = new \stdClass();
-                    $final_update->id = $slide->id;
-                    $final_update->nlp_questions_count = count($questionids);
-                    $final_update->nlp_job_completed = time();
-                    $final_update->nlp_provider = $result['provider'] ?? null;
-                    $final_update->nlp_model = $result['metadata']['model'] ?? null;
-                    $final_update->nlp_generation_metadata = isset($result['metadata']) ? json_encode($result['metadata']) : null;
-                    $DB->update_record('classengage_slides', $final_update);
-
-                    $transaction->allow_commit();
-                }
-            }
-
-        } catch (\Exception $e) {
-            // Log but don't crash the poll loop - maybe network blip
-            debugging("Error updating job status for slide $slideid: " . $e->getMessage(), DEBUG_DEVELOPER);
-        }
+    public function check_and_update_job_status($slideid): void {
+        return;
     }
 
     /**
-     * Complete async generation flow: poll until done, then store questions
-     * This is the robust replacement for synchronous generation.
-     * 
-     * @param string $docid Document ID
-     * @param int $classengageid Activity instance ID
-     * @param int $slideid Slide ID
-     * @param array $options Generation options
-     * @param int $maxwait Maximum seconds to wait (default 600 = 10 minutes)
-     * @param int $pollinterval Seconds between polls (default 2)
-     * @return array Result with 'questionids', 'metadata', etc.
-     */
-    public function generate_questions_async($docid, $classengageid, $slideid, $options = [], $maxwait = 600, $pollinterval = 2)
-    {
-        // 1. Start async job
-        $jobinfo = $this->start_async_generation($docid, $options);
-        $jobid = $jobinfo['jobId'];
-
-        // 2. Poll until complete (with timeout)
-        $starttime = time();
-        $laststatus = null;
-
-        while (true) {
-            $elapsed = time() - $starttime;
-            if ($elapsed > $maxwait) {
-                throw new \Exception("Generation timed out after {$maxwait} seconds (job: {$jobid})");
-            }
-
-            $status = $this->poll_job_status($jobid);
-            $laststatus = $status;
-
-            if ($status['status'] === 'completed') {
-                break;
-            }
-
-            if ($status['status'] === 'failed') {
-                $errmsg = $status['error'] ?? 'Unknown error';
-                throw new \Exception("Generation failed: {$errmsg}");
-            }
-
-            if ($status['status'] === 'cancelled') {
-                throw new \Exception('Generation was cancelled');
-            }
-
-            // Wait before next poll
-            sleep($pollinterval);
-        }
-
-        // 3. Get result
-        $result = $this->get_job_result($jobid);
-
-        if (empty($result['questions'])) {
-            throw new \Exception('NLP service returned no questions');
-        }
-
-        // 4. Store questions
-        $questionids = $this->store_questions($result['questions'], $classengageid, $slideid);
-
-        return [
-            'questionids' => $questionids,
-            'count' => count($questionids),
-            'jobId' => $jobid,
-            'provider' => $result['provider'] ?? null,
-            'model' => $result['metadata']['model'] ?? null,
-            'analysis' => $result['analysis'] ?? null,
-            'metadata' => $result['metadata'] ?? null
-        ];
-    }
-
-    /**
-     * Generate questions from raw text
-     * 
-     * @param string $text Content text
+     * Generate questions from raw text.
+     *
+     * @param string $text
      * @param int $classengageid
      * @param int $numquestions
      * @param string $difficulty
-     * @return array Array of generated question IDs
+     * @return array
      */
-    public function generate_questions_from_text($text, $classengageid, $numquestions = 10, $difficulty = 'medium')
-    {
-        $endpoint = '/api/generate';
+    public function generate_questions_from_text(string $text, int $classengageid, int $numquestions = 10, string $difficulty = 'medium'): array {
+        $manager = new provider_manager();
+        $provider = $manager->select_provider(false);
 
-        $payload = array(
-            'text' => $text,
+        $result = $provider->generate_questions($text, [
             'numQuestions' => $numquestions,
-            'difficulty' => $difficulty
-        );
+            'difficulty' => $difficulty,
+        ]);
 
-        $response = $this->call_api($endpoint, json_encode($payload), 'POST', ['Content-Type: application/json']);
-
-        if (empty($response['questions'])) {
-            throw new \Exception('NLP service returned no questions');
+        if (empty($result['questions'])) {
+            throw new \Exception('AI provider returned no questions');
         }
 
-        // For text generation, slideid is 0 (or null)
-        return $this->store_questions($response['questions'], $classengageid, 0);
+        return $this->store_questions($result['questions'], $classengageid, 0);
     }
 
     /**
-     * Analyze class session data using AI
-     * 
+     * Analyze class session data using AI.
+     *
      * @param array $sessiondata
      * @param array $options
-     * @return array Analysis result
+     * @return array
      */
-    public function analyze_session($sessiondata, $options = [])
-    {
-        $endpoint = '/api/analyze-session';
+    public function analyze_session(array $sessiondata, array $options = []): array {
+        $manager = new provider_manager();
+        $provider = $manager->select_provider(false);
+        $prompt = $this->build_analysis_prompt($sessiondata, $options);
+        $raw = $provider->generate_response($prompt);
 
-        $payload = array(
-            'session_data' => $sessiondata,
-            'options' => $options
-        );
+        $parsed = json_decode($raw, true);
+        if (!is_array($parsed)) {
+            return [
+                'summary' => 'Analysis generated but format was invalid.',
+                'strengths' => ['Could not parse details.'],
+                'areas_for_improvement' => [],
+                'actionable_advice' => ['Please try generating analysis again.'],
+            ];
+        }
 
-        return $this->call_api($endpoint, json_encode($payload), 'POST', ['Content-Type: application/json']);
+        return $parsed;
     }
 
     /**
-     * Legacy method for backward compatibility
+     * Legacy method for backward compatibility.
+     *
+     * @param \stored_file $file
+     * @param int $classengageid
+     * @param int $slideid
+     * @param int|null $numquestions
+     * @return array
      */
-    public function generate_questions_from_file($file, $classengageid, $slideid, $numquestions = null)
-    {
-        // This could be refactored to use inspect -> generate flow, 
-        // but for now keeping the direct file upload endpoint if the API supports it
-        // or mapping to the new flow.
-        // Assuming the API still supports /api/generate-from-files as per doc
-
-        $endpoint = '/api/generate-from-files';
-
-        if ($numquestions === null) {
-            $numquestions = get_config('mod_classengage', 'defaultquestions') ?: 10;
+    public function generate_questions_from_file($file, $classengageid, $slideid, $numquestions = null): array {
+        $inspection = $this->inspect_document($file);
+        $docid = $inspection['docId'] ?? null;
+        if (empty($docid)) {
+            throw new \Exception('Document inspection failed');
         }
-
-        // Create temporary file from stored_file
-        $tmpfile = tempnam(sys_get_temp_dir(), 'moodle_nlp_');
-        $file->copy_content_to($tmpfile);
-
-        try {
-            $boundary = '----WebKitFormBoundary' . uniqid();
-            $delimiter = "\r\n";
-
-            $postdata = '';
-            $postdata .= '--' . $boundary . $delimiter;
-            $postdata .= 'Content-Disposition: form-data; name="numQuestions"' . $delimiter . $delimiter;
-            $postdata .= $numquestions . $delimiter;
-
-            $postdata .= '--' . $boundary . $delimiter;
-            $postdata .= 'Content-Disposition: form-data; name="files"; filename="' . $file->get_filename() . '"' . $delimiter;
-            $postdata .= 'Content-Type: ' . $file->get_mimetype() . $delimiter . $delimiter;
-            $postdata .= file_get_contents($tmpfile) . $delimiter;
-            $postdata .= '--' . $boundary . '--' . $delimiter;
-
-            $headers = array('Content-Type: multipart/form-data; boundary=' . $boundary);
-
-            $result = $this->call_api($endpoint, $postdata, 'POST', $headers);
-
-            return $this->store_questions($result['questions'], $classengageid, $slideid);
-
-        } finally {
-            if (file_exists($tmpfile)) {
-                unlink($tmpfile);
-            }
-        }
+        $options = [
+            'numQuestions' => $numquestions ?? (int) (\get_config('mod_classengage', 'defaultquestions') ?: 10),
+        ];
+        $result = $this->generate_questions_from_document($docid, (int) $classengageid, (int) $slideid, $options);
+        return $result['questionids'];
     }
 
     /**
-     * Helper to make API calls
-     */
-    protected function call_api($endpoint, $postdata, $method = 'POST', $extraheaders = [])
-    {
-        $baseurl = get_config('mod_classengage', 'nlpendpoint');
-        $apikey = get_config('mod_classengage', 'nlpapikey');
-
-        if (empty($baseurl)) {
-            throw new \Exception('NLP endpoint not configured');
-        }
-
-        $baseurl = rtrim($baseurl, '/');
-        // Handle if user put full URL or just base
-        if (strpos($endpoint, 'http') === 0) {
-            $url = $endpoint;
-        } else {
-            // Remove /api prefix from endpoint if baseurl already has it, or robust joining
-            // User provided baseurl: http://localhost:3000
-            // Endpoint: /api/generate
-            $url = $baseurl . $endpoint;
-        }
-
-        $headers = $extraheaders;
-        if (!empty($apikey)) {
-            $headers[] = 'Authorization: Bearer ' . $apikey;
-        }
-
-        $options = array(
-            'CURLOPT_RETURNTRANSFER' => true,
-            'CURLOPT_TIMEOUT' => 120,
-            'CURLOPT_HTTPHEADER' => $headers,
-        );
-
-        $curl = new \curl();
-
-        if ($method === 'POST') {
-            $response = $curl->post($url, $postdata, $options);
-        } else {
-            $response = $curl->get($url, $postdata, $options);
-        }
-
-        $httpcode = $curl->get_info()['http_code'] ?? 0;
-
-        if ($curl->get_errno()) {
-            throw new \Exception('NLP service connection failed: ' . $curl->error);
-        }
-
-        if ($httpcode !== 200) {
-            debugging('NLP service returned HTTP ' . $httpcode . '. Response: ' . substr($response, 0, 500), DEBUG_DEVELOPER);
-            throw new \Exception('NLP service returned error (HTTP ' . $httpcode . ')');
-        }
-
-        $result = json_decode($response, true);
-
-        if (!$result) {
-            throw new \Exception('Invalid response from NLP service (invalid JSON)');
-        }
-
-        if (isset($result['error'])) {
-            // Handle "success": false case too
-            $errormsg = $result['message'] ?? $result['error'];
-            throw new \Exception('NLP service error: ' . $errormsg);
-        }
-
-        return $result;
-    }
-
-    /**
-     * Extended API helper with configurable timeout and accepted status codes
-     * 
-     * @param string $endpoint API endpoint
-     * @param string $postdata POST data or empty for GET
-     * @param string $method HTTP method
-     * @param array $extraheaders Extra headers
-     * @param int $timeout Request timeout in seconds
-     * @param array $acceptedcodes HTTP status codes to accept as success
-     * @return array Decoded response
-     */
-    protected function call_api_extended($endpoint, $postdata, $method = 'POST', $extraheaders = [], $timeout = 30, $acceptedcodes = [200])
-    {
-        $baseurl = get_config('mod_classengage', 'nlpendpoint');
-        $apikey = get_config('mod_classengage', 'nlpapikey');
-
-        if (empty($baseurl)) {
-            throw new \Exception('NLP endpoint not configured');
-        }
-
-        $baseurl = rtrim($baseurl, '/');
-        if (strpos($endpoint, 'http') === 0) {
-            $url = $endpoint;
-        } else {
-            $url = $baseurl . $endpoint;
-        }
-
-        $headers = $extraheaders;
-        if (!empty($apikey)) {
-            $headers[] = 'Authorization: Bearer ' . $apikey;
-        }
-
-        $options = array(
-            'CURLOPT_RETURNTRANSFER' => true,
-            'CURLOPT_TIMEOUT' => $timeout,
-            'CURLOPT_HTTPHEADER' => $headers,
-        );
-
-        $curl = new \curl();
-
-        if ($method === 'POST') {
-            $response = $curl->post($url, $postdata, $options);
-        } else {
-            $response = $curl->get($url, [], $options);
-        }
-
-        $httpcode = $curl->get_info()['http_code'] ?? 0;
-
-        if ($curl->get_errno()) {
-            throw new \Exception('NLP service connection failed: ' . $curl->error);
-        }
-
-        if (!in_array($httpcode, $acceptedcodes)) {
-            debugging('NLP service returned HTTP ' . $httpcode . '. Response: ' . substr($response, 0, 500), DEBUG_DEVELOPER);
-            throw new \Exception('NLP service returned error (HTTP ' . $httpcode . ')');
-        }
-
-        $result = json_decode($response, true);
-
-        if (!$result) {
-            throw new \Exception('Invalid response from NLP service (invalid JSON)');
-        }
-
-        if (isset($result['error']) && $result['success'] === false) {
-            $errormsg = $result['message'] ?? $result['error'];
-            throw new \Exception('NLP service error: ' . $errormsg);
-        }
-
-        return $result;
-    }
-
-
-    /**
-     * Store generated questions in database
+     * Store generated questions in database.
      *
      * @param array $questions
      * @param int $classengageid
      * @param int $slideid
-     * @return array Array of question IDs
+     * @return array
      */
-    protected function store_questions($questions, $classengageid, $slideid)
-    {
+    protected function store_questions(array $questions, int $classengageid, int $slideid): array {
         global $DB;
 
-        $questionids = array();
+        $questionids = [];
         $now = time();
 
         foreach ($questions as $q) {
@@ -621,14 +275,9 @@ class nlp_generator
             $question->optiond = $q['optiond'];
             $question->correctanswer = $q['correctanswer'];
             $question->difficulty = $q['difficulty'] ?? 'medium';
-            // Check multiple possible key names for bloom/cognitive level
-            $question->bloomlevel = $q['bloomLevel'] ?? $q['bloomlevel'] ?? $q['bloom_level']
-                ?? $q['cognitiveLevel'] ?? $q['cognitive_level'] ?? null;
+            $question->bloomlevel = $q['bloomLevel'] ?? $q['bloomlevel'] ?? $q['bloom_level'] ?? $q['cognitive_level'] ?? null;
             $question->rationale = $q['rationale'] ?? null;
-            // Store source attribution (slides and images used for generation)
             $question->sources = !empty($q['sources']) ? json_encode($q['sources']) : null;
-            // Store the specific image path this question references (relative, e.g., /assets/img_xxx?docId=yyy)
-            // Full URL is constructed at display time using nlppublicurl config
             $question->question_image = $q['question_image'] ?? null;
             $question->status = 'pending';
             $question->source = 'nlp';
@@ -640,5 +289,135 @@ class nlp_generator
 
         return $questionids;
     }
-}
 
+    private function apply_defaults(array $options): array {
+        if (!isset($options['numQuestions'])) {
+            $options['numQuestions'] = (int) (\get_config('mod_classengage', 'defaultquestions') ?: 10);
+        }
+        if (empty($options['difficulty'])) {
+            $options['difficulty'] = 'mixed';
+        }
+        if (empty($options['bloomLevel'])) {
+            $options['bloomLevel'] = 'apply';
+        }
+        return $options;
+    }
+
+    private function build_distribution_plan(array $options): ?array {
+        $numquestions = (int) ($options['numQuestions'] ?? 10);
+        $diffdist = $options['difficultyDistribution'] ?? null;
+        $bloomdist = $options['bloomDistribution'] ?? null;
+
+        if (empty($diffdist) && empty($bloomdist)) {
+            return null;
+        }
+
+        $slots = array_fill(0, $numquestions, []);
+        if (!empty($diffdist) && is_array($diffdist)) {
+            $current = 0;
+            foreach ($diffdist as $key => $count) {
+                for ($i = 0; $i < (int) $count; $i++) {
+                    if (isset($slots[$current])) {
+                        $slots[$current]['difficulty'] = $key;
+                    }
+                    $current++;
+                }
+            }
+        }
+
+        if (!empty($bloomdist) && is_array($bloomdist)) {
+            $bloomlist = [];
+            foreach ($bloomdist as $key => $count) {
+                for ($i = 0; $i < (int) $count; $i++) {
+                    $bloomlist[] = $key;
+                }
+            }
+            shuffle($bloomlist);
+            foreach ($bloomlist as $index => $bloom) {
+                if (isset($slots[$index])) {
+                    $slots[$index]['bloomLevel'] = $bloom;
+                }
+            }
+        }
+
+        $counts = [];
+        foreach ($slots as $slot) {
+            $diff = $slot['difficulty'] ?? ($options['difficulty'] ?? 'medium');
+            $bloom = $slot['bloomLevel'] ?? ($options['bloomLevel'] ?? 'apply');
+            $key = $diff . '|' . $bloom;
+            if (!isset($counts[$key])) {
+                $counts[$key] = [
+                    'difficulty' => $diff,
+                    'bloomLevel' => $bloom,
+                    'count' => 0,
+                ];
+            }
+            $counts[$key]['count']++;
+        }
+
+        return [
+            'total' => $numquestions,
+            'breakdown' => array_values($counts),
+        ];
+    }
+
+    private function normalize_question_images(array $questions, string $docid, array $imagemetadata, array $sources): array {
+        $imageids = [];
+        foreach ($imagemetadata as $img) {
+            if (!empty($img['imageId'])) {
+                $imageids[$img['imageId']] = true;
+            }
+        }
+
+        foreach ($questions as &$question) {
+            if (!empty($question['question_image'])) {
+                $imgid = $question['question_image'];
+                if (isset($imageids[$imgid])) {
+                    $question['question_image'] = image_asset_storage::build_url($docid, $imgid);
+                }
+            }
+            if (!empty($sources)) {
+                $question['sources'] = $sources;
+            }
+        }
+        unset($question);
+
+        return $questions;
+    }
+
+    private function build_analysis_prompt(array $data, array $options = []): string {
+        $engagement = "- Engagement Level: " . ($data['engagement']['percentage'] ?? 0) . "% (" . ($data['engagement']['level'] ?? 'Unknown') . ")\n" .
+            "- Participation: " . ($data['engagement']['unique_participants'] ?? 0) . "/" . ($data['engagement']['total_enrolled'] ?? 0) . " students\n";
+
+        $comprehension = "- Overall Comprehension: " . ($data['comprehension']['level'] ?? 'Unknown') . " (Avg Correctness: " . ($data['comprehension']['avg_correctness'] ?? 0) . "%)\n" .
+            "- Confused Topics: " . (!empty($data['comprehension']['confused_topics']) ? implode(', ', $data['comprehension']['confused_topics']) : 'None') . "\n";
+
+        $activities = "- Questions Answered: " . ($data['activity_counts']['questions_answered'] ?? 0) . "\n" .
+            "- Polls: " . ($data['activity_counts']['poll_submissions'] ?? 0) . "\n";
+
+        $concepts = '';
+        if (!empty($data['concept_difficulty']) && is_array($data['concept_difficulty'])) {
+            $concepts .= "\n**Question Analysis (Concept Difficulty):**\n";
+            foreach ($data['concept_difficulty'] as $concept) {
+                $concepts .= "- Q" . ($concept['question_order'] ?? 0) . " [" . ($concept['difficulty_level'] ?? 'medium') . "]: " . ($concept['correctness_rate'] ?? 0) . "% correct. Text: \"" . ($concept['question_text'] ?? '') . "\"\n";
+            }
+        }
+
+        return "You are an Expert Pedagogy Consultant and Data Scientist specializing in educational technology.\n" .
+            "You are analyzing data from a specific session of \"ClassEngage\", a Moodle plugin that facilitates real-time classroom engagement.\n\n" .
+            "**SESSION DATA:**\n" .
+            $engagement . "\n" .
+            $comprehension . "\n" .
+            $activities . "\n" .
+            $concepts . "\n" .
+            "**OUTPUT FORMAT:**\n" .
+            "Return ONLY a valid JSON object with the following structure:\n" .
+            "{\n" .
+            "  \"summary\": \"1-2 sentence executive summary of the session performance. Use simple, direct language.\",\n" .
+            "  \"strengths\": [\"1-3 specific positives\"],\n" .
+            "  \"areas_for_improvement\": [\"1-3 specific issues\"],\n" .
+            "  \"actionable_advice\": [\"1-3 concrete teaching strategies\"]\n" .
+            "}\n" .
+            "Do not include markdown formatting or code blocks in the response.";
+    }
+}
