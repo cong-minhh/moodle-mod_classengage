@@ -327,11 +327,16 @@ function process_task($task, $verbose) {
     
     try {
         // Load the task using Moodle's task manager
-        $adhocTask = manager::get_adhoc_task_from_record($task);
+        $adhocTask = manager::get_adhoc_task($taskId);
         
         if (!$adhocTask) {
             mtrace("Failed to load task {$taskId}");
             return false;
+        }
+        
+        // Set custom data from the record
+        if (!empty($task->customdata)) {
+            $adhocTask->set_custom_data(json_decode($task->customdata));
         }
         
         // Execute the task
