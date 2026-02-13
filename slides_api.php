@@ -18,13 +18,14 @@
  * API endpoint for slide management operations
  *
  * This endpoint handles slide-related write operations:
+ * - Async document inspection (queues adhoc task)
  * - NLP question generation (async, queued via adhoc task)
  * - NLP job status polling
  *
- * ARCHITECTURE PRINCIPLE:
- * - Requests enqueue work (generatenlp action)
- * - Workers do work (adhoc task via cron)
- * - UI observes state (nlpstatus action)
+ * ARCHITECTURE (Option C - Worker-based):
+ * - Webserver: Just queues tasks, no PDF processing
+ * - Worker: Handles all inspection and generation
+ * - UI: Shows loading states, polls for completion
  *
  * @package    mod_classengage
  * @copyright  2025 Danielle
@@ -56,30 +57,91 @@ $response = ['success' => false];
 try {
     switch ($action) {
         case 'inspect':
+            // ASYNC INSPECTION - Queues task, returns immediately
             require_capability('mod/classengage:uploadslides', $context);
 
-            // Get the stored file.
-            $fs = get_file_storage();
-            $files = $fs->get_area_files($context->id, 'mod_classengage', 'slides', $slideid, 'id', false);
-            if (empty($files)) {
-                throw new Exception('Slide file not found');
+            // Check if already inspected
+            $metadata = json_decode($slide->nlp_generation_metadata ?? '', true);
+            if (!empty($metadata['docId']) && $slide->nlp_job_status === 'inspected') {
+                // Already inspected, return cached results
+                $response = [
+                    'success' => true,
+                    'docid' => $metadata['docId'],
+                    'pages' => $metadata['pages'],
+                    'cached' => true
+                ];
+                break;
             }
-            $file = reset($files);
 
-            require_once(__DIR__ . '/classes/nlp_generator.php');
-            $generator = new \mod_classengage\nlp_generator();
-            $inspection = $generator->inspect_document($file);
+            // Check if inspection is already in progress
+            if ($slide->nlp_job_status === 'inspecting') {
+                $response = [
+                    'success' => true,
+                    'status' => 'inspecting',
+                    'progress' => (int) ($slide->nlp_job_progress ?? 0),
+                    'message' => 'Inspection already in progress'
+                ];
+                break;
+            }
 
-            // Image URLs are now served via Moodle pluginfile (no external URL conversion needed)
+            // Mark as inspecting and queue task
+            $DB->update_record('classengage_slides', (object) [
+                'id' => $slideid,
+                'nlp_job_status' => 'inspecting',
+                'nlp_job_progress' => 5,
+                'nlp_job_error' => null,
+                'timemodified' => time()
+            ]);
+
+            // Queue inspection task
+            $task = new \mod_classengage\task\inspect_document_task();
+            $task->set_custom_data([
+                'slideid' => $slideid,
+                'classengageid' => $classengage->id,
+                'contextid' => $context->id
+            ]);
+            $task->set_component('mod_classengage');
+            \core\task\manager::queue_adhoc_task($task);
 
             $response = [
                 'success' => true,
-                'docid' => $inspection['docId'],
-                'pages' => $inspection['pages']
+                'status' => 'inspecting',
+                'progress' => 5,
+                'message' => 'Document inspection queued. Poll inspectionstatus for results.'
             ];
             break;
 
+        case 'inspectionstatus':
+            // Poll endpoint for inspection completion
+            require_capability('mod/classengage:uploadslides', $context);
+
+            $slide = $DB->get_record('classengage_slides', ['id' => $slideid], '*', MUST_EXIST);
+            $status = $slide->nlp_job_status ?? 'idle';
+            $progress = (int) ($slide->nlp_job_progress ?? 0);
+
+            $response = [
+                'success' => true,
+                'status' => $status,
+                'progress' => $progress
+            ];
+
+            // If inspection complete, return the data
+            if ($status === 'inspected') {
+                $metadata = json_decode($slide->nlp_generation_metadata ?? '', true);
+                if (!empty($metadata['docId'])) {
+                    $response['docid'] = $metadata['docId'];
+                    $response['pages'] = $metadata['pages'];
+                    $response['page_count'] = $metadata['page_count'] ?? count($metadata['pages'] ?? []);
+                }
+            }
+
+            if ($status === 'inspect_failed') {
+                $response['error'] = $slide->nlp_job_error ?? 'Inspection failed';
+            }
+            break;
+
         case 'generate_from_options':
+            // ASYNC GENERATION - Uses pre-inspected document
             require_capability('mod/classengage:uploadslides', $context);
 
             $docid = required_param('docid', PARAM_RAW);
@@ -88,6 +150,16 @@ try {
 
             if (json_last_error() !== JSON_ERROR_NONE) {
                 throw new Exception('Invalid JSON options');
+            }
+
+            // Verify document has been inspected
+            $metadata = json_decode($slide->nlp_generation_metadata ?? '', true);
+            if (empty($metadata['docId']) || $slide->nlp_job_status !== 'inspected') {
+                $response = [
+                    'success' => false,
+                    'error' => 'Document must be inspected before generating questions'
+                ];
+                break;
             }
 
             // Prevent duplicate generation if already running.
@@ -117,15 +189,16 @@ try {
                 'classengageid' => $classengage->id,
                 'docid' => $docid,
                 'options' => $options,
-                'contextid' => $context->id
+                'contextid' => $context->id,
+                'inspection_data' => $metadata  // Pass inspection data to avoid re-inspection
             ]);
             $task->set_component('mod_classengage');
 
-            debugging("ClassEngage: Queuing adhoc task for slide {$slideid} with docid {$docid}", DEBUG_DEVELOPER);
+            debugging("ClassEngage: Queuing generation task for slide {$slideid}", DEBUG_DEVELOPER);
 
             \core\task\manager::queue_adhoc_task($task);
 
-            debugging("ClassEngage: Adhoc task queued successfully for slide {$slideid}", DEBUG_DEVELOPER);
+            debugging("ClassEngage: Generation task queued successfully for slide {$slideid}", DEBUG_DEVELOPER);
 
             $response = [
                 'success' => true,
@@ -136,7 +209,7 @@ try {
             break;
 
         case 'generatenlp':
-            // ASYNC NLP generation - queues adhoc task and returns immediately.
+            // SIMPLIFIED: Just inspect + generate in one flow
             require_capability('mod/classengage:uploadslides', $context);
 
             // Prevent duplicate generation if already running.
@@ -150,42 +223,39 @@ try {
 
             // Check if already completed - allow regeneration by resetting first
             if (($slide->nlp_job_status ?? 'idle') === 'completed') {
-                // Clear existing questions to allow regeneration
                 $DB->delete_records('classengage_questions', ['slideid' => $slideid]);
             }
 
-            // Mark as pending and enqueue adhoc task.
+            // Queue inspection task first (it will queue generation after)
             $DB->update_record('classengage_slides', (object) [
                 'id' => $slideid,
-                'nlp_job_status' => 'pending',
-                'nlp_job_progress' => 0,
+                'nlp_job_status' => 'inspecting',
+                'nlp_job_progress' => 5,
                 'nlp_job_error' => null,
-                'nlp_job_started' => null,
-                'nlp_job_completed' => null,
                 'timemodified' => time()
             ]);
 
-            // Create and queue the adhoc task - it will do inspection internally.
-            $task = new \mod_classengage\task\generate_nlp_task();
+            // Queue inspection task with auto-generate flag
+            $task = new \mod_classengage\task\inspect_document_task();
             $task->set_custom_data([
                 'slideid' => $slideid,
                 'classengageid' => $classengage->id,
-                'docid' => null, // Will be determined by task
-                'options' => [], // Default options for simple generation
-                'contextid' => $context->id
+                'contextid' => $context->id,
+                'auto_generate' => true,  // Auto-queue generation after inspection
+                'options' => []
             ]);
             $task->set_component('mod_classengage');
             \core\task\manager::queue_adhoc_task($task);
 
             $response = [
                 'success' => true,
-                'status' => 'pending',
-                'message' => 'Question generation started. This may take a few minutes depending on the AI provider.'
+                'status' => 'inspecting',
+                'message' => 'Document inspection started. Generation will begin automatically after inspection.'
             ];
             break;
 
         case 'nlpstatus':
-            // Poll endpoint for job status.
+            // Poll endpoint for generation job status.
             require_capability('mod/classengage:uploadslides', $context);
 
             $slide = $DB->get_record('classengage_slides', ['id' => $slideid], '*', MUST_EXIST);
@@ -193,7 +263,6 @@ try {
             $status = $slide->nlp_job_status ?? 'idle';
             $progress = (int) ($slide->nlp_job_progress ?? 0);
 
-            // Debug logging to help diagnose stuck jobs.
             debugging("ClassEngage nlpstatus: slide={$slideid} status={$status} progress={$progress}", DEBUG_DEVELOPER);
 
             $response = [
@@ -202,32 +271,27 @@ try {
                 'progress' => $progress
             ];
 
-            if (($slide->nlp_job_status ?? 'idle') === 'completed') {
+            if ($status === 'completed') {
                 $response['count'] = (int) ($slide->nlp_questions_count ?? 0);
                 $response['provider'] = $slide->nlp_provider ?? 'unknown';
                 $response['model'] = $slide->nlp_model ?? null;
 
-                // Calculate generation time
                 if (!empty($slide->nlp_job_started) && !empty($slide->nlp_job_completed)) {
                     $response['duration'] = (int) $slide->nlp_job_completed - (int) $slide->nlp_job_started;
                 }
 
-                // Parse metadata for additional info
                 if (!empty($slide->nlp_generation_metadata)) {
                     $meta = json_decode($slide->nlp_generation_metadata, true);
-                    if ($meta) {
+                    if ($meta && isset($meta['generated'])) {
                         $response['metadata'] = [
                             'generated' => $meta['generated'] ?? null,
                             'expected' => $meta['requested'] ?? null,
-                            'selectedSlides' => $meta['selectedSlides'] ?? [],
-                            'selectedImages' => $meta['selectedImages'] ?? [],
-                            'plan' => $meta['plan'] ?? null,
                         ];
                     }
                 }
             }
 
-            if (($slide->nlp_job_status ?? 'idle') === 'failed') {
+            if ($status === 'failed') {
                 $response['error'] = $slide->nlp_job_error ?? 'Unknown error occurred';
             }
             break;
@@ -236,7 +300,7 @@ try {
             // Reset a failed job to allow retry.
             require_capability('mod/classengage:uploadslides', $context);
 
-            if (($slide->nlp_job_status ?? 'idle') !== 'failed') {
+            if (!in_array($slide->nlp_job_status ?? 'idle', ['failed', 'inspect_failed'])) {
                 $response = [
                     'success' => false,
                     'error' => 'Can only reset failed jobs'

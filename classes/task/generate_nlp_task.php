@@ -121,8 +121,15 @@ class generate_nlp_task extends \core\task\adhoc_task
             // Progress: 10% - Starting.
             $this->log_progress($slideid, 10, 'Initializing NLP engine...');
 
-            // Get the stored file for inspection if docid not provided.
-            if (empty($docid)) {
+            // Check if pre-inspected data is provided (Option C architecture)
+            $inspection_data = $data->inspection_data ?? null;
+            
+            if (!empty($inspection_data) && !empty($inspection_data['docId'])) {
+                // Use pre-inspected data (worker already did inspection)
+                $docid = $inspection_data['docId'];
+                \mtrace("ClassEngage NLP: Using pre-inspected docid: {$docid}");
+            } elseif (empty($docid)) {
+                // Fallback: Inspect document (legacy mode)
                 $this->log_progress($slideid, 15, 'Inspecting document...');
                 $fs = get_file_storage();
                 $context = \context::instance_by_id($contextid);
