@@ -128,19 +128,10 @@ define([
     inspectDocument: function () {
       var self = this;
 
-      Ajax.call([
-        {
-          methodname: "mod_classengage_inspect_document", // We don't have a webservice, using direct AJAX script
-          args: {}, // Not used for script call
-        },
-      ]);
+      // Step 1: Show loading placeholders immediately (Option B)
+      self.showLoadingPlaceholders();
 
-      // Using direct fetch to slides_api.php as we did before, but cleaner
-      // Moodle 4.x prefers service calls, but we are using existing pattern for now.
-      // Actually, we should use Ajax.call if it was a WS. Since it's a script, we use jQuery.ajax
-      // BUT core/ajax is better for session handling.
-      // Let's use simple $.ajax to our endpoint.
-
+      // Step 2: Queue inspection task
       $.ajax({
         url: M.cfg.wwwroot + "/mod/classengage/slides_api.php",
         data: {
@@ -151,21 +142,124 @@ define([
         dataType: "json",
         success: function (response) {
           if (response.success) {
-            self.docid = response.docid;
-            self.pages = response.pages;
-            self.renderPages();
+            if (response.status === "inspecting") {
+              // Async inspection started - poll for completion
+              self.pollInspectionStatus(0);
+            } else if (response.cached && response.docid) {
+              // Already inspected - render immediately
+              self.docid = response.docid;
+              self.pages = response.pages;
+              self.renderPages();
+            }
           } else {
-            self.modal.setBody(
-              '<div class="alert alert-danger">' + response.error + "</div>",
-            );
+            self.showInspectionError(response.error || "Inspection failed");
           }
         },
         error: function () {
-          self.modal.setBody(
-            '<div class="alert alert-danger">Network error during inspection.</div>',
-          );
+          self.showInspectionError("Network error during inspection.");
         },
       });
+    },
+
+    showLoadingPlaceholders: function () {
+      var self = this;
+      var container = self.modal.getRoot().find("#slides-container");
+      
+      // Show loading placeholders
+      var placeholderHtml = 
+        '<div class="text-center p-5">' +
+        '  <div class="spinner-border text-primary mb-3" role="status">' +
+        '    <span class="sr-only">Loading...</span>' +
+        '  </div>' +
+        '  <h5>Analyzing document...</h5>' +
+        '  <p class="text-muted">Extracting text and rendering page previews</p>' +
+        '  <div class="progress mt-3" style="max-width: 300px; margin: 0 auto;">' +
+        '    <div id="inspection-progress" class="progress-bar progress-bar-striped progress-bar-animated" ' +
+        '         role="progressbar" style="width: 10%" aria-valuenow="10" aria-valuemin="0" aria-valuemax="100">' +
+        '      10%' +
+        '    </div>' +
+        '  </div>' +
+        '</div>';
+      
+      container.html(placeholderHtml);
+    },
+
+    pollInspectionStatus: function (retryCount) {
+      var self = this;
+
+      $.ajax({
+        url: M.cfg.wwwroot + "/mod/classengage/slides_api.php",
+        type: "GET",
+        data: {
+          action: "inspectionstatus",
+          slideid: self.slideid,
+          sesskey: M.cfg.sesskey,
+        },
+        dataType: "json",
+        success: function (response) {
+          if (response.success) {
+            var progress = response.progress || 10;
+            
+            // Update progress bar
+            var progressBar = self.modal.getRoot().find("#inspection-progress");
+            progressBar.css("width", progress + "%");
+            progressBar.attr("aria-valuenow", progress);
+            progressBar.text(progress + "%");
+
+            if (response.status === "inspected") {
+              // Inspection complete - render pages
+              self.docid = response.docid;
+              self.pages = response.pages;
+              self.renderPages();
+            } else if (response.status === "inspecting") {
+              // Still inspecting - poll again
+              setTimeout(function () {
+                self.pollInspectionStatus(0);
+              }, 1000);
+            } else if (response.status === "inspect_failed") {
+              self.showInspectionError(response.error || "Inspection failed");
+            } else {
+              // Unknown status - keep polling with backoff
+              setTimeout(function () {
+                self.pollInspectionStatus(retryCount + 1);
+              }, 2000);
+            }
+          } else {
+            // Error - retry with backoff
+            if (retryCount > 10) {
+              self.showInspectionError("Failed to check inspection status. Please try again.");
+            } else {
+              setTimeout(function () {
+                self.pollInspectionStatus(retryCount + 1);
+              }, 2000 + retryCount * 500);
+            }
+          }
+        },
+        error: function () {
+          // Network error - retry with backoff
+          if (retryCount > 5) {
+            self.showInspectionError("Connection lost. Please refresh and try again.");
+          } else {
+            setTimeout(function () {
+              self.pollInspectionStatus(retryCount + 1);
+            }, 2000 + retryCount * 1000);
+          }
+        },
+      });
+    },
+
+    showInspectionError: function (msg) {
+      var self = this;
+      var container = self.modal.getRoot().find("#slides-container");
+      container.html(
+        '<div class="alert alert-danger m-3">' +
+        '  <h5><i class="fa fa-exclamation-triangle"></i> Inspection Failed</h5>' +
+        '  <p>' + msg + '</p>' +
+        '  <button class="btn btn-outline-danger btn-sm" onclick="location.reload()">' +
+        '    <i class="fa fa-refresh"></i> Retry' +
+        '  </button>' +
+        '</div>'
+      );
     },
 
     renderPages: function () {
