@@ -2016,14 +2016,20 @@ class nlp_generator {
 
         $fs->create_file_from_string($filerecord, $binary);
 
-        $url = \moodle_url::make_pluginfile_url(
+        // Generate relative URL path (without host) for portability
+        // This allows the same data to work with any host (localhost, internal docker, domain)
+        // Format: /pluginfile.php/...
+        $urlobj = \moodle_url::make_pluginfile_url(
             $contextid,
             'mod_classengage',
             self::ASSET_FILEAREA,
             $slideid,
             $filepath,
             $filename
-        )->out(false);
+        );
+        
+        // Get just the path component (e.g., /pluginfile.php/16/mod_classengage/...)
+        $url = $urlobj->get_path();
 
         return [
             'filename' => $filename,

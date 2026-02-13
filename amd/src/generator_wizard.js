@@ -316,10 +316,17 @@ define([
         var images = [];
         if (page.images) {
           page.images.forEach(function (img) {
+            // URL is stored as relative path: /pluginfile.php/...
+            // Prepend wwwroot to create full URL
+            var fullUrl = '';
+            if (img.url) {
+              // img.url is always relative path now
+              fullUrl = M.cfg.wwwroot + img.url;
+            }
             images.push({
               imageId: img.imageId || img.source, // Use imageId if available, fallback to source
               source: img.source,
-              url: img.url, // URL for image delivery
+              url: fullUrl, // Full URL for image delivery
               label: img.label,
               mediaType: img.mediaType,
               data: img.data, // Legacy Base64 fallback
