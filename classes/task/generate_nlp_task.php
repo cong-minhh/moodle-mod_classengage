@@ -124,9 +124,9 @@ class generate_nlp_task extends \core\task\adhoc_task
             // Check if pre-inspected data is provided (Option C architecture)
             $inspection_data = $data->inspection_data ?? null;
             
-            if (!empty($inspection_data) && !empty($inspection_data['docId'])) {
+            if (!empty($inspection_data) && !empty($inspection_data->docId)) {
                 // Use pre-inspected data (worker already did inspection)
-                $docid = $inspection_data['docId'];
+                $docid = $inspection_data->docId;
                 \mtrace("ClassEngage NLP: Using pre-inspected docid: {$docid}");
             } elseif (empty($docid)) {
                 // Fallback: Inspect document (legacy mode)
