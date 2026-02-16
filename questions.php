@@ -82,6 +82,266 @@ if (($action === 'bulkdelete' || $action === 'bulkapprove') && confirm_sesskey()
 echo $OUTPUT->header();
 echo $OUTPUT->heading(format_string($classengage->name));
 
+// Enhanced CSS for better table QoL
+echo html_writer::tag('style', '
+    /* Table Container Improvements */
+    .questions-table-container {
+        background: #fff;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        overflow: hidden;
+    }
+    
+    /* Sticky Header - Compact */
+    .questions-table thead th {
+        position: sticky;
+        top: 0;
+        background: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%);
+        border-bottom: 2px solid #dee2e6;
+        font-weight: 600;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        padding: 8px 6px;
+        z-index: 10;
+        white-space: nowrap;
+    }
+    
+    /* Row Styling - Compact */
+    .questions-table tbody tr {
+        transition: all 0.15s ease;
+        border-left: 2px solid transparent;
+    }
+    
+    .questions-table tbody tr:hover {
+        background-color: #e3f2fd;
+        border-left-color: #2196f3;
+    }
+    
+    .questions-table tbody td {
+        padding: 6px 8px;
+        vertical-align: middle;
+        border-bottom: 1px solid #e9ecef;
+    }
+    
+    /* Row Number - Compact */
+    .row-number {
+        color: #6c757d;
+        font-weight: 600;
+        font-size: 0.875rem;
+        width: 36px;
+        text-align: center;
+    }
+    
+    /* Question Text Link - Compact */
+    .question-text-link {
+        color: #212529;
+        text-decoration: none;
+        font-weight: 400;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.9375rem;
+        line-height: 1.3;
+    }
+    
+    .question-text-link:hover {
+        color: #007bff;
+        text-decoration: underline;
+    }
+    
+    /* Image Indicator */
+    .has-image-indicator {
+        color: #17a2b8;
+        font-size: 1.1rem;
+    }
+    
+    /* Badges - Compact */
+    .difficulty-badge {
+        font-size: 0.8125rem;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-weight: 600;
+        white-space: nowrap;
+        display: inline-block;
+    }
+    
+    .difficulty-easy { background: #d4edda; color: #155724; }
+    .difficulty-medium { background: #fff3cd; color: #856404; }
+    .difficulty-hard { background: #f8d7da; color: #721c24; }
+    
+    .bloom-badge {
+        font-size: 0.8125rem;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-weight: 600;
+    }
+    
+    /* Status Badge - Compact */
+    .status-badge {
+        font-size: 0.8125rem;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-weight: 600;
+    }
+    
+    /* Action Buttons - Compact */
+    .action-btn {
+        padding: 5px 8px;
+        font-size: 0.875rem;
+        border-radius: 5px;
+        transition: all 0.15s ease;
+        margin: 0 2px;
+        line-height: 1;
+    }
+    
+    .action-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+    
+    .action-btn-group {
+        display: flex;
+        gap: 2px;
+        justify-content: flex-end;
+    }
+    
+    /* Search Bar - Compact */
+    .questions-search-bar {
+        background: #f8f9fa;
+        padding: 10px 12px;
+        border-radius: 6px;
+        margin-bottom: 10px;
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    
+    .search-input-wrapper {
+        position: relative;
+        flex: 1;
+        min-width: 200px;
+    }
+    
+    .search-input-wrapper i {
+        position: absolute;
+        left: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #6c757d;
+        font-size: 0.875rem;
+    }
+    
+    .search-input-wrapper input {
+        padding-left: 30px;
+        padding-top: 8px;
+        padding-bottom: 8px;
+        border-radius: 16px;
+        border: 1px solid #ced4da;
+        font-size: 0.9375rem;
+    }
+    
+    .search-input-wrapper input:focus {
+        border-color: #80bdff;
+        box-shadow: 0 0 0 0.2rem rgba(0,123,255,0.15);
+    }
+    
+    /* No Results Message */
+    .no-results {
+        text-align: center;
+        padding: 30px 20px;
+        color: #6c757d;
+    }
+    
+    /* Checkbox Styling */
+    .custom-checkbox {
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+    }
+    
+    /* Sort Icons */
+    .sortable-header {
+        cursor: pointer;
+        user-select: none;
+    }
+    
+    .sortable-header:hover {
+        background: #e9ecef;
+    }
+    
+    .sort-icon {
+        margin-left: 5px;
+        opacity: 0.3;
+        font-size: 0.75rem;
+    }
+    
+    .sortable-header:hover .sort-icon,
+    .sort-asc .sort-icon,
+    .sort-desc .sort-icon {
+        opacity: 1;
+    }
+    
+    /* Question Stats - Compact */
+    .questions-stats {
+        display: flex;
+        gap: 15px;
+        font-size: 0.9375rem;
+        color: #6c757d;
+    }
+
+    .questions-stats span {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    /* Table body text */
+    .questions-table tbody td {
+        font-size: 0.9375rem;
+    }
+
+    /* Table header text */
+    .questions-table thead th {
+        font-size: 0.8125rem;
+    }
+
+    /* Highlight Animation */
+    .highlight-new {
+        animation: highlight-pulse 2s ease-out;
+    }
+    
+    @keyframes highlight-pulse {
+        0% { background-color: rgba(23, 162, 184, 0.3); }
+        100% { background-color: transparent; }
+    }
+    
+    /* Mobile Responsive */
+    @media (max-width: 768px) {
+        .questions-table thead th:nth-child(4),
+        .questions-table thead th:nth-child(6),
+        .questions-table tbody td:nth-child(4),
+        .questions-table tbody td:nth-child(6) {
+            display: none;
+        }
+        
+        .action-btn span {
+            display: none;
+        }
+        
+        .questions-search-bar {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        
+        .search-input-wrapper {
+            min-width: 100%;
+        }
+    }
+');
+
 // Highlight CSS for newly generated questions
 if ($highlight) {
     echo html_writer::tag('style', '
@@ -124,14 +384,8 @@ print_tabs(array($tabs), 'questions');
 
 // Add question button
 $addurl = new moodle_url('/mod/classengage/editquestion.php', array('id' => $cm->id));
-
-
-// Add "Generate from Text" button
-$genurl = new moodle_url('/mod/classengage/generate_questions.php', array('id' => $cm->id));
 echo html_writer::div(
-    html_writer::link($addurl, get_string('addquestion', 'mod_classengage'), array('class' => 'btn btn-primary mr-2'))
-    //html_writer::link($genurl, get_string('generatefromtext', 'mod_classengage'), array('class' => 'btn btn-info')),
-    //'mb-3'
+    html_writer::link($addurl, get_string('addquestion', 'mod_classengage'), array('class' => 'btn btn-primary mr-2 mb-3'))
 );
 
 // Fetch questions with slide info including NLP metadata
@@ -147,13 +401,12 @@ $questions = $DB->get_records_sql($sql, array($classengage->id));
 // Debug: Check total count
 $totalquestions = $DB->count_records('classengage_questions', ['classengageid' => $classengage->id]);
 if ($totalquestions > 0 && count($questions) === 0) {
-    // This shouldn't happen but if it does, log it
     debugging("WARNING: Found {$totalquestions} questions in DB but query returned 0. This may indicate a SQL issue.", DEBUG_DEVELOPER);
 }
 
 $manual_questions = [];
 $generated_questions_by_slide = [];
-$slide_metadata = []; // Store slide metadata separately
+$slide_metadata = [];
 
 foreach ($questions as $q) {
     if (empty($q->slideid)) {
@@ -162,7 +415,6 @@ foreach ($questions as $q) {
         $slidetitle = $q->slidetitle ? $q->slidetitle : get_string('unknownslide', 'mod_classengage');
         $generated_questions_by_slide[$slidetitle][] = $q;
 
-        // Store slide metadata (only once per slide)
         if (!isset($slide_metadata[$slidetitle])) {
             $slide_metadata[$slidetitle] = [
                 'slide_id' => $q->slide_id,
@@ -181,23 +433,110 @@ echo html_writer::start_tag('form', array('action' => $PAGE->url, 'method' => 'p
 echo html_writer::empty_tag('input', array('type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()));
 echo html_writer::empty_tag('input', array('type' => 'hidden', 'name' => 'action', 'value' => '', 'id' => 'bulkaction'));
 
-// Helper function to render question table
-function render_question_table($questions, $cm)
-{
+// Enhanced render function
+function render_question_table($questions, $cm) {
     global $OUTPUT;
-    $table = new html_table();
-    $table->head = array(
-        html_writer::checkbox('selectall', 1, false, '', array('class' => 'selectall-checkbox')),
-        get_string('questiontext', 'mod_classengage'),
-        get_string('difficulty', 'mod_classengage'),
-        get_string('cognitivelevel', 'mod_classengage'),
-        get_string('status', 'mod_classengage'),
-        get_string('created', 'mod_classengage'),
-        get_string('actions', 'mod_classengage')
-    );
-    $table->attributes['class'] = 'generaltable table table-hover';
-
-    // Bloom level badge colors
+    
+    if (empty($questions)) {
+        return html_writer::div(
+            html_writer::tag('i', '', array('class' => 'fa fa-inbox fa-3x mb-3')) . 
+            html_writer::tag('p', get_string('noquestions', 'mod_classengage')),
+            'no-results'
+        );
+    }
+    
+    // Output modals first
+    $modals_html = '';
+    foreach ($questions as $question) {
+        $correctanswer = strtoupper($question->correctanswer);
+        $modalid = 'question-modal-' . $question->id;
+        
+        $modalcontent = '<div class="modal fade" id="' . $modalid . '" tabindex="-1" role="dialog" aria-hidden="true">';
+        $modalcontent .= '<div class="modal-dialog modal-lg" role="document">';
+        $modalcontent .= '<div class="modal-content">';
+        $modalcontent .= '<div class="modal-header bg-light">';
+        $modalcontent .= '<h5 class="modal-title"><i class="fa fa-question-circle mr-2 text-primary"></i>Question Preview</h5>';
+        $modalcontent .= '<button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>';
+        $modalcontent .= '</div>';
+        $modalcontent .= '<div class="modal-body">';
+        
+        if (!empty($question->question_image)) {
+            $modalcontent .= '<div class="text-center mb-3 p-3 bg-light rounded">';
+            $modalcontent .= '<img src="' . s($question->question_image) . '" class="img-fluid rounded shadow-sm" style="max-height: 300px;" alt="Question image">';
+            $modalcontent .= '</div>';
+        }
+        
+        $modalcontent .= '<div class="question-content">';
+        $modalcontent .= '<div class="mb-3 p-3 bg-light rounded"><strong class="text-primary">Q:</strong> ' . s($question->questiontext) . '</div>';
+        $modalcontent .= '<div class="list-group">';
+        $modalcontent .= '<div class="list-group-item d-flex align-items-center ' . ($correctanswer === 'A' ? 'list-group-item-success border-success' : '') . '">';
+        $modalcontent .= '<span class="badge badge-light mr-3" style="width: 28px;">A</span>';
+        $modalcontent .= '<span class="flex-grow-1">' . s($question->optiona) . '</span>';
+        if ($correctanswer === 'A') $modalcontent .= '<i class="fa fa-check-circle text-success"></i>';
+        $modalcontent .= '</div>';
+        $modalcontent .= '<div class="list-group-item d-flex align-items-center ' . ($correctanswer === 'B' ? 'list-group-item-success border-success' : '') . '">';
+        $modalcontent .= '<span class="badge badge-light mr-3" style="width: 28px;">B</span>';
+        $modalcontent .= '<span class="flex-grow-1">' . s($question->optionb) . '</span>';
+        if ($correctanswer === 'B') $modalcontent .= '<i class="fa fa-check-circle text-success"></i>';
+        $modalcontent .= '</div>';
+        if (!empty($question->optionc)) {
+            $modalcontent .= '<div class="list-group-item d-flex align-items-center ' . ($correctanswer === 'C' ? 'list-group-item-success border-success' : '') . '">';
+            $modalcontent .= '<span class="badge badge-light mr-3" style="width: 28px;">C</span>';
+            $modalcontent .= '<span class="flex-grow-1">' . s($question->optionc) . '</span>';
+            if ($correctanswer === 'C') $modalcontent .= '<i class="fa fa-check-circle text-success"></i>';
+            $modalcontent .= '</div>';
+        }
+        if (!empty($question->optiond)) {
+            $modalcontent .= '<div class="list-group-item d-flex align-items-center ' . ($correctanswer === 'D' ? 'list-group-item-success border-success' : '') . '">';
+            $modalcontent .= '<span class="badge badge-light mr-3" style="width: 28px;">D</span>';
+            $modalcontent .= '<span class="flex-grow-1">' . s($question->optiond) . '</span>';
+            if ($correctanswer === 'D') $modalcontent .= '<i class="fa fa-check-circle text-success"></i>';
+            $modalcontent .= '</div>';
+        }
+        $modalcontent .= '</div>';
+        if (!empty($question->rationale)) {
+            $modalcontent .= '<div class="alert alert-info mt-3"><i class="fa fa-lightbulb-o mr-2"></i><strong>Rationale:</strong> ' . s($question->rationale) . '</div>';
+        }
+        $modalcontent .= '</div>';
+        $modalcontent .= '</div>';
+        $modalcontent .= '<div class="modal-footer bg-light">';
+        $modalcontent .= '<button type="button" class="btn btn-secondary" data-dismiss="modal"><i class="fa fa-times mr-1"></i>Close</button>';
+        $modalcontent .= '</div>';
+        $modalcontent .= '</div></div></div>';
+        
+        $modals_html .= $modalcontent;
+    }
+    echo $modals_html;
+    
+    // Build table
+    $html = '<div class="questions-table-container">';
+    $html .= '<div class="questions-search-bar">';
+    $html .= '<div class="search-input-wrapper">';
+    $html .= '<i class="fa fa-search"></i>';
+    $html .= '<input type="text" class="form-control" id="question-search" placeholder="Search questions...">';
+    $html .= '</div>';
+    $html .= '<div class="questions-stats">';
+    $html .= '<span><i class="fa fa-list-ol"></i> <strong>' . count($questions) . '</strong> questions</span>';
+    $approved_count = count(array_filter($questions, function($q) { return $q->status === 'approved'; }));
+    $html .= '<span><i class="fa fa-check-circle text-success"></i> <strong>' . $approved_count . '</strong> approved</span>';
+    $html .= '<span><i class="fa fa-clock-o text-warning"></i> <strong>' . (count($questions) - $approved_count) . '</strong> pending</span>';
+    $html .= '</div>';
+    $html .= '</div>';
+    
+    $html .= '<div class="table-responsive">';
+    $html .= '<table class="table questions-table view-compact" id="questions-table-' . $cm->id . '">';
+    $html .= '<thead><tr>';
+    $html .= '<th style="width: 40px;"><input type="checkbox" class="custom-checkbox selectall-checkbox" title="Select all"></th>';
+    $html .= '<th style="width: 50px;">#</th>';
+    $html .= '<th class="sortable-header" data-sort="text">Question <i class="fa fa-sort sort-icon"></i></th>';
+    $html .= '<th class="sortable-header text-center" data-sort="difficulty" style="width: 140px; min-width: 140px; white-space: nowrap;">Difficulty <i class="fa fa-sort sort-icon"></i></th>';
+    $html .= '<th class="sortable-header text-center" data-sort="bloom" style="width: 100px; min-width: 100px; white-space: nowrap;">Level <i class="fa fa-sort sort-icon"></i></th>';
+    $html .= '<th class="sortable-header text-center" data-sort="status" style="width: 100px; min-width: 100px; white-space: nowrap;">Status <i class="fa fa-sort sort-icon"></i></th>';
+    $html .= '<th class="sortable-header text-center" data-sort="date" style="width: 130px; min-width: 130px; white-space: nowrap;">Created <i class="fa fa-sort sort-icon"></i></th>';
+    $html .= '<th style="width: 140px;">Actions</th>';
+    $html .= '</tr></thead>';
+    $html .= '<tbody>';
+    
     $bloomcolors = [
         'remember' => 'primary',
         'understand' => 'success',
@@ -206,138 +545,77 @@ function render_question_table($questions, $cm)
         'evaluate' => 'danger',
         'create' => 'dark'
     ];
-
+    
+    $difficultycolors = [
+        'easy' => 'difficulty-easy',
+        'medium' => 'difficulty-medium',
+        'hard' => 'difficulty-hard'
+    ];
+    
+    $rownum = 1;
     foreach ($questions as $question) {
-        $editurl = new moodle_url(
-            '/mod/classengage/editquestion.php',
-            array('id' => $cm->id, 'questionid' => $question->id)
-        );
-        $deleteurl = new moodle_url(
-            '/mod/classengage/questions.php',
-            array('id' => $cm->id, 'action' => 'delete', 'questionid' => $question->id, 'sesskey' => sesskey())
-        );
-        $approveurl = new moodle_url(
-            '/mod/classengage/questions.php',
-            array('id' => $cm->id, 'action' => 'approve', 'questionid' => $question->id, 'sesskey' => sesskey())
-        );
-
-        $actions = [];
-        $actions[] = html_writer::link(
-            $editurl,
-            $OUTPUT->pix_icon('t/edit', get_string('edit')),
-            array('class' => 'btn btn-sm btn-light', 'title' => get_string('edit'))
-        );
-
-        if ($question->status !== 'approved') {
-            $actions[] = html_writer::link(
-                $approveurl,
-                $OUTPUT->pix_icon('t/check', get_string('approve')),
-                array('class' => 'btn btn-sm btn-success', 'title' => get_string('approve'))
-            );
-        }
-
-        $actions[] = html_writer::link(
-            $deleteurl,
-            $OUTPUT->pix_icon('t/delete', get_string('delete')),
-            array('class' => 'btn btn-sm btn-danger', 'title' => get_string('delete'))
-        );
-
-        // Truncate question text for display
+        $editurl = new moodle_url('/mod/classengage/editquestion.php', array('id' => $cm->id, 'questionid' => $question->id));
+        $deleteurl = new moodle_url('/mod/classengage/questions.php', array('id' => $cm->id, 'action' => 'delete', 'questionid' => $question->id, 'sesskey' => sesskey()));
+        $approveurl = new moodle_url('/mod/classengage/questions.php', array('id' => $cm->id, 'action' => 'approve', 'questionid' => $question->id, 'sesskey' => sesskey()));
+        
         $displaytext = format_string($question->questiontext);
         if (strlen($displaytext) > 80) {
             $displaytext = substr($displaytext, 0, 80) . '...';
         }
-
-        // Build question preview modal content
-        $correctanswer = strtoupper($question->correctanswer);
+        
         $modalid = 'question-modal-' . $question->id;
         
-        // Modal content
-        $modalcontent = '<div class="modal fade" id="' . $modalid . '" tabindex="-1" role="dialog" aria-hidden="true">';
-        $modalcontent .= '<div class="modal-dialog modal-lg" role="document">';
-        $modalcontent .= '<div class="modal-content">';
-        $modalcontent .= '<div class="modal-header">';
-        $modalcontent .= '<h5 class="modal-title">Question Preview</h5>';
-        $modalcontent .= '<button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>';
-        $modalcontent .= '</div>';
-        $modalcontent .= '<div class="modal-body">';
-        
-        // Question image if exists
+        $html .= '<tr data-question-id="' . $question->id . '">';
+        $html .= '<td><input type="checkbox" name="q[]" value="' . $question->id . '" class="custom-checkbox question-checkbox"></td>';
+        $html .= '<td class="row-number">' . $rownum . '</td>';
+        $html .= '<td>';
+        $html .= '<a href="#" class="question-text-link" data-toggle="modal" data-target="#' . $modalid . '">';
         if (!empty($question->question_image)) {
-            $modalcontent .= '<div class="text-center mb-3">';
-            $modalcontent .= '<img src="' . s($question->question_image) . '" class="img-fluid rounded" style="max-height: 300px;" alt="Question image">';
-            $modalcontent .= '</div>';
+            $html .= '<i class="fa fa-image has-image-indicator" title="Has image"></i>';
         }
+        $html .= '<span>' . $displaytext . '</span>';
+        $html .= '</a>';
+        $html .= '</td>';
         
-        $modalcontent .= '<div class="question-content">';
-        $modalcontent .= '<div class="mb-3"><strong>Q:</strong> ' . s($question->questiontext) . '</div>';
-        $modalcontent .= '<div class="list-group">';
-        $modalcontent .= '<div class="list-group-item ' . ($correctanswer === 'A' ? 'list-group-item-success' : '') . '">'
-            . ($correctanswer === 'A' ? '✓ <strong>Correct:</strong> ' : '<strong>A:</strong> ') . s($question->optiona) . '</div>';
-        $modalcontent .= '<div class="list-group-item ' . ($correctanswer === 'B' ? 'list-group-item-success' : '') . '">'
-            . ($correctanswer === 'B' ? '✓ <strong>Correct:</strong> ' : '<strong>B:</strong> ') . s($question->optionb) . '</div>';
-        if (!empty($question->optionc)) {
-            $modalcontent .= '<div class="list-group-item ' . ($correctanswer === 'C' ? 'list-group-item-success' : '') . '">'
-                . ($correctanswer === 'C' ? '✓ <strong>Correct:</strong> ' : '<strong>C:</strong> ') . s($question->optionc) . '</div>';
-        }
-        if (!empty($question->optiond)) {
-            $modalcontent .= '<div class="list-group-item ' . ($correctanswer === 'D' ? 'list-group-item-success' : '') . '">'
-                . ($correctanswer === 'D' ? '✓ <strong>Correct:</strong> ' : '<strong>D:</strong> ') . s($question->optiond) . '</div>';
-        }
-        $modalcontent .= '</div>';
-        if (!empty($question->rationale)) {
-            $modalcontent .= '<div class="alert alert-info mt-3"><strong>💡 Rationale:</strong> ' . s($question->rationale) . '</div>';
-        }
-        $modalcontent .= '</div>';
-        $modalcontent .= '</div>';
-        $modalcontent .= '<div class="modal-footer">';
-        $modalcontent .= '<button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>';
-        $modalcontent .= '</div>';
-        $modalcontent .= '</div></div></div>';
+        $difficultyclass = $difficultycolors[$question->difficulty] ?? 'badge-secondary';
+        $html .= '<td class="text-center"><span class="difficulty-badge ' . $difficultyclass . '">' . ucfirst($question->difficulty) . '</span></td>';
         
-        // Output modal to page
-        echo $modalcontent;
-        
-        // Question text link to open modal
-        $questiontext = html_writer::tag('a', $displaytext, [
-            'href' => '#',
-            'class' => 'question-text-hover',
-            'data-toggle' => 'modal',
-            'data-target' => '#' . $modalid,
-            'onclick' => 'return false;'
-        ]);
-
-        $statusbadge = $question->status === 'approved' ?
-            '<span class="badge badge-success">' . get_string('approved', 'mod_classengage') . '</span>' :
-            '<span class="badge badge-warning">' . get_string('pending', 'mod_classengage') . '</span>';
-
-        $difficultybadge = '<span class="badge badge-secondary">' . ucfirst($question->difficulty) . '</span>';
-
-        // Create bloom level badge with color coding
         $bloomlevel = $question->bloomlevel ?? '';
         if (!empty($bloomlevel)) {
             $bloomcolor = $bloomcolors[$bloomlevel] ?? 'secondary';
-            $bloombadge = '<span class="badge badge-' . $bloomcolor . '">' . ucfirst($bloomlevel) . '</span>';
+            $html .= '<td class="text-center"><span class="bloom-badge badge badge-' . $bloomcolor . '">' . ucfirst($bloomlevel) . '</span></td>';
         } else {
-            $bloombadge = '<span class="badge badge-light">-</span>';
+            $html .= '<td class="text-center"><span class="bloom-badge badge badge-light">-</span></td>';
         }
-
-        // Format date as dd/mm/yyyy HH:mm (military time)
+        
+        $statusclass = $question->status === 'approved' ? 'badge-success' : 'badge-warning';
+        $statustext = $question->status === 'approved' ? 'Approved' : 'Pending';
+        $html .= '<td class="text-center"><span class="status-badge badge ' . $statusclass . '">' . $statustext . '</span></td>';
+        
         $createddatetime = date('d/m/Y H:i', $question->timecreated);
-
-        $table->data[] = array(
-            html_writer::checkbox('q[]', $question->id, false, '', array('class' => 'question-checkbox')),
-            $questiontext,
-            $difficultybadge,
-            $bloombadge,
-            $statusbadge,
-            $createddatetime,
-            implode(' ', $actions)
-        );
+        $html .= '<td class="text-center" data-timestamp="' . $question->timecreated . '"><small class="text-muted">' . $createddatetime . '</small></td>';
+        
+        $html .= '<td><div class="action-btn-group">';
+        $html .= '<a href="' . $editurl . '" class="btn btn-sm btn-outline-primary action-btn" title="Edit question"><i class="fa fa-pencil"></i></a>';
+        if ($question->status !== 'approved') {
+            $html .= '<a href="' . $approveurl . '" class="btn btn-sm btn-outline-success action-btn" title="Approve question" onclick="return confirm(\'Approve this question?\');"><i class="fa fa-check"></i></a>';
+        }
+        $html .= '<a href="' . $deleteurl . '" class="btn btn-sm btn-outline-danger action-btn" title="Delete question" onclick="return confirm(\'Delete this question?\');"><i class="fa fa-trash"></i></a>';
+        $html .= '</div></td>';
+        $html .= '</tr>';
+        
+        $rownum++;
     }
-
-    // Wrap table in responsive container
-    return html_writer::div(html_writer::table($table), 'table-responsive');
+    
+    $html .= '</tbody></table>';
+    $html .= '</div>'; // table-responsive
+    $html .= '<div id="no-search-results" class="no-results" style="display: none;">';
+    $html .= '<i class="fa fa-search fa-3x mb-3 text-muted"></i>';
+    $html .= '<p>No questions match your search.</p>';
+    $html .= '</div>';
+    $html .= '</div>'; // questions-table-container
+    
+    return $html;
 }
 
 // Manual Questions Section
@@ -364,8 +642,8 @@ if (!empty($manual_questions)) {
     echo html_writer::start_div('card-body p-0');
     echo render_question_table($manual_questions, $cm);
     echo html_writer::end_div();
-    echo html_writer::end_div(); // collapse
-    echo html_writer::end_div(); // card
+    echo html_writer::end_div();
+    echo html_writer::end_div();
 }
 
 // Generated Questions Section
@@ -378,7 +656,6 @@ if (!empty($generated_questions_by_slide)) {
         $slide_count = count($slide_questions);
         $collapseid = 'collapse-generated-' . $i;
 
-        // Check if this slide should be highlighted
         $meta = $slide_metadata[$slide_title] ?? null;
         $ishighlighted = $highlight && $meta && $highlight === 'slide_' . $meta['slide_id'];
         $cardclass = 'card mb-4' . ($ishighlighted ? ' highlight-new' : '');
@@ -402,12 +679,10 @@ if (!empty($generated_questions_by_slide)) {
         echo html_writer::start_div('collapse show', array('id' => $collapseid));
         echo html_writer::start_div('card-body p-0');
 
-        // Display generation metadata if available
         if (isset($slide_metadata[$slide_title]) && !empty($slide_metadata[$slide_title]['provider'])) {
             $meta = $slide_metadata[$slide_title];
             $metahtml = html_writer::start_div('generation-metadata-bar bg-light border-bottom px-3 py-2 d-flex flex-wrap align-items-center gap-3');
 
-            // Provider badge
             if (!empty($meta['provider'])) {
                 $providerbadge = html_writer::span(
                     html_writer::tag('i', '', ['class' => 'fa fa-robot mr-1']) . ucfirst($meta['provider']),
@@ -416,7 +691,6 @@ if (!empty($generated_questions_by_slide)) {
                 $metahtml .= $providerbadge;
             }
 
-            // Model info
             if (!empty($meta['model'])) {
                 $modelinfo = html_writer::span(
                     html_writer::tag('i', '', ['class' => 'fa fa-microchip mr-1']) . $meta['model'],
@@ -425,7 +699,6 @@ if (!empty($generated_questions_by_slide)) {
                 $metahtml .= $modelinfo;
             }
 
-            // Generation timestamp
             if (!empty($meta['generated_at'])) {
                 $timeinfo = html_writer::span(
                     html_writer::tag('i', '', ['class' => 'fa fa-clock-o mr-1']) . userdate($meta['generated_at']),
@@ -434,7 +707,6 @@ if (!empty($generated_questions_by_slide)) {
                 $metahtml .= $timeinfo;
             }
 
-            // Distribution plan summary (if available)
             if (!empty($meta['metadata']['plan'])) {
                 $plan = $meta['metadata']['plan'];
                 $plantext = count($plan) . ' ' . get_string('distributionplan', 'mod_classengage');
@@ -452,45 +724,121 @@ if (!empty($generated_questions_by_slide)) {
 
         echo render_question_table($slide_questions, $cm);
         echo html_writer::end_div();
-        echo html_writer::end_div(); // collapse
-        echo html_writer::end_div(); // card
+        echo html_writer::end_div();
+        echo html_writer::end_div();
     }
 }
 
 if (empty($manual_questions) && empty($generated_questions_by_slide)) {
     echo html_writer::div(get_string('noquestions', 'mod_classengage'), 'alert alert-info');
 } else {
-    // Bulk Action Buttons
     echo html_writer::start_div('d-flex gap-2 mt-3 mb-5');
-    echo html_writer::tag('button', get_string('delete_selected', 'mod_classengage'), array(
+    echo html_writer::tag('button', '<i class="fa fa-trash mr-1"></i>' . get_string('delete_selected', 'mod_classengage'), array(
         'type' => 'button',
         'class' => 'btn btn-danger',
-        'onclick' => "document.getElementById('bulkaction').value='bulkdelete'; document.getElementById('questionsform').submit();"
+        'onclick' => "if(confirm('Delete selected questions?')) { document.getElementById('bulkaction').value='bulkdelete'; document.getElementById('questionsform').submit(); }"
     ));
-    echo html_writer::tag('button', get_string('approve_selected', 'mod_classengage'), array(
+    echo html_writer::tag('button', '<i class="fa fa-check mr-1"></i>' . get_string('approve_selected', 'mod_classengage'), array(
         'type' => 'button',
         'class' => 'btn btn-success ml-2',
-        'onclick' => "document.getElementById('bulkaction').value='bulkapprove'; document.getElementById('questionsform').submit();"
+        'onclick' => "if(confirm('Approve selected questions?')) { document.getElementById('bulkaction').value='bulkapprove'; document.getElementById('questionsform').submit(); }"
     ));
     echo html_writer::end_div();
 }
 
 echo html_writer::end_tag('form');
 
-// JavaScript for Select All functionality
+// Enhanced JavaScript for table interactions
 echo html_writer::script("
 document.addEventListener('DOMContentLoaded', function() {
-    // Select All checkbox functionality
-    var selectAllCheckboxes = document.querySelectorAll('.selectall-checkbox');
-    selectAllCheckboxes.forEach(function(selectAll) {
+    // Select All functionality
+    document.querySelectorAll('.selectall-checkbox').forEach(function(selectAll) {
         selectAll.addEventListener('change', function() {
             var table = this.closest('table');
             if (table) {
-                var checkboxes = table.querySelectorAll('.question-checkbox');
-                checkboxes.forEach(function(checkbox) {
+                table.querySelectorAll('.question-checkbox').forEach(function(checkbox) {
                     checkbox.checked = selectAll.checked;
                 });
             }
+        });
+    });
+    
+    // Search functionality
+    document.querySelectorAll('#question-search').forEach(function(searchInput) {
+        searchInput.addEventListener('input', function() {
+            var container = this.closest('.questions-table-container');
+            var table = container.querySelector('table');
+            var noResults = container.querySelector('#no-search-results');
+            var searchTerm = this.value.toLowerCase();
+            var visibleCount = 0;
+            
+            table.querySelectorAll('tbody tr').forEach(function(row) {
+                var questionText = row.querySelector('.question-text-link').textContent.toLowerCase();
+                if (questionText.includes(searchTerm)) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+            
+            if (visibleCount === 0 && searchTerm !== '') {
+                table.style.display = 'none';
+                noResults.style.display = 'block';
+            } else {
+                table.style.display = 'table';
+                noResults.style.display = 'none';
+            }
+        });
+    });
+    
+    // Sortable headers
+    document.querySelectorAll('.sortable-header').forEach(function(header) {
+        header.addEventListener('click', function() {
+            var table = this.closest('table');
+            var tbody = table.querySelector('tbody');
+            var rows = Array.from(tbody.querySelectorAll('tr'));
+            var sortType = this.dataset.sort;
+            var currentSort = this.classList.contains('sort-asc') ? 'asc' : 
+                             (this.classList.contains('sort-desc') ? 'desc' : null);
+            var newSort = currentSort === 'asc' ? 'desc' : 'asc';
+            
+            // Reset other headers
+            table.querySelectorAll('.sortable-header').forEach(function(h) {
+                h.classList.remove('sort-asc', 'sort-desc');
+            });
+            this.classList.add('sort-' + newSort);
+            
+            // Sort rows
+            rows.sort(function(a, b) {
+                var aVal, bVal;
+                var index = Array.from(header.parentNode.children).indexOf(header);
+                var aCell = a.children[index];
+                var bCell = b.children[index];
+                
+                if (sortType === 'date') {
+                    // Use data-timestamp attribute for numeric sorting
+                    aVal = parseInt(aCell.dataset.timestamp) || 0;
+                    bVal = parseInt(bCell.dataset.timestamp) || 0;
+                    // For dates, we typically want newest first (desc) as default
+                    if (newSort === 'asc') {
+                        return aVal - bVal;
+                    } else {
+                        return bVal - aVal;
+                    }
+                } else {
+                    aVal = aCell.textContent.trim().toLowerCase();
+                    bVal = bCell.textContent.trim().toLowerCase();
+                    if (aVal < bVal) return newSort === 'asc' ? -1 : 1;
+                    if (aVal > bVal) return newSort === 'asc' ? 1 : -1;
+                    return 0;
+                }
+            });
+            
+            // Re-append sorted rows
+            rows.forEach(function(row) {
+                tbody.appendChild(row);
+            });
         });
     });
 });
