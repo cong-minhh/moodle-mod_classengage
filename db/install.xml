@@ -68,7 +68,7 @@
         <FIELD NAME="optionc" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Option C"/>
         <FIELD NAME="optiond" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Option D"/>
         <FIELD NAME="correctanswer" TYPE="char" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Correct answer (A/B/C/D or specific text)"/>
-        <FIELD NAME="difficulty" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="medium" SEQUENCE="false" COMMENT="Difficulty level: easy, medium, hard"/>
+        <FIELD NAME="difficulty" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="easy" SEQUENCE="false" COMMENT="Difficulty level: easy, medium, hard"/>
         <FIELD NAME="bloomlevel" TYPE="char" LENGTH="20" NOTNULL="false" SEQUENCE="false" COMMENT="Bloom's taxonomy level: remember, understand, apply, analyze, evaluate, create"/>
         <FIELD NAME="rationale" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="AI-generated explanation for the correct answer"/>
         <FIELD NAME="sources" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="JSON: Slides and images used to generate this question"/>
@@ -94,7 +94,7 @@
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="classengageid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Foreign key to classengage table"/>
         <FIELD NAME="name" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" COMMENT="Session name"/>
-        <FIELD NAME="numquestions" TYPE="int" LENGTH="5" NOTNULL="true" DEFAULT="10" SEQUENCE="false" COMMENT="Number of questions in session"/>
+        <FIELD NAME="numquestions" TYPE="int" LENGTH="5" NOTNULL="true" DEFAULT="5" SEQUENCE="false" COMMENT="Number of questions in session"/>
         <FIELD NAME="timelimit" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="30" SEQUENCE="false" COMMENT="Time limit per question in seconds"/>
         <FIELD NAME="shufflequestions" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="1" SEQUENCE="false" COMMENT="Shuffle question order"/>
         <FIELD NAME="shuffleanswers" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="1" SEQUENCE="false" COMMENT="Shuffle answer options"/>

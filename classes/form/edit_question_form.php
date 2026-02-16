@@ -107,7 +107,7 @@ class edit_question_form extends \moodleform
             'hard' => get_string('hard', 'mod_classengage'),
         );
         $mform->addElement('select', 'difficulty', get_string('difficulty', 'mod_classengage'), $difficulties);
-        $mform->setDefault('difficulty', 'medium');
+        $mform->setDefault('difficulty', 'easy');
 
         // Bloom's Taxonomy Level (Cognitive Level)
         $bloomlevels = array(

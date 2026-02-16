@@ -315,7 +315,7 @@ if ($ADMIN->fulltree) {
         'mod_classengage/defaultquestions',
         get_string('settings:defaultquestions', 'mod_classengage'),
         get_string('settings:defaultquestions_desc', 'mod_classengage'),
-        '10',
+        '5',
         PARAM_INT
     ));
 

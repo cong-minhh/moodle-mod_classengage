@@ -211,7 +211,7 @@ if ($slides) {
     // Bulk Actions Toolbar
     echo html_writer::start_div('d-flex justify-content-between align-items-center mb-3 p-2 slides-bulk-toolbar');
     echo html_writer::start_div('form-check ml-2');
-    echo html_writer::checkbox('selectall', 1, false, get_string('selectall'), array('id' => 'select-all-slides', 'class' => 'form-check-input'));
+    echo html_writer::checkbox('selectall', 1, false, '', array('id' => 'select-all-slides', 'class' => 'form-check-input mr-2'));
     echo html_writer::label(get_string('selectall'), 'select-all-slides', false, array('class' => 'form-check-label font-weight-bold'));
     echo html_writer::end_div();
 
@@ -246,6 +246,8 @@ if ($slides) {
             $fileicon = 'fa-file-pdf-o text-danger';
         } else if (preg_match('/\.pptx?$/i', $slide->filename)) {
             $fileicon = 'fa-file-powerpoint-o text-warning';
+        } else if (preg_match('/\.docx?$/i', $slide->filename)) {
+            $fileicon = 'fa-file-word-o text-primary';
         }
 
         // Add data attributes for NLP job tracking.

@@ -248,44 +248,62 @@ function render_question_table($questions, $cm)
             $displaytext = substr($displaytext, 0, 80) . '...';
         }
 
-        // Build question preview tooltip with answers (HTML formatted)
+        // Build question preview modal content
         $correctanswer = strtoupper($question->correctanswer);
-        $tooltiphtml = '<div class="question-tooltip-content">';
-        $tooltiphtml .= '<div class="tooltip-question"><strong>Q:</strong> ' . s($question->questiontext) . '</div>';
-        $tooltiphtml .= '<div class="tooltip-answers">';
-        $tooltiphtml .= '<div class="tooltip-option' . ($correctanswer === 'A' ? ' correct' : '') . '">'
-            . ($correctanswer === 'A' ? '✓ ' : '&nbsp;&nbsp;&nbsp;')
-            . '<strong>A:</strong> ' . s($question->optiona) . '</div>';
-        $tooltiphtml .= '<div class="tooltip-option' . ($correctanswer === 'B' ? ' correct' : '') . '">'
-            . ($correctanswer === 'B' ? '✓ ' : '&nbsp;&nbsp;&nbsp;')
-            . '<strong>B:</strong> ' . s($question->optionb) . '</div>';
+        $modalid = 'question-modal-' . $question->id;
+        
+        // Modal content
+        $modalcontent = '<div class="modal fade" id="' . $modalid . '" tabindex="-1" role="dialog" aria-hidden="true">';
+        $modalcontent .= '<div class="modal-dialog modal-lg" role="document">';
+        $modalcontent .= '<div class="modal-content">';
+        $modalcontent .= '<div class="modal-header">';
+        $modalcontent .= '<h5 class="modal-title">Question Preview</h5>';
+        $modalcontent .= '<button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>';
+        $modalcontent .= '</div>';
+        $modalcontent .= '<div class="modal-body">';
+        
+        // Question image if exists
+        if (!empty($question->question_image)) {
+            $modalcontent .= '<div class="text-center mb-3">';
+            $modalcontent .= '<img src="' . s($question->question_image) . '" class="img-fluid rounded" style="max-height: 300px;" alt="Question image">';
+            $modalcontent .= '</div>';
+        }
+        
+        $modalcontent .= '<div class="question-content">';
+        $modalcontent .= '<div class="mb-3"><strong>Q:</strong> ' . s($question->questiontext) . '</div>';
+        $modalcontent .= '<div class="list-group">';
+        $modalcontent .= '<div class="list-group-item ' . ($correctanswer === 'A' ? 'list-group-item-success' : '') . '">'
+            . ($correctanswer === 'A' ? '✓ <strong>Correct:</strong> ' : '<strong>A:</strong> ') . s($question->optiona) . '</div>';
+        $modalcontent .= '<div class="list-group-item ' . ($correctanswer === 'B' ? 'list-group-item-success' : '') . '">'
+            . ($correctanswer === 'B' ? '✓ <strong>Correct:</strong> ' : '<strong>B:</strong> ') . s($question->optionb) . '</div>';
         if (!empty($question->optionc)) {
-            $tooltiphtml .= '<div class="tooltip-option' . ($correctanswer === 'C' ? ' correct' : '') . '">'
-                . ($correctanswer === 'C' ? '✓ ' : '&nbsp;&nbsp;&nbsp;')
-                . '<strong>C:</strong> ' . s($question->optionc) . '</div>';
+            $modalcontent .= '<div class="list-group-item ' . ($correctanswer === 'C' ? 'list-group-item-success' : '') . '">'
+                . ($correctanswer === 'C' ? '✓ <strong>Correct:</strong> ' : '<strong>C:</strong> ') . s($question->optionc) . '</div>';
         }
         if (!empty($question->optiond)) {
-            $tooltiphtml .= '<div class="tooltip-option' . ($correctanswer === 'D' ? ' correct' : '') . '">'
-                . ($correctanswer === 'D' ? '✓ ' : '&nbsp;&nbsp;&nbsp;')
-                . '<strong>D:</strong> ' . s($question->optiond) . '</div>';
+            $modalcontent .= '<div class="list-group-item ' . ($correctanswer === 'D' ? 'list-group-item-success' : '') . '">'
+                . ($correctanswer === 'D' ? '✓ <strong>Correct:</strong> ' : '<strong>D:</strong> ') . s($question->optiond) . '</div>';
         }
-        $tooltiphtml .= '</div>';
+        $modalcontent .= '</div>';
         if (!empty($question->rationale)) {
-            $tooltiphtml .= '<div class="tooltip-rationale"><strong>💡 Rationale:</strong> ' . s($question->rationale) . '</div>';
+            $modalcontent .= '<div class="alert alert-info mt-3"><strong>💡 Rationale:</strong> ' . s($question->rationale) . '</div>';
         }
-        $tooltiphtml .= '</div>';
-
-        // Wrap question text with popover (focus trigger for auto-dismiss)
+        $modalcontent .= '</div>';
+        $modalcontent .= '</div>';
+        $modalcontent .= '<div class="modal-footer">';
+        $modalcontent .= '<button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>';
+        $modalcontent .= '</div>';
+        $modalcontent .= '</div></div></div>';
+        
+        // Output modal to page
+        echo $modalcontent;
+        
+        // Question text link to open modal
         $questiontext = html_writer::tag('a', $displaytext, [
             'href' => '#',
             'class' => 'question-text-hover',
-            'data-toggle' => 'popover',
-            'data-trigger' => 'focus',
-            'data-placement' => 'right',
-            'data-html' => 'true',
-            'data-content' => $tooltiphtml,
-            'title' => 'Question Preview',
-            'tabindex' => '0',
+            'data-toggle' => 'modal',
+            'data-target' => '#' . $modalid,
             'onclick' => 'return false;'
         ]);
 
@@ -459,26 +477,9 @@ if (empty($manual_questions) && empty($generated_questions_by_slide)) {
 
 echo html_writer::end_tag('form');
 
-// JavaScript for Select All and Popover initialization
+// JavaScript for Select All functionality
 echo html_writer::script("
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize Bootstrap popovers if available
-    if (typeof jQuery !== 'undefined' && jQuery.fn.popover) {
-        jQuery('[data-toggle=\"popover\"]').popover({
-            container: 'body',
-            boundary: 'viewport'
-        });
-        
-        // Close popover when clicking outside
-        jQuery('body').on('click', function(e) {
-            jQuery('[data-toggle=\"popover\"]').each(function() {
-                if (!jQuery(this).is(e.target) && jQuery(this).has(e.target).length === 0 && jQuery('.popover').has(e.target).length === 0) {
-                    jQuery(this).popover('hide');
-                }
-            });
-        });
-    }
-    
     // Select All checkbox functionality
     var selectAllCheckboxes = document.querySelectorAll('.selectall-checkbox');
     selectAllCheckboxes.forEach(function(selectAll) {

@@ -166,7 +166,7 @@ class nlp_generator {
             throw new \Exception('No selected content available for generation');
         }
 
-        $numquestions = (int)($options['numQuestions'] ?? \get_config('mod_classengage', 'defaultquestions') ?: 10);
+        $numquestions = (int)($options['numQuestions'] ?? \get_config('mod_classengage', 'defaultquestions') ?: 5);
         if ($numquestions < 1) {
             $numquestions = 1;
         }
@@ -296,7 +296,7 @@ class nlp_generator {
         $options = [
             'numQuestions' => max(1, (int)$numquestions),
             'difficulty' => $difficulty,
-            'bloomLevel' => 'apply',
+            'bloomLevel' => 'remember',
         ];
 
         $prompt = $this->build_generation_prompt($text, [], $options, (int)$options['numQuestions']);
@@ -352,10 +352,10 @@ class nlp_generator {
         $inspection = $this->inspect_document($file);
         $options = [
             'numQuestions' => $numquestions === null
-                ? ((int)(\get_config('mod_classengage', 'defaultquestions') ?: 10))
+                ? ((int)(\get_config('mod_classengage', 'defaultquestions') ?: 5))
                 : max(1, (int)$numquestions),
             'difficulty' => 'mixed',
-            'bloomLevel' => 'apply',
+            'bloomLevel' => 'remember',
         ];
 
         $result = $this->generate_questions_from_document($inspection['docId'], $classengageid, $slideid, $options);
@@ -1291,9 +1291,9 @@ class nlp_generator {
             $defaultdifficulty = 'medium';
         }
 
-        $defaultbloom = $this->normalize_bloom_level((string)($options['bloomLevel'] ?? 'apply'));
+        $defaultbloom = $this->normalize_bloom_level((string)($options['bloomLevel'] ?? 'remember'));
         if ($defaultbloom === '') {
-            $defaultbloom = 'apply';
+            $defaultbloom = 'remember';
         }
 
         $sources = [

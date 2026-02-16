@@ -50,9 +50,11 @@ define([
           // Set Body
           Templates.render("mod_classengage/generator_wizard", {
             numquestions_options: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20],
-          }).then(function (html, js) {
+          }).then(function(html, js) {
             modal.setBody(html);
             Templates.runTemplateJS(js);
+            // Set default number of questions to 5
+            modal.getRoot().find("#id_numquestions").val(5);
           });
 
           // Set Footer

@@ -112,7 +112,7 @@ class constants
     const DEFAULT_POLLING_INTERVAL = 1000;
 
     /** @var int Default number of questions per session */
-    const DEFAULT_NUM_QUESTIONS = 10;
+    const DEFAULT_NUM_QUESTIONS = 5;
 
     /** @var int Default time limit per question in seconds */
     const DEFAULT_TIME_LIMIT = 30;

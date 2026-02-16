@@ -27,16 +27,25 @@
                 <div class="col-md-3 mb-2">
                     <label for="id_numquestions"><strong>{{#str}} numberofquestions, mod_classengage {{/str}}</strong></label>
                     <select class="form-control" id="id_numquestions">
-                        {{#numquestions_options}}
-                            <option value="{{.}}">{{.}}</option>
-                        {{/numquestions_options}}
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                        <option value="5" selected>5</option>
+                        <option value="6">6</option>
+                        <option value="7">7</option>
+                        <option value="8">8</option>
+                        <option value="9">9</option>
+                        <option value="10">10</option>
+                        <option value="15">15</option>
+                        <option value="20">20</option>
                     </select>
                 </div>
                 <div class="col-md-3 mb-2">
                     <label for="id_difficulty"><strong>{{#str}} difficulty, mod_classengage {{/str}}</strong> <i class="fa fa-info-circle text-muted" title="{{#str}} difficulty_help, mod_classengage {{/str}}"></i></label>
                     <select class="form-control" id="id_difficulty">
-                        <option value="easy">{{#str}} easy, mod_classengage {{/str}}</option>
-                        <option value="medium" selected>{{#str}} medium, mod_classengage {{/str}}</option>
+                        <option value="easy" selected>{{#str}} easy, mod_classengage {{/str}}</option>
+                        <option value="medium">{{#str}} medium, mod_classengage {{/str}}</option>
                         <option value="hard">{{#str}} hard, mod_classengage {{/str}}</option>
                         <option value="mixed">{{#str}} mixed, mod_classengage {{/str}}</option>
                     </select>
@@ -44,9 +53,9 @@
                 <div class="col-md-3 mb-2">
                     <label for="id_cognitive"><strong>{{#str}} cognitivelevel, mod_classengage {{/str}}</strong> <i class="fa fa-info-circle text-muted" title="{{#str}} cognitivelevel_help, mod_classengage {{/str}}"></i></label>
                     <select class="form-control" id="id_cognitive">
-                        <option value="remember">{{#str}} bloom_remember, mod_classengage {{/str}}</option>
+                        <option value="remember" selected>{{#str}} bloom_remember, mod_classengage {{/str}}</option>
                         <option value="understand">{{#str}} bloom_understand, mod_classengage {{/str}}</option>
-                        <option value="apply" selected>{{#str}} bloom_apply, mod_classengage {{/str}}</option>
+                        <option value="apply">{{#str}} bloom_apply, mod_classengage {{/str}}</option>
                         <option value="analyze">{{#str}} bloom_analyze, mod_classengage {{/str}}</option>
                         <option value="evaluate">{{#str}} bloom_evaluate, mod_classengage {{/str}}</option>
                         <option value="create">{{#str}} bloom_create, mod_classengage {{/str}}</option>
