@@ -25,8 +25,8 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'mod_classengage';
-$plugin->version = 2026021200;  // YYYYMMDDXX format - PHP Native NLP Engine
+$plugin->version = 2026022001;  // YYYYMMDDXX format - Production Readiness Updates
 $plugin->requires = 2022041900; // Moodle 4.0 or later
 $plugin->maturity = MATURITY_BETA;
-$plugin->release = 'v2.0.0-beta';
+$plugin->release = 'v2.0.1-beta';
 

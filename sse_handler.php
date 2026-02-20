@@ -53,6 +53,21 @@ require_capability('mod/classengage:takequiz', $context);
 // Check if user is instructor (for stats/students events).
 $isinstructor = has_capability('mod/classengage:viewanalytics', $context);
 
+// Enterprise: Check concurrent connection limits
+$maxconnections = (int)get_config('mod_classengage', 'max_concurrent_connections');
+if ($maxconnections > 0) {
+    $currentconnections = $DB->count_records('classengage_connections', ['sessionid' => $sessionid]);
+    if ($currentconnections >= $maxconnections) {
+        header('Content-Type: application/json');
+        header('HTTP/1.1 503 Service Unavailable');
+        echo json_encode([
+            'error' => 'Maximum concurrent connections reached. Please try again later.',
+            'retry_after' => 30
+        ]);
+        exit;
+    }
+}
+
 // Generate connection ID if not provided.
 if (empty($connectionid)) {
     $connectionid = uniqid('sse_' . $USER->id . '_', true);

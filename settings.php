@@ -395,4 +395,42 @@ if ($ADMIN->fulltree) {
         '500',
         PARAM_INT
     ));
+
+    // Data Retention / GDPR Settings
+    $settings->add(new admin_setting_heading(
+        'mod_classengage/dataretentionheading',
+        get_string('privacy:deletion:oldresponses', 'mod_classengage'),
+        get_string('privacy:deletion:oldresponses_desc', 'mod_classengage')
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'mod_classengage/response_retention_days',
+        get_string('retentiondays', 'mod_classengage'),
+        get_string('retentiondays_help', 'mod_classengage'),
+        '365',
+        PARAM_INT
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'mod_classengage/session_log_retention_days',
+        get_string('privacy:deletion:oldsessionlogs', 'mod_classengage'),
+        get_string('privacy:deletion:oldsessionlogs_desc', 'mod_classengage'),
+        '90',
+        PARAM_INT
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'mod_classengage/connection_retention_hours',
+        get_string('privacy:deletion:staleconnections', 'mod_classengage'),
+        get_string('privacy:deletion:staleconnections_desc', 'mod_classengage'),
+        '24',
+        PARAM_INT
+    ));
+
+    $settings->add(new admin_setting_configcheckbox(
+        'mod_classengage/enable_auto_cleanup',
+        get_string('settings:enableautocleanup', 'mod_classengage'),
+        get_string('settings:enableautocleanup_desc', 'mod_classengage'),
+        1
+    ));
 }

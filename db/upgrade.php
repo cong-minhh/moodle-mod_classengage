@@ -432,6 +432,37 @@ function xmldb_classengage_upgrade($oldversion)
         upgrade_mod_savepoint(true, 2026012800, 'classengage');
     }
 
+    // Production Readiness: Add connection index for better cleanup performance.
+    if ($oldversion < 2026022001) {
+        // Add index on connections for session + user uniqueness (helps with duplicate connections).
+        $table = new xmldb_table('classengage_connections');
+        $index = new xmldb_index('sessionid_userid', XMLDB_INDEX_UNIQUE, ['sessionid', 'userid']);
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+        // Add index on responses for question-level performance.
+        $table = new xmldb_table('classengage_responses');
+        $index = new xmldb_index('questionid_sessionid', XMLDB_INDEX_NOTUNIQUE, ['questionid', 'sessionid']);
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+        // Set default values for new retention settings.
+        if (!get_config('mod_classengage', 'enable_auto_cleanup')) {
+            set_config('enable_auto_cleanup', 1, 'mod_classengage');
+        }
+        if (!get_config('mod_classengage', 'response_retention_days')) {
+            set_config('response_retention_days', 365, 'mod_classengage');
+        }
+        if (!get_config('mod_classengage', 'connection_retention_hours')) {
+            set_config('connection_retention_hours', 24, 'mod_classengage');
+        }
+
+        // Classengage savepoint reached.
+        upgrade_mod_savepoint(true, 2026022001, 'classengage');
+    }
+
     return true;
 }
 

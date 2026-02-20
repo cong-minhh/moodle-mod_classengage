@@ -2409,3 +2409,108 @@
     opacity: 0.5;
   }
 }
+
+/* ============================================================================
+   SESSION RESULTS PAGE
+   ============================================================================ */
+
+.session-results {
+    padding: 0;
+}
+
+.session-header .card-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--ce-gray-800);
+}
+
+.session-header .badge {
+    font-size: 0.875rem;
+    padding: 0.5em 0.75em;
+}
+
+.stat-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+}
+
+.stat-icon {
+    display: block;
+    margin-bottom: 0.5rem;
+}
+
+.stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--ce-gray-800);
+    line-height: 1;
+}
+
+.font-size-sm {
+    font-size: 0.875rem;
+}
+
+/* Leaderboard styling */
+.table-rank-1 {
+    background-color: #d4edda !important;
+}
+
+.table-rank-2 {
+    background-color: #d1ecf1 !important;
+}
+
+.table-rank-3 {
+    background-color: #fff3cd !important;
+}
+
+/* Question breakdown */
+.question-breakdown-item {
+    border-bottom: 1px solid var(--ce-gray-200);
+    padding: 1rem;
+}
+
+.question-breakdown-item:last-child {
+    border-bottom: none;
+}
+
+.difficulty-badge {
+    font-size: 0.75rem;
+    padding: 0.25em 0.5em;
+}
+
+/* Charts */
+.chart-container {
+    position: relative;
+    width: 100%;
+    min-height: 200px;
+}
+
+/* Export buttons */
+.list-group-item-action {
+    transition: background-color 0.15s ease;
+}
+
+.list-group-item-action:hover {
+    background-color: var(--ce-gray-100);
+}
+
+.list-group-item-action i {
+    width: 24px;
+    text-align: center;
+    margin-right: 0.5rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .stat-value {
+        font-size: 1.5rem;
+    }
+    
+    .stat-card {
+        margin-bottom: 1rem;
+    }
+}

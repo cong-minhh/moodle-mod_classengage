@@ -170,20 +170,23 @@ if ($session->status === constants::SESSION_STATUS_ACTIVE || $session->status ==
     // Status area (hidden by default, JS shows when needed)
     echo html_writer::div('', 'alert alert-info d-none', array('id' => 'quiz-status'));
 
-    // Timer card
-    echo html_writer::start_div('card mb-4 border-0 shadow-sm');
-    echo html_writer::start_div('card-body text-center py-4');
-    echo html_writer::tag(
-        'div',
-        get_string('timeleft', 'mod_classengage'),
-        array('class' => 'text-uppercase text-muted small mb-2 font-weight-bold')
-    );
-    echo html_writer::tag('div', '--:--', array(
-        'id' => 'timer-display',
-        'class' => 'display-4 font-weight-bold'
-    ));
-    echo html_writer::end_div();
-    echo html_writer::end_div();
+// Timer card
+echo html_writer::start_div('card mb-4 border-0 shadow-sm');
+echo html_writer::start_div('card-body text-center py-4');
+echo html_writer::tag(
+    'div',
+    get_string('timeleft', 'mod_classengage'),
+    array('class' => 'text-uppercase text-muted small mb-2 font-weight-bold')
+);
+echo html_writer::tag('div', '--:--', array(
+    'id' => 'timer-display',
+    'class' => 'display-4 font-weight-bold',
+    'role' => 'timer',
+    'aria-live' => 'polite',
+    'aria-atomic' => 'true'
+));
+echo html_writer::end_div();
+echo html_writer::end_div();
 
     // Question container card
     echo html_writer::start_div('card shadow-sm');
@@ -248,15 +251,20 @@ if ($session->status === constants::SESSION_STATUS_ACTIVE || $session->status ==
                         continue;
                     }
                     echo html_writer::start_div('quiz-option', array('data-option' => $key));
-                    echo html_writer::start_tag('label', array('class' => 'quiz-option-label'));
+                    echo html_writer::start_tag('label', array(
+                        'class' => 'quiz-option-label',
+                        'role' => 'radio',
+                        'aria-label' => get_string('optionlabel', 'mod_classengage', $key)
+                    ));
                     echo html_writer::empty_tag('input', array(
                         'type' => 'radio',
                         'name' => 'answer',
                         'value' => $key,
-                        'required' => 'required'
+                        'required' => 'required',
+                        'aria-describedby' => 'option-' . $key . '-text'
                     ));
-                    echo html_writer::span($key, 'option-key');
-                    echo html_writer::span(format_string($options[$key]), 'option-text');
+                    echo html_writer::span($key, 'option-key', array('aria-hidden' => 'true'));
+                    echo html_writer::span(format_string($options[$key]), 'option-text', array('id' => 'option-' . $key . '-text'));
                     echo html_writer::end_tag('label');
                     echo html_writer::end_div();
                 }
@@ -264,7 +272,8 @@ if ($session->status === constants::SESSION_STATUS_ACTIVE || $session->status ==
                 echo html_writer::end_div();
                 echo html_writer::tag('button', get_string('submitanswer', 'mod_classengage'), array(
                     'type' => 'button',
-                    'class' => 'btn btn-primary btn-lg submit-answer-btn mt-4'
+                    'class' => 'btn btn-primary btn-lg submit-answer-btn mt-4',
+                    'aria-label' => get_string('submitansweraria', 'mod_classengage')
                 ));
                 echo html_writer::end_tag('form');
             }

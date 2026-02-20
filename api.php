@@ -42,16 +42,32 @@ use mod_classengage\event_logger;
 use mod_classengage\rate_limiter;
 use mod_classengage\constants;
 
+// Security: Initialize global database variable
+global $DB;
+
+// Validate input parameters with strict type checking
 $action = required_param('action', PARAM_ALPHA);
 $sessionid = required_param('sessionid', PARAM_INT);
 
+// Validate sessionid is within reasonable bounds
+if ($sessionid < 1 || $sessionid > 999999999) {
+    header('Content-Type: application/json');
+    echo json_encode([
+        'success' => false,
+        'error' => 'Invalid session ID'
+    ]);
+    exit;
+}
+
+// MUST come before any database operations - this initializes $DB
+require_login(0, false, null, false, true);
+require_sesskey();
+
+// Now safe to use $DB after require_login
 $session = $DB->get_record('classengage_sessions', array('id' => $sessionid), '*', MUST_EXIST);
 $classengage = $DB->get_record('classengage', array('id' => $session->classengageid), '*', MUST_EXIST);
 $cm = get_coursemodule_from_instance('classengage', $classengage->id, 0, false, MUST_EXIST);
 $context = context_module::instance($cm->id);
-
-require_login(0, false, null, false, true);
-require_sesskey();
 
 // Enterprise optimization: Apply rate limiting for write operations.
 $writeactions = ['submitanswer', 'submitbatch', 'pause', 'resume'];
@@ -84,6 +100,17 @@ try {
             require_capability('mod/classengage:takequiz', $context);
             $questionid = required_param('questionid', PARAM_INT);
             $answer = required_param('answer', PARAM_TEXT);
+            
+            // Security: Validate answer length (max 1000 characters)
+            $answer = trim($answer);
+            if (strlen($answer) > 1000) {
+                throw new invalid_parameter_exception('Answer too long (max 1000 characters)');
+            }
+            // Sanitize answer - only allow alphanumeric, spaces, and common punctuation
+            if (!preg_match('/^[\w\s.,!?;:\-\'"()]+$/u', $answer)) {
+                throw new invalid_parameter_exception('Invalid characters in answer');
+            }
+            
             $response = submit_answer($sessionid, $questionid, $answer, $classengage->id);
             break;
 
@@ -91,7 +118,24 @@ try {
             // Submit batch of responses (for high-load scenarios).
             require_capability('mod/classengage:takequiz', $context);
             $responses = required_param('responses', PARAM_RAW);
-            $response = submit_batch_responses($sessionid, $responses, $classengage->id);
+            
+            // Security: Validate and limit payload size (max 100KB)
+            if (strlen($responses) > 102400) {
+                throw new invalid_parameter_exception('Response payload too large (max 100KB)');
+            }
+            
+            // Security: Validate JSON structure before processing
+            $decoded = json_decode($responses, true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                throw new invalid_parameter_exception('Invalid JSON format');
+            }
+            
+            // Security: Limit number of responses in batch
+            if (count($decoded) > 50) {
+                throw new invalid_parameter_exception('Too many responses in batch (max 50)');
+            }
+            
+            $response = submit_batch_responses($sessionid, $decoded, $classengage->id);
             break;
 
 
@@ -125,16 +169,27 @@ try {
             $response['error'] = 'Invalid action';
     }
 
-} catch (Exception $e) {
+} catch (moodle_exception $e) {
+    // MoodLE exceptions - safe to show message
     $response['error'] = $e->getMessage();
-
-    // Log the error.
+} catch (Exception $e) {
+    // Security: Never expose raw exception details to users
+    // Log the full error for debugging
+    $response['error'] = get_string('error.generalexception', 'error');
+    
+    // Log the error for admin debugging
+    error_log("ClassEngage API Error [{$action}]: " . $e->getMessage());
+    
     if (class_exists('mod_classengage\event_logger')) {
-        $logger = new event_logger();
-        $logger->log_connection_error($sessionid, $USER->id, $e->getMessage(), [
-            'action' => $action,
-            'trace' => $e->getTraceAsString(),
-        ]);
+        try {
+            $logger = new event_logger();
+            $logger->log_connection_error($sessionid, $USER->id, $e->getMessage(), [
+                'action' => $action,
+                'trace' => $e->getTraceAsString(),
+            ]);
+        } catch (Exception $logError) {
+            // Silently ignore logging errors
+        }
     }
 }
 
@@ -239,15 +294,13 @@ function submit_answer($sessionid, $questionid, $answer, $classengageid)
  * Submit batch of responses for high-load scenarios
  *
  * @param int $sessionid Session ID
- * @param string $responsesJson JSON-encoded array of responses
+ * @param array $responses Array of response objects
  * @param int $classengageid Activity ID
  * @return array
  */
-function submit_batch_responses($sessionid, $responsesJson, $classengageid)
+function submit_batch_responses($sessionid, $responses, $classengageid)
 {
-    global $USER;
-
-    $responses = json_decode($responsesJson, true);
+    global $DB, $USER;
 
     if (!is_array($responses)) {
         return ['success' => false, 'error' => 'Invalid responses format'];
@@ -255,6 +308,13 @@ function submit_batch_responses($sessionid, $responsesJson, $classengageid)
 
     if (empty($responses)) {
         return ['success' => true, 'processedcount' => 0, 'failedcount' => 0, 'results' => []];
+    }
+
+    // Validate each response has required fields
+    foreach ($responses as $idx => $response) {
+        if (!isset($response['questionid']) || !isset($response['answer'])) {
+            return ['success' => false, 'error' => "Missing required fields in response {$idx}"];
+        }
     }
 
     // Add user ID to each response.

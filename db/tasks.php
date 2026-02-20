@@ -85,4 +85,14 @@ $tasks = [
         'month' => '*',
         'dayofweek' => '*',
     ],
+    // GDPR: Data retention cleanup - daily at 2 AM.
+    [
+        'classname' => 'mod_classengage\task\data_retention_cleanup',
+        'blocking' => 0,
+        'minute' => '0',
+        'hour' => '2',
+        'day' => '*',
+        'month' => '*',
+        'dayofweek' => '*',
+    ],
 ];
