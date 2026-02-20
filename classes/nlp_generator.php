@@ -1687,16 +1687,41 @@ class nlp_generator {
      * @return string
      */
     private function build_analysis_prompt(array $sessiondata, array $options = []): string {
+        // Check if there's actual data to analyze
+        $hasengagement = isset($sessiondata['engagement']['unique_participants']) && $sessiondata['engagement']['unique_participants'] > 0;
+        $hascomprehension = isset($sessiondata['comprehension']['avg_correctness']) && $sessiondata['comprehension']['avg_correctness'] > 0;
+        
         $json = json_encode($sessiondata, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        
+        $context = '';
+        if (!$hasengagement && !$hascomprehension) {
+            $context = 'IMPORTANT: There is NO DATA for this session yet (no students have responded). 
+            In your response, acknowledge this and suggest the teacher wait for students to participate before analyzing.';
+        } elseif (!$hasengagement) {
+            $context = 'IMPORTANT: There are no participants yet, but some comprehension data exists.
+            Focus your advice on how to increase student engagement.';
+        } elseif (!$hascomprehension) {
+            $context = 'IMPORTANT: There are participants but no comprehension data (no questions answered correctly yet).
+            Focus your advice on basic concept reinforcement.';
+        }
 
         return implode("\n", [
-            'You are an expert pedagogy analyst.',
-            'Analyze this class session data and return concise recommendations.',
-            'Output ONLY valid JSON with this schema:',
-            '{"summary":"...","strengths":["..."],"areas_for_improvement":["..."],"actionable_advice":["..."]}',
+            'You are an expert pedagogy analyst helping teachers understand their classroom performance.',
+            'Analyze this class session data and provide actionable insights for what to teach next.',
+            $context,
+            '',
+            'Output ONLY valid JSON with this exact schema:',
+            '{"summary":"2-3 sentence overview","strengths":["what went well - be specific"],"areas_for_improvement":["topics/concepts that need re-teaching"],"actionable_advice":["specific next steps for the teacher"]}',
             '',
             'Session data:',
             $json ?: '{}',
+            '',
+            'Guidelines:',
+            '- Be specific about which topics need re-teaching',
+            '- If engagement is low, suggest ways to increase participation',
+            '- If comprehension is low, suggest specific teaching strategies',
+            '- Keep advice practical and immediately actionable',
+            '- Output ONLY valid JSON, no other text',
         ]);
     }
 
@@ -1777,6 +1802,11 @@ class nlp_generator {
      * @return array
      */
     private function http_json_request(string $url, array $payload, array $headers, int $timeout): array {
+        // Check if curl extension is available
+        if (!extension_loaded('curl')) {
+            throw new \Exception('PHP curl extension is not installed. Please contact your server administrator to enable the curl extension.');
+        }
+        
         $curl = new \curl();
         $options = [
             'CURLOPT_RETURNTRANSFER' => true,

@@ -179,6 +179,7 @@ $simpledata->engagement = $engagement;
 $simpledata->comprehension = $comprehension;
 $simpledata->activity_counts = $activitycounts;
 $simpledata->responsiveness = $responsiveness;
+$simpledata->concept_difficulty = $conceptdifficulty;
 
 echo $renderer->render_simple_analysis($simpledata);
 

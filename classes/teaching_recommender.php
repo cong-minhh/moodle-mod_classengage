@@ -107,13 +107,41 @@ class teaching_recommender
             }
         }
 
+        // Check if there's any data to analyze
+        $hasparticipants = isset($this->engagement->unique_participants) && $this->engagement->unique_participants > 0;
+        $hasresponses = isset($this->comprehension->has_data) && $this->comprehension->has_data === true;
+        
+        // If no data yet, return a single "no data" recommendation
+        if (!$hasparticipants && !$hasresponses) {
+            $recommendations = array();
+            $recommendations[] = $this->create_recommendation(
+                1,
+                'info',
+                get_string('nodatayet', 'mod_classengage'),
+                get_string('nodatayetdesc', 'mod_classengage')
+            );
+            
+            // Cache for 5 minutes
+            if ($this->cache) {
+                $this->cache->set($cachekey, $recommendations);
+            }
+            
+            return $recommendations;
+        }
+
         $recommendations = array();
 
-        // Priority 1: Low engagement + low comprehension.
-        if (
+        // Get engagement level for checks
+        $engagementlevel = $this->engagement->level ?? 'none';
+
+        // Skip recommendations if no data
+        if ($engagementlevel === 'none' || ($this->comprehension->level ?? 'none') === 'none') {
+            // Already handled above, but keep as safety check
+        } else if (
             $this->engagement->percentage < self::LOW_ENGAGEMENT_THRESHOLD &&
             $this->comprehension->avg_correctness < self::LOW_COMPREHENSION_THRESHOLD
         ) {
+            // Priority 1: Low engagement + low comprehension.
             $recommendations[] = $this->create_recommendation(
                 1,
                 'pacing',
@@ -121,10 +149,8 @@ class teaching_recommender
                 get_string('engagementlow', 'mod_classengage', round($this->engagement->percentage, 1)) . ', ' .
                 get_string('comprehensionweak', 'mod_classengage')
             );
-        }
-
-        // Priority 2: High engagement + low comprehension.
-        if (
+        } else if (
+            // Priority 2: High engagement + low comprehension.
             $this->engagement->percentage >= self::HIGH_ENGAGEMENT_THRESHOLD &&
             $this->comprehension->avg_correctness < self::LOW_COMPREHENSION_THRESHOLD
         ) {
@@ -135,10 +161,8 @@ class teaching_recommender
                 get_string('engagementhigh', 'mod_classengage', round($this->engagement->percentage, 1)) . ', ' .
                 'but ' . get_string('comprehensionweak', 'mod_classengage')
             );
-        }
-
-        // Priority 3: High engagement with good comprehension - highlight interactive activities.
-        if (
+        } else if (
+            // Priority 3: High engagement with good comprehension - highlight interactive activities.
             $this->engagement->percentage >= self::HIGH_ENGAGEMENT_THRESHOLD &&
             $this->comprehension->avg_correctness >= self::LOW_COMPREHENSION_THRESHOLD
         ) {
@@ -151,8 +175,8 @@ class teaching_recommender
             );
         }
 
-        // Priority 4: Specific difficult concepts.
-        if (!empty($this->comprehension->confused_topics)) {
+        // Priority 4: Specific difficult concepts (only if there's comprehension data).
+        if (!empty($this->comprehension->confused_topics) && ($this->comprehension->has_data ?? false)) {
             foreach ($this->comprehension->confused_topics as $topic) {
                 if (count($recommendations) >= self::MAX_RECOMMENDATIONS) {
                     break;
@@ -167,24 +191,26 @@ class teaching_recommender
             }
         }
 
-        // Priority 5: Engagement drops in timeline (early intervals).
-        $timelinedrops = $this->detect_engagement_drops();
-        if (!empty($timelinedrops)) {
-            // Check if drop occurred in early intervals (first 25% of session).
-            $earlydrops = array_filter($timelinedrops, function ($drop) {
-                // Extract minute number from time string.
-                preg_match('/\d+/', $drop['time'], $matches);
-                $minute = isset($matches[0]) ? (int) $matches[0] : 0;
-                return $minute <= 5; // Consider first 5 minutes as "early".
-            });
+        // Priority 5: Engagement drops in timeline (only if there's engagement data).
+        if ($engagementlevel !== 'none') {
+            $timelinedrops = $this->detect_engagement_drops();
+            if (!empty($timelinedrops)) {
+                // Check if drop occurred in early intervals (first 25% of session).
+                $earlydrops = array_filter($timelinedrops, function ($drop) {
+                    // Extract minute number from time string.
+                    preg_match('/\d+/', $drop['time'], $matches);
+                    $minute = isset($matches[0]) ? (int) $matches[0] : 0;
+                    return $minute <= 5; // Consider first 5 minutes as "early".
+                });
 
-            if (!empty($earlydrops)) {
-                $recommendations[] = $this->create_recommendation(
-                    5,
-                    'pacing',
-                    get_string('recommendationpacing', 'mod_classengage'),
-                    'Attention waned around ' . $earlydrops[0]['time']
-                );
+                if (!empty($earlydrops)) {
+                    $recommendations[] = $this->create_recommendation(
+                        5,
+                        'pacing',
+                        get_string('recommendationpacing', 'mod_classengage'),
+                        'Attention waned around ' . $earlydrops[0]['time']
+                    );
+                }
             }
         }
 

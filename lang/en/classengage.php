@@ -233,6 +233,21 @@ $string['difficult'] = 'Difficult';
 $string['noconceptdata'] = 'No concept difficulty data available yet';
 $string['notrendsdata'] = 'No response trends data available yet';
 $string['norecommendations'] = 'No recommendations at this time';
+$string['actions'] = 'actions';
+$string['focusareas'] = 'Focus Areas';
+$string['classneedsreteaching'] = 'Class Needs Re-teaching';
+$string['classneedsreteachingdesc'] = 'Only {$a->percentage}% of responses were correct. Consider reviewing this material.';
+$string['topicsneedreteaching'] = 'Topics Needing Re-teaching';
+$string['lowengagementalert'] = 'Low Engagement Detected';
+$string['lowengagementalertdesc'] = 'Only {$a->percentage}% engagement ({$a->participants}/{$a->total} students). Consider ways to increase participation.';
+$string['nofa'] = 'Looking Good!';
+$string['nofadesc'] = 'No major focus areas detected. The class is performing well.';
+$string['needsattention'] = 'need attention';
+$string['engagementnone'] = 'No participants yet';
+$string['comprehensionnone'] = 'No response data yet';
+$string['nodatayet'] = 'No Data Available Yet';
+$string['nodatayetdesc'] = 'This session has not received any student responses yet. Wait for students to participate before reviewing analytics.';
+$string['waitforresponses'] = 'Wait for students to submit responses to see comprehension analysis.';
 $string['noparticipationdata'] = 'No participation data available yet';
 $string['commonwronganswer'] = 'Common Wrong Answer';
 $string['misconception'] = 'Misconception';
@@ -580,6 +595,7 @@ $string['settings:maxconcurrentconnections_desc'] = 'Maximum concurrent SSE conn
 // Enterprise scheduled tasks
 $string['task:archiveoldsessions'] = 'Archive old quiz sessions';
 $string['task:warmactivecaches'] = 'Warm caches for active sessions';
+$string['task:dataretentioncleanup'] = 'Data retention cleanup (GDPR)';
 
 // Enterprise capabilities
 $string['classengage:viewownresults'] = 'View own quiz results and performance history';
@@ -750,3 +766,111 @@ $string['settings:localmodel_desc'] = 'The Ollama model to use (e.g., qwen3-vl:4
 $string['nlpdiagnostics'] = 'NLP Environment Diagnostics';
 $string['diagnostics_allgood'] = 'All required components are installed and configured!';
 $string['diagnostics_missing'] = 'Missing required components: {$a}';$string['task_inspect_document'] = 'Inspect PDF document for question generation';
+
+// Privacy / GDPR Metadata Strings
+$string['privacy:metadata:responses'] = 'Quiz response data';
+$string['privacy:metadata:responses:userid'] = 'The user who submitted the response';
+$string['privacy:metadata:responses:questionid'] = 'The question being answered';
+$string['privacy:metadata:responses:sessionid'] = 'The quiz session';
+$string['privacy:metadata:responses:classengageid'] = 'The activity instance';
+$string['privacy:metadata:responses:answer'] = 'The answer submitted by the student';
+$string['privacy:metadata:responses:iscorrect'] = 'Whether the answer was correct';
+$string['privacy:metadata:responses:score'] = 'The score earned for this response';
+$string['privacy:metadata:responses:responsetime'] = 'Time taken to respond in seconds';
+$string['privacy:metadata:responses:timecreated'] = 'When the response was submitted';
+
+$string['privacy:metadata:connections'] = 'Real-time connection tracking';
+$string['privacy:metadata:connections:sessionid'] = 'The quiz session';
+$string['privacy:metadata:connections:userid'] = 'The connected user';
+$string['privacy:metadata:connections:connectionid'] = 'Unique connection identifier';
+$string['privacy:metadata:connections:transport'] = 'Connection type (polling, SSE, websocket)';
+$string['privacy:metadata:connections:status'] = 'Connection status';
+$string['privacy:metadata:connections:current_question_answered'] = 'Whether user answered current question';
+$string['privacy:metadata:connections:timecreated'] = 'When connection was established';
+$string['privacy:metadata:connections:timemodified'] = 'Last activity timestamp';
+
+$string['privacy:metadata:sessionlog'] = 'Session event logging';
+$string['privacy:metadata:sessionlog:sessionid'] = 'The quiz session';
+$string['privacy:metadata:sessionlog:userid'] = 'The user who performed the action';
+$string['privacy:metadata:sessionlog:event_type'] = 'Type of event (session_start, response, etc.)';
+$string['privacy:metadata:sessionlog:event_data'] = 'Additional event details';
+$string['privacy:metadata:sessionlog:latency_ms'] = 'Response latency in milliseconds';
+$string['privacy:metadata:sessionlog:timecreated'] = 'When the event occurred';
+
+$string['privacy:metadata:clickerdevices'] = 'Physical clicker device registrations';
+$string['privacy:metadata:clickerdevices:userid'] = 'The user who registered the device';
+$string['privacy:metadata:clickerdevices:clickerid'] = 'Unique clicker device identifier';
+$string['privacy:metadata:clickerdevices:contextid'] = 'Context where device was registered';
+$string['privacy:metadata:clickerdevices:timecreated'] = 'When device was registered';
+$string['privacy:metadata:clickerdevices:lastused'] = 'Last time device was used';
+
+$string['privacy:metadata:slides'] = 'Uploaded slide files';
+$string['privacy:metadata:slides:classengageid'] = 'The activity instance';
+$string['privacy:metadata:slides:title'] = 'Slide title';
+$string['privacy:metadata:slides:filename'] = 'Original filename';
+$string['privacy:metadata:slides:userid'] = 'User who uploaded the slide';
+$string['privacy:metadata:slides:timecreated'] = 'When slide was uploaded';
+$string['privacy:metadata:slides:timemodified'] = 'Last modification time';
+
+$string['privacy:metadata:sessions'] = 'Quiz session records';
+$string['privacy:metadata:sessions:classengageid'] = 'The activity instance';
+$string['privacy:metadata:sessions:name'] = 'Session name';
+$string['privacy:metadata:sessions:createdby'] = 'User who created the session';
+$string['privacy:metadata:sessions:timecreated'] = 'When session was created';
+$string['privacy:metadata:sessions:timestarted'] = 'When session was started';
+$string['privacy:metadata:sessions:timecompleted'] = 'When session was completed';
+$string['privacy:metadata:sessions:timemodified'] = 'Last modification time';
+
+$string['privacy:metadata:responsequeue'] = 'Pending response queue';
+$string['privacy:metadata:responsequeue:sessionid'] = 'The quiz session';
+$string['privacy:metadata:responsequeue:questionid'] = 'The question';
+$string['privacy:metadata:responsequeue:userid'] = 'The user who submitted';
+$string['privacy:metadata:responsequeue:answer'] = 'The submitted answer';
+$string['privacy:metadata:responsequeue:client_timestamp'] = 'Client-side submission time';
+$string['privacy:metadata:responsequeue:server_timestamp'] = 'Server-side receipt time';
+
+// Data Retention Settings
+$string['privacy:deletion:oldresponses'] = 'Delete old quiz responses';
+$string['privacy:deletion:oldresponses_desc'] = 'Automatically delete quiz responses older than specified days';
+$string['privacy:deletion:oldsessionlogs'] = 'Delete old session logs';
+$string['privacy:deletion:oldsessionlogs_desc'] = 'Automatically delete session logs older than specified days';
+$string['privacy:deletion:staleconnections'] = 'Clean up stale connections';
+$string['privacy:deletion:staleconnections_desc'] = 'Remove inactive connections older than specified hours';
+$string['retentiondays'] = 'Data Retention (days)';
+$string['retentiondays_help'] = 'Number of days to retain user data before automatic deletion';
+$string['settings:enableautocleanup'] = 'Enable Automatic Data Cleanup';
+$string['settings:enableautocleanup_desc'] = 'Enable automatic deletion of old data based on retention settings';
+
+// Accessibility
+$string['optionlabel'] = 'Answer option {$a}';
+$string['submitansweraria'] = 'Submit your answer';
+$string['timeraria'] = 'Time remaining: {$a} seconds';
+$string['questionprogress'] = 'Question {$a->current} of {$a->total}';
+$string['connectionstatus'] = 'Connection status: {$a}';
+$string['connectionstatus:connected'] = 'Connected';
+$string['connectionstatus:disconnected'] = 'Disconnected';
+$string['connectionstatus:reconnecting'] = 'Reconnecting';
+
+// Session Results Page
+$string['sessionresults'] = 'Session Results';
+$string['backtosessions'] = 'Back to Sessions';
+$string['participants'] = 'Participants';
+$string['accuracy'] = 'Accuracy';
+$string['avgresponsetime'] = 'Avg Response Time';
+$string['totalquestions'] = 'Total Questions';
+$string['leaderboard'] = 'Leaderboard';
+$string['questionbreakdown'] = 'Question Breakdown';
+$string['student'] = 'Student';
+$string['responses'] = 'Responses';
+$string['difficulty'] = 'Difficulty';
+$string['time'] = 'Time';
+$string['responsetime'] = 'Response Time Distribution';
+$string['answerdistribution'] = 'Answer Distribution';
+$string['exportcsv'] = 'Export as CSV';
+$string['exportxlsx'] = 'Export as Excel';
+$string['exportpdf'] = 'Export as PDF';
+$string['noresponses'] = 'No responses recorded yet';
+$string['easy'] = 'Easy';
+$string['medium'] = 'Medium';
+$string['hard'] = 'Hard';
+

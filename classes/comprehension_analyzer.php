@@ -83,7 +83,7 @@ class comprehension_analyzer {
      *
      * Analyzes average correctness rate across all questions.
      *
-     * @return object Comprehension data {avg_correctness, level, message, confused_topics}
+     * @return object Comprehension data {avg_correctness, level, message, confused_topics, has_data}
      */
     public function get_comprehension_summary() {
         // Try to get from cache first.
@@ -96,6 +96,21 @@ class comprehension_analyzer {
         }
         
         global $DB;
+        
+        // Get total response count first to check if there's any data
+        $totalresponses = $DB->count_records('classengage_responses', array('sessionid' => $this->sessionid));
+        
+        // Handle no data case
+        if ($totalresponses == 0) {
+            $comprehension = new \stdClass();
+            $comprehension->avg_correctness = 0;
+            $comprehension->level = 'none';
+            $comprehension->message = get_string('comprehensionnone', 'mod_classengage');
+            $comprehension->confused_topics = [];
+            $comprehension->has_data = false;
+            
+            return $comprehension;
+        }
         
         // Calculate average correctness rate.
         $sql = "SELECT AVG(iscorrect) * 100 as avg_correctness
@@ -116,6 +131,7 @@ class comprehension_analyzer {
         $comprehension->level = $leveldata['level'];
         $comprehension->message = $leveldata['message'];
         $comprehension->confused_topics = $confusedtopics;
+        $comprehension->has_data = true;
         
         // Cache for 5 minutes.
         if ($this->cache) {
@@ -144,20 +160,24 @@ class comprehension_analyzer {
         
         global $DB;
         
-        // Get correctness rate for each question.
+        // Check if there are any responses at all
+        $totalresponses = $DB->count_records('classengage_responses', array('sessionid' => $this->sessionid));
+        
+        // Get questions for this session
+        // Note: Using IFNULL to handle NULL values for MySQL compatibility
         $sql = "SELECT 
                     q.id,
                     sq.questionorder,
                     q.questiontext,
                     COUNT(r.id) as total_responses,
-                    SUM(r.iscorrect) as correct_responses,
-                    (SUM(r.iscorrect) * 100.0 / COUNT(r.id)) as correctness_rate
+                    SUM(CASE WHEN r.iscorrect = 1 THEN 1 ELSE 0 END) as correct_responses,
+                    (SUM(CASE WHEN r.iscorrect = 1 THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(r.id), 0)) as correctness_rate
                   FROM {classengage_questions} q
                   JOIN {classengage_session_questions} sq ON sq.questionid = q.id
              LEFT JOIN {classengage_responses} r ON r.questionid = q.id AND r.sessionid = :sessionid
                  WHERE sq.sessionid = :sessionid2
               GROUP BY q.id, sq.questionorder, q.questiontext
-              ORDER BY correctness_rate ASC, sq.questionorder ASC";
+              ORDER BY IF(correctness_rate IS NULL, 1, 0), correctness_rate ASC, sq.questionorder ASC";
         
         $results = $DB->get_records_sql($sql, array(
             'sessionid' => $this->sessionid,
@@ -166,13 +186,16 @@ class comprehension_analyzer {
         
         $concepts = array();
         foreach ($results as $result) {
-            $correctnessrate = $result->total_responses > 0 ? (float)$result->correctness_rate : 0;
+            // Handle NULL correctness_rate (no responses for this question)
+            $correctnessrate = ($result->total_responses > 0 && $result->correctness_rate !== null) 
+                ? (float)$result->correctness_rate 
+                : null;
             
             $concept = new \stdClass();
             $concept->question_order = (int)$result->questionorder;
             $concept->question_text = $result->questiontext;
-            $concept->correctness_rate = round($correctnessrate, 2);
-            $concept->difficulty_level = $this->determine_difficulty_level($correctnessrate);
+            $concept->correctness_rate = $correctnessrate;
+            $concept->difficulty_level = $correctnessrate !== null ? $this->determine_difficulty_level($correctnessrate) : 'unanswered';
             $concept->total_responses = (int)$result->total_responses;
             
             $concepts[] = $concept;

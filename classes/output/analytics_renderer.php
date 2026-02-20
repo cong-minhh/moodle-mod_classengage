@@ -72,11 +72,13 @@ class analytics_renderer extends plugin_renderer_base
     const LEVEL_HIGH = 'high';
     const LEVEL_MODERATE = 'moderate';
     const LEVEL_LOW = 'low';
+    const LEVEL_NONE = 'none';
 
     // Comprehension levels.
     const LEVEL_STRONG = 'strong';
     const LEVEL_PARTIAL = 'partial';
     const LEVEL_WEAK = 'weak';
+    const LEVEL_NONE_COMP = 'none';
 
     // Responsiveness pace.
     const PACE_QUICK = 'quick';
@@ -88,12 +90,14 @@ class analytics_renderer extends plugin_renderer_base
         self::LEVEL_HIGH => self::COLOR_SUCCESS,
         self::LEVEL_MODERATE => self::COLOR_WARNING,
         self::LEVEL_LOW => self::COLOR_DANGER,
+        self::LEVEL_NONE => self::COLOR_SECONDARY,
     ];
 
     const COMPREHENSION_COLORS = [
         self::LEVEL_STRONG => self::COLOR_SUCCESS,
         self::LEVEL_PARTIAL => self::COLOR_WARNING,
         self::LEVEL_WEAK => self::COLOR_DANGER,
+        self::LEVEL_NONE_COMP => self::COLOR_SECONDARY,
     ];
 
     // Pace to icon mappings.
@@ -905,10 +909,13 @@ class analytics_renderer extends plugin_renderer_base
             'aria-labelledby' => 'simple-tab'
         ]);
 
-        $output .= html_writer::start_div('row');
-
         // AI Insights Section
         $output .= $this->render_ai_section('simple');
+
+        // Focus Areas - Priority teaching insights
+        $output .= $this->render_focus_areas($data);
+
+        $output .= html_writer::start_div('row');
 
         // 1. Engagement Card.
         $output .= html_writer::start_div('col-md-6');
@@ -938,11 +945,110 @@ class analytics_renderer extends plugin_renderer_base
     }
 
     /**
+     * Render Focus Areas section - priority teaching insights
+     *
+     * @param object $data Data object with comprehension, engagement, and concept_difficulty data
+     * @return string HTML output
+     */
+    public function render_focus_areas($data)
+    {
+        $output = html_writer::start_div(self::CLASS_CARD . ' border-info mb-4');
+        $output .= html_writer::start_div(self::CLASS_CARD_HEADER . ' bg-info ' . self::CLASS_TEXT_WHITE);
+        $output .= html_writer::tag('h5', '📊 ' . get_string('focusareas', 'mod_classengage'), ['class' => 'mb-0']);
+        $output .= html_writer::end_div();
+        $output .= html_writer::start_div(self::CLASS_CARD_BODY);
+
+        $hasfocusareas = false;
+
+        // Check for no-data state first
+        $hasengagementdata = isset($data->engagement->level) && $data->engagement->level !== 'none';
+        $hascomprehensiondata = isset($data->comprehension->level) && $data->comprehension->level !== 'none';
+
+        if (!$hasengagementdata && !$hascomprehensiondata) {
+            // No data state - show info message
+            $output .= html_writer::start_div('alert alert-info mb-0');
+            $output .= html_writer::tag('strong', get_string('nodatayet', 'mod_classengage'));
+            $output .= html_writer::tag('p', get_string('nodatayetdesc', 'mod_classengage'), ['class' => 'mb-0']);
+            $output .= html_writer::end_div();
+            $output .= html_writer::end_div();
+            $output .= html_writer::end_div();
+            return $output;
+        }
+
+        // Get difficult topics from concept_difficulty if available
+        $difficulttopics = [];
+        if (!empty($data->concept_difficulty)) {
+            foreach ($data->concept_difficulty as $concept) {
+                if ($concept->difficulty_level === 'difficult' && $concept->total_responses > 0) {
+                    $difficulttopics[] = 'Q' . $concept->question_order . ': ' . s($concept->question_text) . 
+                        ' (' . round($concept->correctness_rate, 1) . '% correct)';
+                }
+            }
+        }
+
+        // Low comprehension warning (only if there's comprehension data)
+        if ($hascomprehensiondata && isset($data->comprehension->level) && $data->comprehension->level === 'weak') {
+            $hasfocusareas = true;
+            $output .= html_writer::start_div('alert alert-danger mb-3');
+            $output .= html_writer::tag('strong', get_string('classneedsreteaching', 'mod_classengage'));
+            $output .= html_writer::tag('p', get_string('classneedsreteachingdesc', 'mod_classengage', [
+                'percentage' => round($data->comprehension->avg_correctness, 1)
+            ]), ['class' => 'mb-0']);
+            $output .= html_writer::end_div();
+        }
+
+        // Difficult topics from concept_difficulty
+        if (!empty($difficulttopics)) {
+            $hasfocusareas = true;
+            $output .= html_writer::tag('h6', get_string('topicsneedreteaching', 'mod_classengage'), ['class' => 'mt-3']);
+            $output .= html_writer::start_tag('ul', ['class' => 'list-group mb-3']);
+            foreach ($difficulttopics as $topic) {
+                $output .= html_writer::tag('li', $topic, ['class' => 'list-group-item list-group-item-danger d-flex justify-content-between align-items-center']);
+            }
+            $output .= html_writer::end_tag('ul');
+        } else if (!empty($data->comprehension->confused_topics)) {
+            // Fallback to confused_topics from comprehension
+            $hasfocusareas = true;
+            $output .= html_writer::tag('h6', get_string('topicsneedreteaching', 'mod_classengage'), ['class' => 'mt-3']);
+            $output .= html_writer::start_tag('ul', ['class' => 'list-group mb-3']);
+            foreach ($data->comprehension->confused_topics as $topic) {
+                $output .= html_writer::tag('li', s($topic), ['class' => 'list-group-item list-group-item-warning d-flex justify-content-between align-items-center']);
+            }
+            $output .= html_writer::end_tag('ul');
+        }
+
+        // Low engagement warning (only if there's engagement data and it's low)
+        if ($hasengagementdata && isset($data->engagement->level) && $data->engagement->level === 'low') {
+            $hasfocusareas = true;
+            $output .= html_writer::start_div('alert alert-warning mb-0');
+            $output .= html_writer::tag('strong', get_string('lowengagementalert', 'mod_classengage'));
+            $output .= html_writer::tag('p', get_string('lowengagementalertdesc', 'mod_classengage', [
+                'percentage' => round($data->engagement->percentage, 1),
+                'participants' => $data->engagement->unique_participants,
+                'total' => $data->engagement->total_enrolled
+            ]), ['class' => 'mb-0']);
+            $output .= html_writer::end_div();
+        }
+
+        if (!$hasfocusareas) {
+            $output .= html_writer::start_div('alert alert-success mb-0');
+            $output .= html_writer::tag('strong', get_string('nofa', 'mod_classengage'));
+            $output .= html_writer::tag('p', get_string('nofadesc', 'mod_classengage'), ['class' => 'mb-0']);
+            $output .= html_writer::end_div();
+        }
+
+        $output .= html_writer::end_div();
+        $output .= html_writer::end_div();
+
+        return $output;
+    }
+
+    /**
      * Render engagement level card
      *
      * @param object $engagement Engagement data with properties:
      *                           - percentage (float)
-     *                           - level (string: high, moderate, low)
+     *                           - level (string: high, moderate, low, none)
      *                           - message (string)
      *                           - unique_participants (int)
      *                           - total_enrolled (int)
@@ -954,26 +1060,36 @@ class analytics_renderer extends plugin_renderer_base
 
         $content = '';
 
-        // Engagement percentage display.
-        $content .= html_writer::tag('h2', round($engagement->percentage, 1) . '%', [
-            'class' => self::CLASS_TEXT_CENTER . ' ' . self::CLASS_MARGIN_BOTTOM_3,
-            'aria-label' => get_string('engagementlevel', 'mod_classengage') . ': ' .
-                round($engagement->percentage, 1) . '%'
-        ]);
+        // Handle "none" level (no participants)
+        if ($engagement->level === 'none') {
+            $content .= html_writer::tag('h2', '—', [
+                'class' => self::CLASS_TEXT_CENTER . ' ' . self::CLASS_MARGIN_BOTTOM_3,
+                'aria-label' => get_string('engagementlevel', 'mod_classengage')
+            ]);
+        } else {
+            // Engagement percentage display.
+            $content .= html_writer::tag('h2', round($engagement->percentage, 1) . '%', [
+                'class' => self::CLASS_TEXT_CENTER . ' ' . self::CLASS_MARGIN_BOTTOM_3,
+                'aria-label' => get_string('engagementlevel', 'mod_classengage') . ': ' .
+                    round($engagement->percentage, 1) . '%'
+            ]);
+        }
 
         // Engagement message.
         $content .= html_writer::tag('p', s($engagement->message), [
             'class' => self::CLASS_TEXT_CENTER . ' ' . self::CLASS_MARGIN_BOTTOM_2
         ]);
 
-        // Participation details.
-        $participationtext = get_string('participationdetails', 'mod_classengage', [
-            'participants' => $engagement->unique_participants,
-            'total' => $engagement->total_enrolled
-        ]);
-        $content .= html_writer::tag('p', $participationtext, [
-            'class' => self::CLASS_TEXT_CENTER . ' ' . self::CLASS_TEXT_MUTED . ' small'
-        ]);
+        // Participation details (skip for none level).
+        if ($engagement->level !== 'none') {
+            $participationtext = get_string('participationdetails', 'mod_classengage', [
+                'participants' => $engagement->unique_participants,
+                'total' => $engagement->total_enrolled
+            ]);
+            $content .= html_writer::tag('p', $participationtext, [
+                'class' => self::CLASS_TEXT_CENTER . ' ' . self::CLASS_TEXT_MUTED . ' small'
+            ]);
+        }
 
         return $this->render_card(
             get_string('engagementlevel', 'mod_classengage'),
@@ -987,9 +1103,10 @@ class analytics_renderer extends plugin_renderer_base
      *
      * @param object $comprehension Comprehension data with properties:
      *                              - avg_correctness (float)
-     *                              - level (string: strong, partial, weak)
+     *                              - level (string: strong, partial, weak, none)
      *                              - message (string)
      *                              - confused_topics (array of strings)
+     *                              - has_data (bool)
      * @return string HTML output
      */
     public function render_comprehension_card($comprehension)
@@ -998,18 +1115,28 @@ class analytics_renderer extends plugin_renderer_base
 
         $content = '';
 
-        // Comprehension message.
-        $content .= html_writer::tag('p', s($comprehension->message), [
-            'class' => self::CLASS_MARGIN_BOTTOM_3
-        ]);
-
-        // Confused topics if any.
-        if (!empty($comprehension->confused_topics)) {
-            $topicslist = implode(', ', array_map('s', $comprehension->confused_topics));
-            $confusedtext = get_string('confusedtopics', 'mod_classengage', $topicslist);
-            $content .= html_writer::tag('p', $confusedtext, [
-                'class' => 'text-danger small mb-0'
+        // Handle "none" level (no response data)
+        if ($comprehension->level === 'none') {
+            $content .= html_writer::tag('p', s($comprehension->message), [
+                'class' => self::CLASS_MARGIN_BOTTOM_3 . ' text-muted'
             ]);
+            $content .= html_writer::tag('p', get_string('waitforresponses', 'mod_classengage'), [
+                'class' => 'text-muted small mb-0'
+            ]);
+        } else {
+            // Comprehension message.
+            $content .= html_writer::tag('p', s($comprehension->message), [
+                'class' => self::CLASS_MARGIN_BOTTOM_3
+            ]);
+
+            // Confused topics if any.
+            if (!empty($comprehension->confused_topics)) {
+                $topicslist = implode(', ', array_map('s', $comprehension->confused_topics));
+                $confusedtext = get_string('confusedtopics', 'mod_classengage', $topicslist);
+                $content .= html_writer::tag('p', $confusedtext, [
+                    'class' => 'text-danger small mb-0'
+                ]);
+            }
         }
 
         return $this->render_card(
@@ -1172,23 +1299,38 @@ class analytics_renderer extends plugin_renderer_base
         }
 
         $output = html_writer::start_div(self::CLASS_CARD . ' ' . self::CLASS_MARGIN_BOTTOM_4);
-        $output .= html_writer::start_div(self::CLASS_CARD_HEADER);
+        $output .= html_writer::start_div(self::CLASS_CARD_HEADER . ' d-flex justify-content-between align-items-center');
         $output .= html_writer::tag('h5', get_string('conceptdifficulty', 'mod_classengage'), ['class' => 'mb-0']);
+        $difficultcount = count(array_filter($concepts, function($c) { return $c->difficulty_level === 'difficult'; }));
+        if ($difficultcount > 0) {
+            $output .= html_writer::tag('span', $difficultcount . ' ' . get_string('needsattention', 'mod_classengage'), ['class' => 'badge badge-danger']);
+        }
         $output .= html_writer::end_div();
-        $output .= html_writer::start_div(self::CLASS_CARD_BODY);
+        $output .= html_writer::start_div(self::CLASS_CARD_BODY . ' table-responsive');
 
         // Create table.
         $table = new html_table();
-        $table->attributes['class'] = 'generaltable table-striped';
+        $table->attributes['class'] = 'generaltable table-striped table-bordered mb-0';
         $table->attributes['id'] = 'concept-difficulty-table';
 
-        // Table headers.
-        $table->head = [
-            get_string('question', 'mod_classengage'),
-            get_string('correctnessrate', 'mod_classengage'),
-            get_string('difficultylevel', 'mod_classengage'),
-            get_string('totalresponses', 'mod_classengage'),
-        ];
+        // Table headers - use proper header cells with style
+        $headerquestion = new \html_table_cell();
+        $headerquestion->text = get_string('question', 'mod_classengage');
+        $headerquestion->style = 'width: 50%;';
+
+        $headercorrectness = new \html_table_cell();
+        $headercorrectness->text = get_string('correctnessrate', 'mod_classengage');
+        $headercorrectness->style = 'width: 25%;';
+
+        $headerdifficulty = new \html_table_cell();
+        $headerdifficulty->text = get_string('difficultylevel', 'mod_classengage');
+        $headerdifficulty->style = 'width: 15%;';
+
+        $headertotal = new \html_table_cell();
+        $headertotal->text = get_string('totalresponses', 'mod_classengage');
+        $headertotal->style = 'width: 10%; text-align: center;';
+
+        $table->head = [$headerquestion, $headercorrectness, $headerdifficulty, $headertotal];
 
         $table->data = [];
 
@@ -1196,38 +1338,83 @@ class analytics_renderer extends plugin_renderer_base
             // Determine difficulty color.
             $difficultycolor = '';
             $difficultylabel = '';
+            $barcolor = '';
 
             switch ($concept->difficulty_level) {
                 case 'easy':
                     $difficultycolor = 'text-success';
                     $difficultylabel = get_string('easy', 'mod_classengage');
+                    $barcolor = 'bg-success';
                     break;
                 case 'moderate':
                     $difficultycolor = 'text-warning';
                     $difficultylabel = get_string('moderate', 'mod_classengage');
+                    $barcolor = 'bg-warning';
                     break;
                 case 'difficult':
                     $difficultycolor = 'text-danger';
                     $difficultylabel = get_string('difficult', 'mod_classengage');
+                    $barcolor = 'bg-danger';
                     break;
                 default:
                     $difficultycolor = self::CLASS_TEXT_MUTED;
                     $difficultylabel = $concept->difficulty_level;
+                    $barcolor = 'bg-secondary';
             }
 
-            $row = new \html_table_row([
-                html_writer::tag('strong', 'Q' . $concept->question_order) . ': ' . s($concept->question_text),
-                round($concept->correctness_rate, 1) . '%',
-                html_writer::tag('span', $difficultylabel, ['class' => $difficultycolor]),
-                $concept->total_responses,
+            // Handle null correctness rate (no responses)
+            $correctnessdisplay = $concept->correctness_rate !== null 
+                ? round($concept->correctness_rate, 1) . '%' 
+                : '—';
+            $correctnessforbar = $concept->correctness_rate !== null 
+                ? round($concept->correctness_rate) 
+                : 0;
+
+            // Create visual progress bar
+            $barhtml = html_writer::start_div('progress', ['style' => 'height: 8px; width: 100px;']);
+            $barhtml .= html_writer::div('', 'progress-bar ' . $barcolor, [
+                'role' => 'progressbar',
+                'style' => 'width: ' . $correctnessforbar . '%;',
+                'aria-valuenow' => $correctnessforbar,
+                'aria-valuemin' => 0,
+                'aria-valuemax' => 100
             ]);
+            $barhtml .= html_writer::end_div();
+
+            $row = new \html_table_row();
+            $row = new \html_table_row();
+            
+            // Question cell - with word wrap
+            $cellquestion = new \html_table_cell();
+            $cellquestion->text = s($concept->question_text);
+            $cellquestion->style = 'word-wrap: break-word; white-space: normal;';
+            
+            // Correctness cell
+            $cellcorrectness = new \html_table_cell();
+            $cellcorrectness->text = $correctnessdisplay . ' ' . $barhtml;
+            
+            // Difficulty cell
+            $celldifficulty = new \html_table_cell();
+            $celldifficulty->text = html_writer::tag('span', $difficultylabel, ['class' => $difficultycolor . ' font-weight-bold']);
+            
+            // Total responses cell - centered
+            $celltotal = new \html_table_cell();
+            $celltotal->text = $concept->total_responses;
+            $celltotal->style = 'text-align: center;';
+            
+            $row->cells = [$cellquestion, $cellcorrectness, $celldifficulty, $celltotal];
+
+            // Highlight difficult rows
+            if ($concept->difficulty_level === 'difficult') {
+                $row->attributes['class'] = 'table-danger';
+            }
 
             $table->data[] = $row;
         }
 
         $output .= html_writer::table($table);
-        $output .= html_writer::end_div();
-        $output .= html_writer::end_div();
+        $output .= html_writer::end_div(); // End table-responsive
+        $output .= html_writer::end_div(); // End card-body
 
         return $output;
     }
@@ -1369,28 +1556,42 @@ class analytics_renderer extends plugin_renderer_base
         if (empty($recommendations)) {
             return html_writer::div(
                 get_string('norecommendations', 'mod_classengage'),
-                'alert alert-info ' . self::CLASS_MARGIN_BOTTOM_4
+                'alert alert-success ' . self::CLASS_MARGIN_BOTTOM_4
             );
         }
 
         $output = html_writer::start_div(self::CLASS_CARD . ' border-primary ' . self::CLASS_MARGIN_BOTTOM_4);
-        $output .= html_writer::start_div(self::CLASS_CARD_HEADER . ' bg-primary ' . self::CLASS_TEXT_WHITE);
-        $output .= html_writer::tag('h5', get_string('teachingrecommendations', 'mod_classengage'), ['class' => 'mb-0']);
+        $output .= html_writer::start_div(self::CLASS_CARD_HEADER . ' bg-primary ' . self::CLASS_TEXT_WHITE . ' d-flex justify-content-between align-items-center');
+        $output .= html_writer::tag('h5', '🎯 ' . get_string('teachingrecommendations', 'mod_classengage'), ['class' => 'mb-0']);
+        $output .= html_writer::tag('span', count($recommendations) . ' ' . get_string('actions', 'mod_classengage'), ['class' => 'badge badge-light']);
         $output .= html_writer::end_div();
         $output .= html_writer::start_div(self::CLASS_CARD_BODY);
 
-        // Render each recommendation as a numbered item.
-        $output .= html_writer::start_tag('ol', ['class' => 'mb-0']);
+        $priorityicons = [
+            1 => '🔴',
+            2 => '🟠', 
+            3 => '🟡',
+            4 => '🟢',
+            5 => '🔵'
+        ];
 
-        foreach ($recommendations as $recommendation) {
-            $output .= html_writer::start_tag('li', ['class' => 'mb-3']);
+        // Render each recommendation as a card.
+        foreach ($recommendations as $index => $recommendation) {
+            $priorityicon = $priorityicons[$recommendation->priority] ?? '📋';
+            
+            $categorycolors = [
+                'pacing' => 'info',
+                'comprehension' => 'danger',
+                'engagement' => 'success',
+                'interaction' => 'warning'
+            ];
+            $categorycolor = $categorycolors[$recommendation->category] ?? 'secondary';
 
-            // Recommendation message.
-            $output .= html_writer::tag(
-                'p',
-                html_writer::tag('strong', s($recommendation->message)),
-                ['class' => 'mb-1']
-            );
+            $output .= html_writer::start_div('border rounded p-3 mb-3');
+            $output .= html_writer::start_div('d-flex justify-content-between align-items-start mb-2');
+            $output .= html_writer::tag('h6', $priorityicon . ' ' . s($recommendation->message), ['class' => 'mb-0']);
+            $output .= html_writer::tag('span', ucfirst($recommendation->category), ['class' => 'badge badge-' . $categorycolor]);
+            $output .= html_writer::end_div();
 
             // Evidence.
             if (!empty($recommendation->evidence)) {
@@ -1401,10 +1602,8 @@ class analytics_renderer extends plugin_renderer_base
                 );
             }
 
-            $output .= html_writer::end_tag('li');
+            $output .= html_writer::end_div();
         }
-
-        $output .= html_writer::end_tag('ol');
 
         $output .= html_writer::end_div();
         $output .= html_writer::end_div();

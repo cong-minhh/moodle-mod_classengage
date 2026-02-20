@@ -108,7 +108,7 @@ class engagement_calculator {
         $percentage = $totalenrolled > 0 ? ($uniqueparticipants / $totalenrolled) * 100 : 0;
         
         // Determine level and message.
-        $leveldata = $this->determine_engagement_level($percentage);
+        $leveldata = $this->determine_engagement_level($percentage, $uniqueparticipants);
         
         $engagement = new \stdClass();
         $engagement->percentage = round($percentage, 2);
@@ -260,9 +260,18 @@ class engagement_calculator {
      * Determine engagement level from percentage
      *
      * @param float $percentage Engagement percentage
+     * @param int $uniqueparticipants Number of unique participants
      * @return array Array with 'level' and 'message' keys
      */
-    private function determine_engagement_level($percentage) {
+    private function determine_engagement_level($percentage, $uniqueparticipants = 0) {
+        // Handle no participants case - this is different from low engagement
+        if ($uniqueparticipants == 0) {
+            return [
+                'level' => 'none',
+                'message' => get_string('engagementnone', 'mod_classengage')
+            ];
+        }
+        
         if ($percentage > self::HIGH_ENGAGEMENT_THRESHOLD) {
             return [
                 'level' => 'high',
