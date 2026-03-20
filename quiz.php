@@ -86,12 +86,11 @@ if (empty($pollinginterval)) {
 }
 
 // Calculate timer data if question is active.
-$timelimit = 0;
+$timelimit = (int) $session->timelimit; // Use session's timelimit (questions don't have timelimit field)
 $timeremaining = 0;
 $questionid = 0;
 $hasanswered = false;
 if ($currentquestion && $session->status === constants::SESSION_STATUS_ACTIVE) {
-    $timelimit = $currentquestion->timelimit ?? 0;
     if ($timelimit > 0 && !empty($session->questionstarttime)) {
         $elapsed = time() - $session->questionstarttime;
         $timeremaining = max(0, $timelimit - $elapsed);
@@ -301,89 +300,15 @@ echo html_writer::end_div();
     echo html_writer::end_div(); // card
 
 } else if ($session->status === constants::SESSION_STATUS_COMPLETED) {
-    // Quiz completed - show results.
-    try {
-        $sql = "SELECT COUNT(*) as total, COALESCE(SUM(iscorrect), 0) as correct
-                  FROM {classengage_responses}
-                 WHERE sessionid = :sessionid AND userid = :userid";
-
-        $result = $DB->get_record_sql($sql, array('sessionid' => $sessionid, 'userid' => $USER->id));
-
-        echo html_writer::start_div('card shadow-sm');
-        echo html_writer::start_div('card-body text-center py-5');
-
-        if ($result && $result->total > 0) {
-            $percentage = ($result->correct / $result->total) * 100;
-            $grade = ($percentage / 100) * $classengage->grade;
-
-            // Success icon
-            $iconclass = $percentage >= 70 ? 'text-success' : ($percentage >= 50 ? 'text-warning' : 'text-danger');
-            echo html_writer::tag('div', '✓', array(
-                'class' => 'display-1 mb-3 ' . $iconclass,
-                'style' => 'font-size: 5rem;'
-            ));
-
-            echo html_writer::tag(
-                'h2',
-                get_string('quizcompleted', 'mod_classengage'),
-                array('class' => 'mb-4 font-weight-bold')
-            );
-
-            // Stats row
-            echo html_writer::start_div('row mt-4 mb-4');
-
-            // Score
-            echo html_writer::start_div('col-md-4 mb-3 mb-md-0');
-            echo html_writer::start_div('p-3 rounded', array('style' => 'background-color: #f8f9fa;'));
-            echo html_writer::tag('div', round($grade, 1), array('class' => 'display-4 font-weight-bold text-primary'));
-            echo html_writer::tag('div', get_string('score', 'mod_classengage'), array('class' => 'text-muted text-uppercase small'));
-            echo html_writer::end_div();
-            echo html_writer::end_div();
-
-            // Correct answers
-            echo html_writer::start_div('col-md-4 mb-3 mb-md-0');
-            echo html_writer::start_div('p-3 rounded', array('style' => 'background-color: #f8f9fa;'));
-            echo html_writer::tag('div', (int) $result->correct . '/' . (int) $result->total, array('class' => 'display-4 font-weight-bold'));
-            echo html_writer::tag('div', get_string('correctanswers', 'mod_classengage'), array('class' => 'text-muted text-uppercase small'));
-            echo html_writer::end_div();
-            echo html_writer::end_div();
-
-            // Percentage
-            echo html_writer::start_div('col-md-4');
-            echo html_writer::start_div('p-3 rounded', array('style' => 'background-color: #f8f9fa;'));
-            echo html_writer::tag('div', round($percentage, 0) . '%', array('class' => 'display-4 font-weight-bold'));
-            echo html_writer::tag('div', get_string('percentage', 'mod_classengage'), array('class' => 'text-muted text-uppercase small'));
-            echo html_writer::end_div();
-            echo html_writer::end_div();
-
-            echo html_writer::end_div(); // row
-
-        } else {
-            echo html_writer::tag('div', '📝', array('style' => 'font-size: 4rem;'));
-            echo html_writer::tag('h3', get_string('quizcompleted', 'mod_classengage'), array('class' => 'mt-3 mb-3'));
-            echo html_writer::div(get_string('noresponses', 'mod_classengage'), 'text-muted');
-        }
-
-        // Back button
-        $viewurl = new moodle_url('/mod/classengage/view.php', array('id' => $cm->id));
-        echo html_writer::div(
-            html_writer::link(
-                $viewurl,
-                get_string('backtoactivity', 'mod_classengage'),
-                array('class' => 'btn btn-outline-primary btn-lg mt-4')
-            ),
-            'mt-3'
-        );
-
-        echo html_writer::end_div(); // card-body
-        echo html_writer::end_div(); // card
-
-    } catch (Exception $e) {
-        echo $OUTPUT->notification(
-            get_string('error:cannotloadresults', 'mod_classengage'),
-            \core\output\notification::NOTIFY_ERROR
-        );
-    }
+    // Quiz completed - redirect to detailed results page.
+    redirect(
+        new moodle_url('/mod/classengage/myresults.php', array(
+            'id' => $cm->id,
+            'sessionid' => $sessionid
+        )),
+        get_string('redirectingtoresults', 'mod_classengage'),
+        0
+    );
 
 } else {
     // Session not started (status is 'ready').

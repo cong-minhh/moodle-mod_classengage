@@ -580,10 +580,10 @@ function render_session_table($sessions, $cm, $type) {
 }
 
 // Active Sessions
-$sql = "SELECT * FROM {classengage_sessions}
-         WHERE classengageid = :classengageid
-           AND (status = 'active' OR status = 'paused')
-       ORDER BY timecreated DESC";
+$sql = "SELECT s.* FROM {classengage_sessions} s
+         WHERE s.classengageid = :classengageid
+           AND (s.status = 'active' OR s.status = 'paused')
+       ORDER BY s.timecreated DESC";
 $activesessions = $DB->get_records_sql($sql, array('classengageid' => $classengage->id));
 
 echo html_writer::start_div('session-section');

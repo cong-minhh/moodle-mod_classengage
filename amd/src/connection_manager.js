@@ -180,7 +180,8 @@ define(['jquery'], function ($) {
             }, self.options.connectionTimeout);
 
             self.eventSource.onopen = function () {
-                // Connection opened, wait for 'connected' event
+                // eslint-disable-next-line no-console
+                console.log('SSE connection opened, waiting for connected event...');
             };
 
             self.eventSource.onerror = function () {
@@ -263,6 +264,10 @@ define(['jquery'], function ($) {
                     console.error('SSE JSON parse error for event:', eventType, 'data:', event.data, e);
                     return;
                 }
+
+                // Debug: log all received events
+                // eslint-disable-next-line no-console
+                console.log('SSE received event:', eventType, data);
 
                 self.emit(eventType, data);
 

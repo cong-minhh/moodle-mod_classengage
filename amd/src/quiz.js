@@ -61,6 +61,7 @@ define([
     pendingSubmission: null,
     strings: {},
     answeredQuestions: {}, // Track which questions user has answered
+    selectedAnswers: {}, // Track selected answers (before submission)
 
     // Client-side timer state (enterprise timer separation)
     timerState: {
@@ -136,13 +137,7 @@ define([
           // Set up connection manager for client cache
           ClientCache.setConnectionManager(ConnectionManager.getInstance());
 
-          // Initialize connection manager
-          return ConnectionManager.init(sessionid, {
-            pollInterval: pollinginterval || 2000,
-          });
-        })
-        .then(function () {
-          // Set up event handlers
+          // Set up event handlers FIRST (before connecting)
           self.setupEventHandlers();
           self.setupConnectionHandlers();
           self.setupOfflineIndicator();
@@ -152,12 +147,38 @@ define([
             self.submitAnswer();
           });
 
+          // Track when user selects an answer (before submitting)
+          $(document).on("change", 'input[name="answer"]', function () {
+            var selectedValue = $(this).val();
+            var questionId = self.currentQuestionId || (self.currentQuestion && self.currentQuestion.id);
+            if (questionId && selectedValue) {
+              self.selectedAnswers[questionId] = selectedValue;
+              // eslint-disable-next-line no-console
+              console.log("Answer selected:", selectedValue, "for question:", questionId);
+            }
+          });
+
           // Handle touch events for mobile
           $(document).on("touchend", ".quiz-option", function (e) {
             e.preventDefault();
             $(this).find('input[type="radio"]').prop("checked", true);
             $(this).addClass("selected").siblings().removeClass("selected");
+            // Also track selection for mobile
+            var selectedValue = $(this).find('input[type="radio"]').val();
+            var questionId = self.currentQuestionId || (self.currentQuestion && self.currentQuestion.id);
+            if (questionId && selectedValue) {
+              self.selectedAnswers[questionId] = selectedValue;
+            }
           });
+
+          // Initialize connection manager (after handlers are set up)
+          return ConnectionManager.init(sessionid, {
+            pollInterval: pollinginterval || 2000,
+          });
+        })
+        .then(function () {
+          // eslint-disable-next-line no-console
+          console.log("SSE connection established successfully");
 
           // Start timer immediately if we have timer data from PHP
           if (timeremaining > 0 && timelimit > 0) {
@@ -165,18 +186,17 @@ define([
           }
 
           // Update quiz status when connected
-          $("#quiz-status").removeClass("d-none").text("Connected");
+          $("#quiz-status").removeClass("d-none").addClass("alert-success").text("Connected");
           setTimeout(function () {
-            $("#quiz-status").addClass("d-none");
-          }, 2000);
+            $("#quiz-status").fadeOut();
+          }, 3000);
 
           return null;
         })
         .catch(function (error) {
           // eslint-disable-next-line no-console
           console.error("Quiz initialization error:", error);
-          // Fall back to legacy polling if connection manager fails
-          self.startLegacyPolling(pollinginterval);
+          $("#quiz-status").removeClass("d-none").addClass("alert-danger").text("Connection failed - please refresh");
         });
     },
 
@@ -342,10 +362,10 @@ define([
      * Set up offline indicator UI element
      */
     setupOfflineIndicator: function () {
-      // Create offline indicator if it doesn't exist
+      // Create offline indicator if it doesn't exist (hidden by default via CSS)
       if ($("#offline-indicator").length === 0) {
         var indicator = $(
-          '<div id="offline-indicator" class="offline-indicator" style="display: none;">' +
+          '<div id="offline-indicator" class="offline-indicator">' +
             '<span class="offline-icon">&#9888;</span>' +
             '<span class="offline-text"></span>' +
             '<span class="pending-count"></span>' +
@@ -365,7 +385,8 @@ define([
 
       // Check initial status
       this.isOnline = navigator.onLine;
-      this.updateOfflineIndicator();
+      // Don't show offline indicator immediately - wait for connection attempt
+      // This prevents false "offline" messages during page load
     },
 
     /**
@@ -469,7 +490,7 @@ define([
      */
     handleStateUpdate: function (data) {
       // Sync timer if we have timer info
-      if (data.timelimit > 0 && data.timeremaining !== undefined) {
+      if (data.timeremaining !== undefined && data.timeremaining !== null) {
         this.syncServerTime({
           timerremaining: data.timeremaining,
           timestamp: data.timestamp || Date.now() / 1000,
@@ -481,6 +502,9 @@ define([
           success: true,
           status: data.status,
           question: data.question,
+          timeremaining: data.timeremaining,
+          questionstarttime: data.questionstarttime,
+          timelimit: data.timelimit,
         });
       }
 
@@ -497,28 +521,61 @@ define([
      * @param {Object} data Question data
      */
     handleQuestionBroadcast: function (data) {
+      // eslint-disable-next-line no-console
+      console.log("Received question_broadcast event:", data);
+
       var question = data.question;
-      var questionId = question.id || data.questionid;
+      var questionId = data.questionid || (question && question.id);
+
+      // Stop any existing countdown when new question arrives
+      if (this.countdownTimer) {
+        clearInterval(this.countdownTimer);
+        this.countdownTimer = null;
+      }
 
       // Check if this is a NEW question (reset answered state for new questions)
       if (questionId && this.currentQuestionId !== questionId) {
         this.currentQuestionId = questionId;
-        // New question - user hasn't answered yet (unless cached)
+        this.answeredQuestions[questionId] = data.hasanswered || false;
       }
 
       // Check if user has already answered this question
-      if (questionId && this.answeredQuestions[questionId]) {
-        question.answered = true;
+      if (data.hasanswered) {
+        if (question) {
+          question.answered = true;
+        }
       }
 
       this.currentQuestion = question;
       this.displayQuestion(question);
 
-      // Start local countdown timer with timelimit from server
-      // Timer is fully client-side - server validates on submission
-      var timelimit = data.timelimit || (question && question.timelimit) || 0;
-      if (timelimit > 0 && !question.answered) {
-        this.startLocalCountdown(timelimit);
+      // Start local countdown timer with remaining time from server
+      var timeremaining = data.timeremaining || 0;
+      var questionstarttime = data.questionstarttime || 0;
+      var timelimit = data.timelimit || 0;
+
+      // If server sent start time but no remaining time, calculate locally
+      if (questionstarttime > 0 && timelimit > 0 && timeremaining === 0) {
+        var serverNow = data.timestamp || Date.now() / 1000;
+        timeremaining = Math.max(0, timelimit - (serverNow - questionstarttime));
+      }
+
+      // eslint-disable-next-line no-console
+      console.log("Processing question:", {
+        questionId: questionId,
+        timeremaining: timeremaining,
+        timelimit: timelimit,
+        hasanswered: data.hasanswered,
+        questionText: question ? question.text.substring(0, 50) : 'none'
+      });
+
+      if (timeremaining > 0 && !data.hasanswered) {
+        this.startLocalCountdown(timeremaining);
+        $(".submit-answer-btn").prop("disabled", false);
+      } else if (timeremaining <= 0 && !data.hasanswered) {
+        // Time already expired for this question
+        this.showTimeExpiredIndicator();
+        $(".submit-answer-btn").prop("disabled", true);
       }
     },
 
@@ -665,11 +722,30 @@ define([
         return;
       }
 
-      if (!this.currentQuestion) {
+      // Get question ID - from currentQuestion object or from stored currentQuestionId
+      var questionId = 0;
+      if (this.currentQuestion && this.currentQuestion.id) {
+        questionId = this.currentQuestion.id;
+      } else if (this.currentQuestionId) {
+        questionId = this.currentQuestionId;
+      }
+
+      if (!questionId) {
+        // eslint-disable-next-line no-console
+        console.error("No question ID available for submission");
+        self.showNotification("error", "Error: No active question to submit to");
         return;
       }
 
-      var questionId = this.currentQuestion.id;
+      // Store selected answer immediately (so it's preserved if timer expires)
+      this.selectedAnswers[questionId] = selectedAnswer;
+
+      // Check if already answered this question
+      if (this.answeredQuestions[questionId]) {
+        self.showNotification("info", self.strings.alreadyanswered);
+        return;
+      }
+
       var clientTimestamp = Date.now();
 
       // Optimistic UI update (Requirement 8.5)
@@ -795,43 +871,100 @@ define([
 
       if (response.success) {
         // Mark this question as answered so SSE won't overwrite
-        if (this.currentQuestion && this.currentQuestion.id) {
-          this.answeredQuestions[this.currentQuestion.id] = true;
+        var questionId = this.currentQuestionId || (this.currentQuestion && this.currentQuestion.id);
+        if (questionId) {
+          this.answeredQuestions[questionId] = true;
         }
 
-        var message = response.iscorrect
-          ? this.strings.correct
-          : this.strings.incorrect;
-        var alertClass = response.iscorrect ? "success" : "warning";
+        // Get user answer for display
+        var userAnswer = this.selectedAnswers[questionId] || '';
 
-        var html =
-          '<div class="alert alert-' +
-          alertClass +
-          '">' +
-          "<h4>" +
-          message +
-          "</h4>";
+        // Use currentQuestion data for rich feedback if available
+        var question = this.currentQuestion || {};
+        var correctAnswer = response.correctanswer || question.correctanswer || '';
+        var isCorrect = (response.iscorrect || (userAnswer.toUpperCase() === correctAnswer.toUpperCase()));
 
-        if (response.correctanswer) {
-          html +=
-            "<p>" +
-            this.strings.correctanswer +
-            ": " +
-            response.correctanswer +
-            "</p>";
+        // Build rich feedback HTML
+        var html = '<div class="answer-feedback">';
+        
+        // Result banner
+        if (isCorrect) {
+          html += '<div class="alert alert-success mb-3">';
+          html += '<i class="fa fa-check-circle fa-lg mr-2"></i>';
+          html += '<strong>Correct!</strong> Great job!';
+          html += '</div>';
+        } else {
+          html += '<div class="alert alert-danger mb-3">';
+          html += '<i class="fa fa-times-circle fa-lg mr-2"></i>';
+          html += '<strong>Incorrect.</strong> The correct answer is <strong>' + correctAnswer + '</strong>';
+          html += '</div>';
         }
-
+        
+        // Show your answer
+        html += '<div class="your-answer mb-3 p-3 rounded" style="background: #f0f0f0;">';
+        html += '<strong>Your answer:</strong> ' + (userAnswer || 'No answer submitted');
+        html += '</div>';
+        
+        // Rationale
+        if (question.rationale) {
+          html += '<div class="rationale-section mb-3 p-3 rounded" style="background: #e8f4f8; border-left: 4px solid #17a2b8;">';
+          html += '<h5><i class="fa fa-lightbulb-o text-info mr-2"></i>Explanation</h5>';
+          html += '<p class="mb-0">' + question.rationale + '</p>';
+          html += '</div>';
+        }
+        
+        // Question metadata
+        html += '<div class="question-meta mt-3 p-3 rounded" style="background: #f8f9fa;">';
+        html += '<h5><i class="fa fa-info-circle mr-2"></i>Question Details</h5>';
+        html += '<div class="row">';
+        
+        // Difficulty
+        if (question.difficulty) {
+          var diffColors = { 'easy': 'success', 'medium': 'warning', 'hard': 'danger' };
+          var diffColor = diffColors[question.difficulty] || 'secondary';
+          html += '<div class="col-md-4 mb-2">';
+          html += '<strong>Difficulty:</strong> ';
+          html += '<span class="badge badge-' + diffColor + '">' + question.difficulty.charAt(0).toUpperCase() + question.difficulty.slice(1) + '</span>';
+          html += '</div>';
+        }
+        
+        // Bloom's Level
+        if (question.bloomlevel) {
+          html += '<div class="col-md-4 mb-2">';
+          html += '<strong>Bloom\'s Level:</strong> ';
+          html += '<span class="badge badge-info">' + question.bloomlevel.charAt(0).toUpperCase() + question.bloomlevel.slice(1) + '</span>';
+          html += '</div>';
+        }
+        
+        // Trustworthiness
+        if (question.trustworthiness_score !== undefined) {
+          var twColors = { 'trustworthy': 'primary', 'uncertain': 'warning', 'unlikely': 'danger' };
+          var twColor = twColors[question.trustworthiness_level] || 'secondary';
+          html += '<div class="col-md-4 mb-2">';
+          html += '<strong>Reliability:</strong> ';
+          html += '<span class="badge badge-' + twColor + '">' + question.trustworthiness_score + '%</span>';
+          html += '</div>';
+        }
+        
+        html += '</div>'; // End row
+        html += '</div>'; // End question-meta
+        
+        // Late submission notice
         if (response.islate) {
-          html +=
-            '<p class="text-muted"><em>Response recorded as late</em></p>';
+          html += '<div class="alert alert-warning mt-3"><em>Response recorded as late</em></div>';
         }
-
-        html += "<p>" + this.strings.waitingnextquestion + "</p>" + "</div>";
+        
+        // Waiting for next question
+        html += '<div class="waiting-next mt-3 p-3 rounded text-center" style="background: #e9ecef;">';
+        html += '<i class="fa fa-hourglass-half mr-2"></i>Waiting for next question...';
+        html += '</div>';
+        
+        html += '</div>'; // End answer-feedback
 
         container.html(html);
 
         // Visual confirmation (Requirement 2.4)
-        this.showVisualConfirmation(response.iscorrect);
+        this.showVisualConfirmation(isCorrect);
       } else {
         // Handle error
         var errorMsg = response.error || "";
@@ -981,11 +1114,23 @@ define([
         this.displayQuestion(question);
       }
 
-      // Update timer
-      this.updateTimer(question.timeremaining);
+      // Update timer with remaining time from server
+      var timeremaining = response.timeremaining || (question && question.timeremaining) || 0;
+      var questionstarttime = response.questionstarttime || (question && question.questionstarttime) || 0;
+      var timelimit = response.timelimit || (question && question.timelimit) || 0;
+
+      // Calculate remaining time if we have start time
+      if (questionstarttime > 0 && timelimit > 0) {
+        var serverNow = response.timestamp || Date.now() / 1000;
+        timeremaining = Math.max(0, timelimit - (serverNow - questionstarttime));
+      }
+
+      this.updateTimer(timeremaining);
 
       // Update question number
-      statusDiv.html("Question " + question.number + " of " + question.total);
+      if (question.number !== undefined && question.total !== undefined) {
+        statusDiv.html("Question " + question.number + " of " + question.total);
+      }
     },
 
     /**
@@ -994,27 +1139,36 @@ define([
      * @param {Object} question Question data
      */
     displayQuestion: function (question) {
-      var html = '<div class="question-text mb-4">';
+      var self = this;
+      var questionId = question.id || this.currentQuestionId;
+      var savedAnswer = this.selectedAnswers[questionId];
+
+      var html = '<div class="question-card">';
+      
+      // Question text
+      html += '<div class="question-text mb-4">';
       html += "<h4>" + question.text + "</h4>";
       html += "</div>";
 
-      if (question.answered) {
-        html +=
-          '<div class="alert alert-info">' +
-          this.strings.alreadyanswered +
-          "</div>";
+      // Trustworthiness indicator (show before answering too)
+      if (question.trustworthiness_score !== undefined) {
+        html += this.renderTrustworthinessBadge(question);
+      }
+
+      if (question.answered || this.answeredQuestions[questionId]) {
+        // Already answered - show results
+        html += this.renderAnsweredState(question, questionId);
       } else {
-        html += '<form id="answer-form">';
+        // Not answered yet - show answer options
+        html += '<div id="answer-form-container">';
         html += '<div class="question-options">';
 
         for (var i = 0; i < question.options.length; i++) {
           var option = question.options[i];
+          var isSelected = (savedAnswer === option.key) ? 'checked' : '';
           html += '<div class="quiz-option" data-option="' + option.key + '">';
           html += '<label class="quiz-option-label">';
-          html +=
-            '<input type="radio" name="answer" value="' +
-            option.key +
-            '" required> ';
+          html += '<input type="radio" name="answer" value="' + option.key + '" ' + isSelected + ' required> ';
           html += '<span class="option-key">' + option.key + "</span>";
           html += '<span class="option-text">' + option.text + "</span>";
           html += "</label>";
@@ -1022,16 +1176,153 @@ define([
         }
 
         html += "</div>";
-        html +=
-          '<button type="button" class="btn btn-primary btn-lg submit-answer-btn mt-3">';
-        html += this.strings.answersubmitted
-          ? "Submit Answer"
-          : "Submit Answer";
-        html += "</button>";
-        html += "</form>";
+        
+        // Only show submit button if time remaining
+        if (this.timerState.isRunning && this.timerState.serverTimeRemaining > 0) {
+          html += '<button type="button" class="btn btn-primary btn-lg submit-answer-btn mt-3">';
+          html += "Submit Answer";
+          html += "</button>";
+        } else {
+          html += '<div class="alert alert-warning mt-3">';
+          html += '<i class="fa fa-clock-o"></i> Time is up! You can no longer submit an answer.';
+          html += "</div>";
+        }
+        
+        html += '</div>';
       }
 
+      html += '</div>'; // End question-card
       $("#question-container").html(html);
+    },
+
+    /**
+     * Render trustworthiness badge
+     *
+     * @param {Object} question Question data
+     * @return {string} HTML for badge
+     */
+    renderTrustworthinessBadge: function (question) {
+      var score = question.trustworthiness_score || 0;
+      var level = question.trustworthiness_level || 'uncertain';
+      var factors = question.trustworthiness_factors;
+      
+      var colors = {
+        'trustworthy': '#2196F3',   // Blue
+        'uncertain': '#FFC107',    // Yellow
+        'unlikely': '#F44336'      // Red
+      };
+      
+      var labels = {
+        'trustworthy': 'Pretty reliable',
+        'uncertain': 'Could be wrong',
+        'unlikely': 'Likely wrong'
+      };
+      
+      var color = colors[level] || colors.uncertain;
+      var label = labels[level] || labels.uncertain;
+      
+      var html = '<div class="trustworthiness-badge mb-3" style="border-left: 4px solid ' + color + '; padding: 10px 15px; background: #f8f9fa; border-radius: 4px;">';
+      html += '<div class="d-flex align-items-center">';
+      html += '<span class="badge mr-2" style="background: ' + color + '; color: white; padding: 4px 10px;">' + score + '%</span>';
+      html += '<span class="font-weight-bold">' + label + '</span>';
+      html += '</div>';
+      
+      // Show factors if available
+      if (factors) {
+        try {
+          var factorsObj = typeof factors === 'string' ? JSON.parse(factors) : factors;
+          if (factorsObj.factors && Array.isArray(factorsObj.factors)) {
+            html += '<small class="text-muted mt-1 d-block">';
+            html += factorsObj.factors.slice(0, 3).join(' • ');
+            html += '</small>';
+          }
+        } catch (e) {
+          // Ignore parse errors
+        }
+      }
+      
+      html += '</div>';
+      return html;
+    },
+
+    /**
+     * Render answered state with feedback
+     *
+     * @param {Object} question Question data
+     * @param {int} questionId Question ID
+     * @return {string} HTML for answered state
+     */
+    renderAnsweredState: function (question, questionId) {
+      var userAnswer = this.selectedAnswers[questionId];
+      var correctAnswer = question.correctanswer;
+      var isCorrect = (userAnswer && userAnswer.toUpperCase() === correctAnswer.toUpperCase());
+      
+      var html = '<div class="answer-feedback">';
+      
+      // Result banner
+      if (isCorrect) {
+        html += '<div class="alert alert-success mb-3">';
+        html += '<i class="fa fa-check-circle fa-lg mr-2"></i>';
+        html += '<strong>Correct!</strong> Great job!';
+        html += '</div>';
+      } else {
+        html += '<div class="alert alert-danger mb-3">';
+        html += '<i class="fa fa-times-circle fa-lg mr-2"></i>';
+        html += '<strong>Incorrect.</strong> The correct answer is <strong>' + correctAnswer + '</strong>';
+        html += '</div>';
+      }
+      
+      // Show your answer
+      html += '<div class="your-answer mb-3 p-3 rounded" style="background: #f0f0f0;">';
+      html += '<strong>Your answer:</strong> ' + (userAnswer || 'No answer submitted');
+      html += '</div>';
+      
+      // Rationale
+      if (question.rationale) {
+        html += '<div class="rationale-section mb-3 p-3 rounded" style="background: #e8f4f8; border-left: 4px solid #17a2b8;">';
+        html += '<h5><i class="fa fa-lightbulb-o text-info mr-2"></i>Explanation</h5>';
+        html += '<p class="mb-0">' + question.rationale + '</p>';
+        html += '</div>';
+      }
+      
+      // Question metadata
+      html += '<div class="question-meta mt-3 p-3 rounded" style="background: #f8f9fa;">';
+      html += '<h5><i class="fa fa-info-circle mr-2"></i>Question Details</h5>';
+      html += '<div class="row">';
+      
+      // Difficulty
+      if (question.difficulty) {
+        var diffColors = { 'easy': 'success', 'medium': 'warning', 'hard': 'danger' };
+        var diffColor = diffColors[question.difficulty] || 'secondary';
+        html += '<div class="col-md-4 mb-2">';
+        html += '<strong>Difficulty:</strong> ';
+        html += '<span class="badge badge-' + diffColor + '">' + question.difficulty.charAt(0).toUpperCase() + question.difficulty.slice(1) + '</span>';
+        html += '</div>';
+      }
+      
+      // Bloom's Level
+      if (question.bloomlevel) {
+        html += '<div class="col-md-4 mb-2">';
+        html += '<strong>Bloom\'s Level:</strong> ';
+        html += '<span class="badge badge-info">' + question.bloomlevel.charAt(0).toUpperCase() + question.bloomlevel.slice(1) + '</span>';
+        html += '</div>';
+      }
+      
+      // Trustworthiness
+      if (question.trustworthiness_score !== undefined) {
+        var twColors = { 'trustworthy': 'primary', 'uncertain': 'warning', 'unlikely': 'danger' };
+        var twColor = twColors[question.trustworthiness_level] || 'secondary';
+        html += '<div class="col-md-4 mb-2">';
+        html += '<strong>Reliability:</strong> ';
+        html += '<span class="badge badge-' + twColor + '">' + question.trustworthiness_score + '%</span>';
+        html += '</div>';
+      }
+      
+      html += '</div>'; // End row
+      html += '</div>'; // End question-meta
+      
+      html += '</div>'; // End answer-feedback
+      return html;
     },
 
     /**
@@ -1041,6 +1332,19 @@ define([
      */
     updateTimerDisplay: function (seconds) {
       var display = $("#timer-display");
+
+      if (!display || display.length === 0) {
+        // eslint-disable-next-line no-console
+        console.warn("Timer display element not found");
+        return;
+      }
+
+      // Ensure seconds is a valid number
+      if (seconds === undefined || seconds === null || isNaN(seconds)) {
+        seconds = 0;
+      }
+
+      seconds = Math.max(0, Math.floor(seconds));
 
       if (seconds <= 0) {
         display.text("0:00");
@@ -1072,11 +1376,23 @@ define([
     startLocalCountdown: function (seconds) {
       var self = this;
 
+      // Validate input
+      if (seconds === undefined || seconds === null || isNaN(seconds)) {
+        // eslint-disable-next-line no-console
+        console.error("Invalid seconds value for countdown:", seconds);
+        return;
+      }
+
+      seconds = Math.max(0, Math.floor(seconds));
+
       // Stop any existing countdown
       if (this.countdownTimer) {
         clearInterval(this.countdownTimer);
         this.countdownTimer = null;
       }
+
+      // eslint-disable-next-line no-console
+      console.log("Starting countdown:", seconds, "seconds");
 
       // Initialize timer state
       this.timerState.serverTimeRemaining = seconds;
@@ -1120,9 +1436,17 @@ define([
       }
       this.timerState.isRunning = false;
 
-      // Disable submission and show time expired indicator
-      $(".submit-answer-btn").prop("disabled", true);
-      this.showTimeExpiredIndicator();
+      // Check if user has selected an answer
+      var questionId = this.currentQuestionId;
+      var hasSelectedAnswer = this.selectedAnswers[questionId];
+      var hasSubmittedAnswer = this.answeredQuestions[questionId];
+
+      // Only disable submission if NO answer was selected
+      if (!hasSelectedAnswer && !hasSubmittedAnswer) {
+        $(".submit-answer-btn").prop("disabled", true);
+        $(".submit-answer-btn").hide();
+        this.showTimeExpiredIndicator();
+      }
     },
 
     /**
@@ -1187,6 +1511,19 @@ define([
       var serverRemaining = data.timerremaining;
       var serverTimestamp = data.timestamp;
 
+      // Handle undefined or invalid values
+      if (serverRemaining === undefined || serverRemaining === null || serverRemaining < 0) {
+        serverRemaining = 0;
+      }
+
+      // If timer is not running, just start it with server's remaining time
+      if (!this.timerState.isRunning) {
+        if (serverRemaining > 0) {
+          this.startLocalCountdown(serverRemaining);
+        }
+        return;
+      }
+
       // Calculate what client thinks the time should be
       var clientElapsed = (Date.now() - this.timerState.clientStartTime) / 1000;
       var clientRemaining = Math.max(
@@ -1198,7 +1535,7 @@ define([
       var drift = Math.abs(serverRemaining - clientRemaining);
 
       // Only correct if drift > 2 seconds (enterprise threshold)
-      if (drift > 2 || !this.timerState.isRunning) {
+      if (drift > 2) {
         // eslint-disable-next-line no-console
         console.log(
           "Timer sync: correcting drift of",
@@ -1207,14 +1544,14 @@ define([
         );
         this.timerState.serverTimeRemaining = serverRemaining;
         this.timerState.clientStartTime = Date.now();
-        this.timerState.serverTimestamp = serverTimestamp;
       }
 
+      this.timerState.serverTimestamp = serverTimestamp;
       this.timerState.lastSyncTime = Date.now();
 
-      // Start countdown if not running
-      if (!this.timerState.isRunning && serverRemaining > 0) {
-        this.startLocalCountdown(serverRemaining);
+      // Handle timer expiration during sync
+      if (serverRemaining <= 0 && this.timerState.isRunning) {
+        this.stopLocalCountdown();
       }
     },
 

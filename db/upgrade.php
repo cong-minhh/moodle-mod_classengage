@@ -463,6 +463,49 @@ function xmldb_classengage_upgrade($oldversion)
         upgrade_mod_savepoint(true, 2026022001, 'classengage');
     }
 
+    // Trustworthiness Analysis: Add trustworthiness fields to questions table.
+    if ($oldversion < 2026031500) {
+        $table = new xmldb_table('classengage_questions');
+
+        // Add trustworthiness_score field (0-100).
+        $field = new xmldb_field('trustworthiness_score', XMLDB_TYPE_INTEGER, '3', null, XMLDB_NOTNULL, null, '0', 'timemodified');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Add trustworthiness_level field (trustworthy/uncertain/unlikely).
+        $field = new xmldb_field('trustworthiness_level', XMLDB_TYPE_CHAR, '20', null, XMLDB_NOTNULL, null, 'uncertain', 'trustworthiness_score');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Add trustworthiness_factors field for JSON analysis details.
+        $field = new xmldb_field('trustworthiness_factors', XMLDB_TYPE_TEXT, null, null, null, null, null, 'trustworthiness_level');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Add trustworthiness_analyzed flag.
+        $field = new xmldb_field('trustworthiness_analyzed', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0', 'trustworthiness_factors');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Add indexes for filtering and sorting.
+        $index = new xmldb_index('trustworthiness_level', XMLDB_INDEX_NOTUNIQUE, ['trustworthiness_level']);
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+        $index = new xmldb_index('trustworthiness_score', XMLDB_INDEX_NOTUNIQUE, ['trustworthiness_score']);
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+        // Classengage savepoint reached.
+        upgrade_mod_savepoint(true, 2026031500, 'classengage');
+    }
+
     return true;
 }
 

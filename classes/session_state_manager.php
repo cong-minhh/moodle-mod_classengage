@@ -498,12 +498,15 @@ class session_state_manager
             $question = $this->get_question_at_position($sessionid, $session->currentquestion);
         }
 
+        // Use session's timelimit (questions table doesn't have timelimit field)
+        $actualtimelimit = (int) $session->timelimit;
+
         // Create broadcast.
         $broadcast = new question_broadcast(
             $sessionid,
             $session->currentquestion,
             $question,
-            $session->timelimit
+            $actualtimelimit
         );
 
         // Cache the broadcast.
@@ -515,7 +518,7 @@ class session_state_manager
             $sessionid,
             $session->status,
             $session->currentquestion,
-            $session->timelimit,
+            $actualtimelimit,
             $session->questionstarttime,
             $connectedcount
         );
@@ -546,7 +549,7 @@ class session_state_manager
 
         $now = time();
 
-        // Check if connection already exists.
+        // Check if connection already exists by connectionid.
         $existing = $DB->get_record('classengage_connections', ['connectionid' => $connectionid]);
 
         if ($existing) {
@@ -554,35 +557,53 @@ class session_state_manager
             $existing->status = 'connected';
             $existing->timemodified = $now;
             $existing->transport = $transport;
-            $existing->timemodified = $now;
             $DB->update_record('classengage_connections', $existing);
         } else {
-            // Check if user already has a connection for this session.
-            $userconnection = $DB->get_record('classengage_connections', [
+            // Check if user already has ANY connection for this session (not just connected).
+            // Use get_records to avoid duplicate key errors if multiple records exist.
+            $existingconnections = $DB->get_records('classengage_connections', [
                 'sessionid' => $sessionid,
                 'userid' => $userid,
-                'status' => 'connected',
             ]);
 
-            if ($userconnection) {
-                // Mark old connection as disconnected.
-                $userconnection->status = 'disconnected';
-                $userconnection->timemodified = $now;
-                $DB->update_record('classengage_connections', $userconnection);
+            if (!empty($existingconnections)) {
+                // Update the most recent connection record for this user/session.
+                // Sort by timemodified DESC to get the most recent one.
+                $mostRecent = null;
+                $mostRecentTime = 0;
+                foreach ($existingconnections as $conn) {
+                    if ($conn->timemodified > $mostRecentTime) {
+                        $mostRecentTime = $conn->timemodified;
+                        $mostRecent = $conn;
+                    }
+                }
+
+                if ($mostRecent) {
+                    // Update existing connection with new connectionid and status.
+                    $mostRecent->connectionid = $connectionid;
+                    $mostRecent->status = 'connected';
+                    $mostRecent->transport = $transport;
+                    $mostRecent->current_question_answered = 0;
+                    $mostRecent->timemodified = $now;
+                    $DB->update_record('classengage_connections', $mostRecent);
+                    $existing = $mostRecent;
+                }
             }
 
-            // Create new connection.
-            $connection = new \stdClass();
-            $connection->sessionid = $sessionid;
-            $connection->userid = $userid;
-            $connection->connectionid = $connectionid;
-            $connection->transport = $transport;
-            $connection->status = 'connected';
-            $connection->current_question_answered = 0;
-            $connection->timecreated = $now;
-            $connection->timemodified = $now;
+            // If no existing connection was found/updated, create new one.
+            if (!$existing) {
+                $connection = new \stdClass();
+                $connection->sessionid = $sessionid;
+                $connection->userid = $userid;
+                $connection->connectionid = $connectionid;
+                $connection->transport = $transport;
+                $connection->status = 'connected';
+                $connection->current_question_answered = 0;
+                $connection->timecreated = $now;
+                $connection->timemodified = $now;
 
-            $DB->insert_record('classengage_connections', $connection);
+                $DB->insert_record('classengage_connections', $connection);
+            }
         }
 
         // Update cache. Sanitize connectionid to remove dots (simple key requirement).
@@ -711,13 +732,14 @@ class session_state_manager
             $question = $this->get_question_at_position($sessionid, $session->currentquestion);
         }
 
-        // Calculate timer remaining.
+        // Calculate timer remaining using session's timelimit (questions table doesn't have timelimit field)
         $timerremaining = null;
+        $timelimit = (int) $session->timelimit;
         if ($session->status === 'paused') {
             $timerremaining = $session->timer_remaining;
         } else if ($session->status === 'active' && $session->questionstarttime) {
             $elapsed = time() - $session->questionstarttime;
-            $timerremaining = max(0, $session->timelimit - $elapsed);
+            $timerremaining = max(0, $timelimit - $elapsed);
         }
 
         // Check if user has answered current question.

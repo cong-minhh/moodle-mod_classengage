@@ -82,262 +82,335 @@ if (($action === 'bulkdelete' || $action === 'bulkapprove') && confirm_sesskey()
 echo $OUTPUT->header();
 echo $OUTPUT->heading(format_string($classengage->name));
 
+// Load AMD module for table interactions
+$PAGE->requires->js_call_amd('mod_classengage/questions_table', 'init');
+
 // Enhanced CSS for better table QoL
 echo html_writer::tag('style', '
-    /* Table Container Improvements */
+    /* Table Container */
     .questions-table-container {
-        background: #fff;
+        background: white;
         border-radius: 8px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
         overflow: hidden;
     }
     
-    /* Sticky Header - Compact */
-    .questions-table thead th {
-        position: sticky;
-        top: 0;
-        background: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%);
-        border-bottom: 2px solid #dee2e6;
-        font-weight: 600;
-        font-size: 0.75rem;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        padding: 8px 6px;
-        z-index: 10;
-        white-space: nowrap;
+    /* Table Toolbar */
+    .questions-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 15px;
+        padding: 16px 20px;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-bottom: 1px solid #dee2e6;
     }
     
-    /* Row Styling - Compact */
-    .questions-table tbody tr {
-        transition: all 0.15s ease;
-        border-left: 2px solid transparent;
+    .search-box {
+        position: relative;
+        flex: 0 0 280px;
     }
     
-    .questions-table tbody tr:hover {
-        background-color: #e3f2fd;
-        border-left-color: #2196f3;
+    .search-box i {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #adb5bd;
     }
     
-    .questions-table tbody td {
-        padding: 6px 8px;
-        vertical-align: middle;
-        border-bottom: 1px solid #e9ecef;
-    }
-    
-    /* Row Number - Compact */
-    .row-number {
-        color: #6c757d;
-        font-weight: 600;
+    .search-box input {
+        padding: 8px 12px 8px 36px;
+        border: 1px solid #ced4da;
+        border-radius: 20px;
         font-size: 0.875rem;
-        width: 36px;
-        text-align: center;
+        width: 100%;
+        background: white;
+        transition: all 0.2s;
     }
     
-    /* Question Text Link - Compact */
-    .question-text-link {
-        color: #212529;
-        text-decoration: none;
-        font-weight: 400;
-        cursor: pointer;
+    .search-box input:focus {
+        outline: none;
+        border-color: #4a90a4;
+        box-shadow: 0 0 0 3px rgba(74,144,164,0.15);
+    }
+    
+    .stats-info {
+        display: flex;
+        gap: 20px;
+        font-size: 0.875rem;
+        color: #495057;
+        margin-left: auto;
+    }
+    
+    .stats-info .stat-item {
         display: flex;
         align-items: center;
         gap: 6px;
-        font-size: 0.9375rem;
-        line-height: 1.3;
     }
     
-    .question-text-link:hover {
-        color: #007bff;
-        text-decoration: underline;
+    .stats-info .stat-item i {
+        color: #6c757d;
     }
     
-    /* Image Indicator */
-    .has-image-indicator {
-        color: #17a2b8;
-        font-size: 1.1rem;
-    }
-    
-    /* Badges - Compact */
-    .difficulty-badge {
-        font-size: 0.8125rem;
-        padding: 4px 10px;
-        border-radius: 12px;
-        font-weight: 600;
-        white-space: nowrap;
-        display: inline-block;
-    }
-    
-    .difficulty-easy { background: #d4edda; color: #155724; }
-    .difficulty-medium { background: #fff3cd; color: #856404; }
-    .difficulty-hard { background: #f8d7da; color: #721c24; }
-    
-    .bloom-badge {
-        font-size: 0.8125rem;
-        padding: 4px 10px;
-        border-radius: 12px;
-        font-weight: 600;
-    }
-    
-    /* Status Badge - Compact */
-    .status-badge {
-        font-size: 0.8125rem;
-        padding: 4px 10px;
-        border-radius: 12px;
-        font-weight: 600;
-    }
-    
-    /* Action Buttons - Compact */
-    .action-btn {
-        padding: 5px 8px;
-        font-size: 0.875rem;
-        border-radius: 5px;
-        transition: all 0.15s ease;
-        margin: 0 2px;
-        line-height: 1;
-    }
-    
-    .action-btn:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-    }
-    
-    .action-btn-group {
+    .filter-buttons {
         display: flex;
-        gap: 2px;
-        justify-content: flex-end;
-    }
-    
-    /* Search Bar - Compact */
-    .questions-search-bar {
-        background: #f8f9fa;
-        padding: 10px 12px;
-        border-radius: 6px;
-        margin-bottom: 10px;
-        display: flex;
-        gap: 12px;
-        align-items: center;
+        gap: 8px;
         flex-wrap: wrap;
     }
     
-    .search-input-wrapper {
-        position: relative;
-        flex: 1;
-        min-width: 200px;
+    .filter-btn {
+        padding: 6px 14px;
+        border: none;
+        border-radius: 20px;
+        background: white;
+        font-size: 0.8125rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.06);
     }
     
-    .search-input-wrapper i {
-        position: absolute;
-        left: 10px;
-        top: 50%;
-        transform: translateY(-50%);
+    .filter-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .filter-btn.active {
+        color: white;
+        box-shadow: none;
+    }
+    
+    .filter-btn.filter-all.active {
+        background: #495057;
+    }
+    
+    .filter-btn.filter-trustworthy.active {
+        background: linear-gradient(135deg, #2196F3, #1976D2);
+    }
+    
+    .filter-btn.filter-uncertain.active {
+        background: linear-gradient(135deg, #FFC107, #FF9800);
+    }
+    
+    .filter-btn.filter-unlikely.active {
+        background: linear-gradient(135deg, #F44336, #D32F2F);
+    }
+    
+    /* Table Styles */
+    .questions-table {
+        margin-bottom: 0;
+    }
+    
+    .questions-table thead th {
+        background: white;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
         color: #6c757d;
+        padding: 14px 12px;
+        border-bottom: 2px solid #dee2e6;
+        white-space: nowrap;
+    }
+    
+    .questions-table tbody tr {
+        transition: background 0.15s;
+    }
+    
+    .questions-table tbody tr:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .questions-table tbody td {
+        padding: 12px;
+        vertical-align: middle;
+        border-bottom: 1px solid #f1f3f4;
         font-size: 0.875rem;
     }
     
-    .search-input-wrapper input {
-        padding-left: 30px;
-        padding-top: 8px;
-        padding-bottom: 8px;
-        border-radius: 16px;
-        border: 1px solid #ced4da;
-        font-size: 0.9375rem;
+    .questions-table tbody tr:last-child td {
+        border-bottom: none;
     }
     
-    .search-input-wrapper input:focus {
-        border-color: #80bdff;
-        box-shadow: 0 0 0 0.2rem rgba(0,123,255,0.15);
+    /* Sortable Columns */
+    .sortable-col {
+        cursor: pointer;
+        user-select: none;
+        position: relative;
     }
     
-    /* No Results Message */
-    .no-results {
-        text-align: center;
-        padding: 30px 20px;
-        color: #6c757d;
+    .sortable-col:hover {
+        color: #4a90a4;
+    }
+    
+    .sortable-col::after {
+        content: "";
+        display: inline-block;
+        width: 0;
+        height: 0;
+        margin-left: 6px;
+        vertical-align: middle;
+        border-left: 4px solid transparent;
+        border-right: 4px solid transparent;
+        border-top: 4px solid #adb5bd;
+        transition: transform 0.2s;
+    }
+    
+    .sortable-col.sort-asc::after {
+        border-top: none;
+        border-bottom: 4px solid #4a90a4;
+    }
+    
+    .sortable-col.sort-desc::after {
+        border-bottom: none;
+        border-top: 4px solid #4a90a4;
+    }
+    
+    /* Question Text */
+    .question-text-cell {
+        max-width: 300px;
+    }
+    
+    .question-text-cell a {
+        color: #212529;
+        text-decoration: none;
+    }
+    
+    .question-text-cell a:hover {
+        color: #4a90a4;
+    }
+    
+    /* Badges */
+    .badge {
+        font-weight: 500;
+        padding: 4px 10px;
+        border-radius: 12px;
+    }
+    
+    .badge.trustworthiness-trustworthy {
+        background: linear-gradient(135deg, #E3F2FD, #BBDEFB) !important;
+        color: #1565C0 !important;
+        border: 1px solid rgba(33,150,243,0.3);
+    }
+    
+    .badge.trustworthiness-uncertain {
+        background: linear-gradient(135deg, #FFF8E1, #FFECB3) !important;
+        color: #E65100 !important;
+        border: 1px solid rgba(255,193,7,0.3);
+    }
+    
+    .badge.trustworthiness-unlikely {
+        background: linear-gradient(135deg, #FFEBEE, #FFCDD2) !important;
+        color: #B71C1C !important;
+        border: 1px solid rgba(244,67,54,0.3);
+    }
+    
+    /* Difficulty Badges */
+    .badge.badge-success {
+        background: linear-gradient(135deg, #d4edda, #c3e6cb);
+        color: #155724;
+    }
+    
+    .badge.badge-warning {
+        background: linear-gradient(135deg, #fff3cd, #ffeeba);
+        color: #856404;
+    }
+    
+    .badge.badge-danger {
+        background: linear-gradient(135deg, #f8d7da, #f5c6cb);
+        color: #721c24;
+    }
+    
+    /* Status Badges */
+    .status-badge.badge-success {
+        background: linear-gradient(135deg, #d4edda, #c3e6cb);
+        color: #155724;
+    }
+    
+    .status-badge.badge-warning {
+        background: linear-gradient(135deg, #fff3cd, #ffeeba);
+        color: #856404;
     }
     
     /* Checkbox Styling */
-    .custom-checkbox {
+    .question-checkbox,
+    .select-all-questions {
         width: 18px;
         height: 18px;
         cursor: pointer;
+        accent-color: #4a90a4;
     }
     
-    /* Sort Icons */
-    .sortable-header {
-        cursor: pointer;
-        user-select: none;
+    /* Action Buttons */
+    .action-btn {
+        padding: 6px 10px;
+        border-radius: 6px;
+        transition: all 0.15s;
     }
     
-    .sortable-header:hover {
-        background: #e9ecef;
+    .action-btn:hover {
+        transform: scale(1.1);
     }
     
-    .sort-icon {
-        margin-left: 5px;
-        opacity: 0.3;
-        font-size: 0.75rem;
+    /* No Results Message */
+    .no-results-message {
+        background: #f8f9fa;
+        border-radius: 0 0 8px 8px;
     }
     
-    .sortable-header:hover .sort-icon,
-    .sort-asc .sort-icon,
-    .sort-desc .sort-icon {
-        opacity: 1;
-    }
-    
-    /* Question Stats - Compact */
-    .questions-stats {
-        display: flex;
-        gap: 15px;
-        font-size: 0.9375rem;
-        color: #6c757d;
-    }
-
-    .questions-stats span {
-        display: flex;
-        align-items: center;
-        gap: 4px;
-    }
-
-    /* Table body text */
-    .questions-table tbody td {
-        font-size: 0.9375rem;
-    }
-
-    /* Table header text */
-    .questions-table thead th {
-        font-size: 0.8125rem;
-    }
-
     /* Highlight Animation */
     .highlight-new {
         animation: highlight-pulse 2s ease-out;
     }
     
     @keyframes highlight-pulse {
-        0% { background-color: rgba(23, 162, 184, 0.3); }
+        0% { background-color: rgba(74,144,164,0.2); }
         100% { background-color: transparent; }
     }
     
+    /* Row Numbers */
+    .row-number {
+        color: #adb5bd;
+        font-weight: 500;
+    }
+    
     /* Mobile Responsive */
+    @media (max-width: 992px) {
+        .questions-toolbar {
+            padding: 12px 16px;
+        }
+        
+        .search-box {
+            flex: 1 1 100%;
+        }
+        
+        .stats-info {
+            width: 100%;
+            justify-content: space-between;
+            margin-left: 0;
+            padding-top: 10px;
+            border-top: 1px solid #dee2e6;
+        }
+        
+        .filter-buttons {
+            width: 100%;
+            justify-content: flex-start;
+        }
+    }
+    
     @media (max-width: 768px) {
-        .questions-table thead th:nth-child(4),
-        .questions-table thead th:nth-child(6),
-        .questions-table tbody td:nth-child(4),
-        .questions-table tbody td:nth-child(6) {
-            display: none;
+        .question-text-cell {
+            max-width: 200px;
         }
         
-        .action-btn span {
-            display: none;
+        .questions-table thead th {
+            padding: 10px 8px;
+            font-size: 0.7rem;
         }
         
-        .questions-search-bar {
-            flex-direction: column;
-            align-items: stretch;
-        }
-        
-        .search-input-wrapper {
-            min-width: 100%;
+        .questions-table tbody td {
+            padding: 10px 8px;
         }
     }
 ');
@@ -428,7 +501,7 @@ foreach ($questions as $q) {
     }
 }
 
-// Start Bulk Actions Form
+// Start Bulk Actions Form (wraps entire content including tables)
 echo html_writer::start_tag('form', array('action' => $PAGE->url, 'method' => 'post', 'id' => 'questionsform'));
 echo html_writer::empty_tag('input', array('type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()));
 echo html_writer::empty_tag('input', array('type' => 'hidden', 'name' => 'action', 'value' => '', 'id' => 'bulkaction'));
@@ -436,10 +509,10 @@ echo html_writer::empty_tag('input', array('type' => 'hidden', 'name' => 'action
 // Enhanced render function
 function render_question_table($questions, $cm) {
     global $OUTPUT;
-    
+
     if (empty($questions)) {
         return html_writer::div(
-            html_writer::tag('i', '', array('class' => 'fa fa-inbox fa-3x mb-3')) . 
+            html_writer::tag('i', '', array('class' => 'fa fa-inbox fa-3x mb-3')) .
             html_writer::tag('p', get_string('noquestions', 'mod_classengage')),
             'no-results'
         );
@@ -450,7 +523,7 @@ function render_question_table($questions, $cm) {
     foreach ($questions as $question) {
         $correctanswer = strtoupper($question->correctanswer);
         $modalid = 'question-modal-' . $question->id;
-        
+
         $modalcontent = '<div class="modal fade" id="' . $modalid . '" tabindex="-1" role="dialog" aria-hidden="true">';
         $modalcontent .= '<div class="modal-dialog modal-lg" role="document">';
         $modalcontent .= '<div class="modal-content">';
@@ -459,15 +532,65 @@ function render_question_table($questions, $cm) {
         $modalcontent .= '<button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>';
         $modalcontent .= '</div>';
         $modalcontent .= '<div class="modal-body">';
-        
+
         if (!empty($question->question_image)) {
             $modalcontent .= '<div class="text-center mb-3 p-3 bg-light rounded">';
             $modalcontent .= '<img src="' . s($question->question_image) . '" class="img-fluid rounded shadow-sm" style="max-height: 300px;" alt="Question image">';
             $modalcontent .= '</div>';
         }
-        
+
         $modalcontent .= '<div class="question-content">';
         $modalcontent .= '<div class="mb-3 p-3 bg-light rounded"><strong class="text-primary">Q:</strong> ' . s($question->questiontext) . '</div>';
+
+        // Trustworthiness display in modal
+        $trust_level = $question->trustworthiness_level ?? 'uncertain';
+        $trust_score = $question->trustworthiness_score ?? 0;
+        $trust_analyzed = !empty($question->trustworthiness_analyzed);
+        $trust_class = 'trustworthiness-' . $trust_level;
+        $trust_icon = '';
+        if ($trust_level === 'trustworthy') {
+            $trust_icon = 'fa-check-circle';
+            $trust_label = 'Pretty good chance not wrong';
+        } else if ($trust_level === 'uncertain') {
+            $trust_icon = 'fa-exclamation-triangle';
+            $trust_label = 'Could be wrong';
+        } else {
+            $trust_icon = 'fa-times-circle';
+            $trust_label = 'Likely be wrong';
+        }
+
+        $modalcontent .= '<div class="mb-3">';
+        $modalcontent .= '<label class="text-muted small font-weight-bold">Question Reliability:</label>';
+        if (!$trust_analyzed) {
+            $modalcontent .= '<span class="badge badge-secondary ml-2">Not analyzed</span>';
+        } else {
+            $modalcontent .= '<div class="p-2 rounded ' . $trust_class . '" style="display: inline-block; margin-left: 8px;">';
+            $modalcontent .= '<i class="fa ' . $trust_icon . ' mr-1"></i>';
+            $modalcontent .= '<strong>' . ucfirst($trust_level) . '</strong> (' . $trust_score . '%)';
+            $modalcontent .= '<br><small>' . $trust_label . '</small>';
+            $modalcontent .= '</div>';
+
+            if (!empty($question->trustworthiness_factors)) {
+                $factors = json_decode($question->trustworthiness_factors, true);
+                $modalcontent .= '<div class="mt-2 small">';
+                $modalcontent .= '<strong>Analysis factors:</strong>';
+                $modalcontent .= '<ul class="mb-0 pl-3">';
+                foreach ($factors as $factor_key => $factor) {
+                    $factor_name = ucfirst(str_replace('_', ' ', $factor_key));
+                    $factor_score = $factor['score'] ?? 0;
+                    $factor_details = $factor['details'] ?? '';
+                    $modalcontent .= '<li><strong>' . $factor_name . ':</strong> ' . $factor_score . '%';
+                    if ($factor_details) {
+                        $modalcontent .= '<br><em class="text-muted">' . s($factor_details) . '</em>';
+                    }
+                    $modalcontent .= '</li>';
+                }
+                $modalcontent .= '</ul>';
+                $modalcontent .= '</div>';
+            }
+        }
+        $modalcontent .= '</div>';
+
         $modalcontent .= '<div class="list-group">';
         $modalcontent .= '<div class="list-group-item d-flex align-items-center ' . ($correctanswer === 'A' ? 'list-group-item-success border-success' : '') . '">';
         $modalcontent .= '<span class="badge badge-light mr-3" style="width: 28px;">A</span>';
@@ -503,37 +626,56 @@ function render_question_table($questions, $cm) {
         $modalcontent .= '<button type="button" class="btn btn-secondary" data-dismiss="modal"><i class="fa fa-times mr-1"></i>Close</button>';
         $modalcontent .= '</div>';
         $modalcontent .= '</div></div></div>';
-        
+
         $modals_html .= $modalcontent;
     }
     echo $modals_html;
-    
+
+    // Calculate trustworthiness stats
+    $trustworthy_count = count(array_filter($questions, function($q) { return ($q->trustworthiness_level ?? '') === 'trustworthy'; }));
+    $uncertain_count = count(array_filter($questions, function($q) { return ($q->trustworthiness_level ?? '') === 'uncertain'; }));
+    $unlikely_count = count(array_filter($questions, function($q) { return ($q->trustworthiness_level ?? '') === 'unlikely'; }));
+    $analyzed_count = count(array_filter($questions, function($q) { return !empty($q->trustworthiness_analyzed); }));
+
     // Build table
-    $html = '<div class="questions-table-container">';
-    $html .= '<div class="questions-search-bar">';
-    $html .= '<div class="search-input-wrapper">';
+    $html = '<div class="questions-table-container mb-3">';
+    $html .= '<div class="questions-toolbar">';
+    
+    // Search input
+    $html .= '<div class="search-box">';
     $html .= '<i class="fa fa-search"></i>';
-    $html .= '<input type="text" class="form-control" id="question-search" placeholder="Search questions...">';
+    $html .= '<input type="text" class="question-search-input form-control" placeholder="Search questions...">';
     $html .= '</div>';
-    $html .= '<div class="questions-stats">';
-    $html .= '<span><i class="fa fa-list-ol"></i> <strong>' . count($questions) . '</strong> questions</span>';
+
+    // Stats
     $approved_count = count(array_filter($questions, function($q) { return $q->status === 'approved'; }));
-    $html .= '<span><i class="fa fa-check-circle text-success"></i> <strong>' . $approved_count . '</strong> approved</span>';
-    $html .= '<span><i class="fa fa-clock-o text-warning"></i> <strong>' . (count($questions) - $approved_count) . '</strong> pending</span>';
+    $html .= '<div class="stats-info">';
+    $html .= '<span class="stat-item"><i class="fa fa-list-ol"></i> ' . count($questions) . ' questions</span>';
+    $html .= '<span class="stat-item text-success"><i class="fa fa-check-circle"></i> ' . $approved_count . ' approved</span>';
+    $html .= '<span class="stat-item text-warning"><i class="fa fa-clock-o"></i> ' . (count($questions) - $approved_count) . ' pending</span>';
+    $html .= '</div>';
+
+    // Trustworthiness filters (type="button" prevents form submission)
+    $html .= '<div class="filter-buttons">';
+    $html .= '<button type="button" class="filter-btn filter-all active" data-filter="all">All</button>';
+    $html .= '<button type="button" class="filter-btn filter-trustworthy" data-filter="trustworthy"><i class="fa fa-check-circle"></i> Reliable</button>';
+    $html .= '<button type="button" class="filter-btn filter-uncertain" data-filter="uncertain"><i class="fa fa-exclamation-triangle"></i> Uncertain</button>';
+    $html .= '<button type="button" class="filter-btn filter-unlikely" data-filter="unlikely"><i class="fa fa-times-circle"></i> Likely Wrong</button>';
     $html .= '</div>';
     $html .= '</div>';
     
     $html .= '<div class="table-responsive">';
-    $html .= '<table class="table questions-table view-compact" id="questions-table-' . $cm->id . '">';
-    $html .= '<thead><tr>';
-    $html .= '<th style="width: 40px;"><input type="checkbox" class="custom-checkbox selectall-checkbox" title="Select all"></th>';
-    $html .= '<th style="width: 50px;">#</th>';
-    $html .= '<th class="sortable-header" data-sort="text">Question <i class="fa fa-sort sort-icon"></i></th>';
-    $html .= '<th class="sortable-header text-center" data-sort="difficulty" style="width: 140px; min-width: 140px; white-space: nowrap;">Difficulty <i class="fa fa-sort sort-icon"></i></th>';
-    $html .= '<th class="sortable-header text-center" data-sort="bloom" style="width: 100px; min-width: 100px; white-space: nowrap;">Level <i class="fa fa-sort sort-icon"></i></th>';
-    $html .= '<th class="sortable-header text-center" data-sort="status" style="width: 100px; min-width: 100px; white-space: nowrap;">Status <i class="fa fa-sort sort-icon"></i></th>';
-    $html .= '<th class="sortable-header text-center" data-sort="date" style="width: 130px; min-width: 130px; white-space: nowrap;">Created <i class="fa fa-sort sort-icon"></i></th>';
-    $html .= '<th style="width: 140px;">Actions</th>';
+    $html .= '<table class="table table-sm table-hover questions-table" id="questions-table-' . $cm->id . '">';
+    $html .= '<thead class="thead-light"><tr>';
+    $html .= '<th style="width: 40px;"><input type="checkbox" class="select-all-questions" title="Select all"></th>';
+    $html .= '<th style="width: 40px;">#</th>';
+    $html .= '<th class="sortable-col" data-sort="text">Question</th>';
+    $html .= '<th class="sortable-col text-center" data-sort="difficulty" style="width: 90px;">Difficulty</th>';
+    $html .= '<th class="sortable-col text-center" data-sort="bloom" style="width: 80px;">Level</th>';
+    $html .= '<th class="sortable-col text-center" data-sort="trustworthiness" style="width: 100px;">Reliability</th>';
+    $html .= '<th class="sortable-col text-center" data-sort="status" style="width: 80px;">Status</th>';
+    $html .= '<th class="sortable-col text-center" data-sort="date" style="width: 110px;">Created</th>';
+    $html .= '<th style="width: 100px;">Actions</th>';
     $html .= '</tr></thead>';
     $html .= '<tbody>';
     
@@ -566,14 +708,14 @@ function render_question_table($questions, $cm) {
         $modalid = 'question-modal-' . $question->id;
         
         $html .= '<tr data-question-id="' . $question->id . '">';
-        $html .= '<td><input type="checkbox" name="q[]" value="' . $question->id . '" class="custom-checkbox question-checkbox"></td>';
-        $html .= '<td class="row-number">' . $rownum . '</td>';
-        $html .= '<td>';
-        $html .= '<a href="#" class="question-text-link" data-toggle="modal" data-target="#' . $modalid . '">';
+        $html .= '<td><input type="checkbox" name="q[]" value="' . $question->id . '" class="question-checkbox"></td>';
+        $html .= '<td class="row-number text-muted small">' . $rownum . '</td>';
+        $html .= '<td class="question-text-cell">';
+        $html .= '<a href="#" class="text-dark" data-toggle="modal" data-target="#' . $modalid . '">';
         if (!empty($question->question_image)) {
-            $html .= '<i class="fa fa-image has-image-indicator" title="Has image"></i>';
+            $html .= '<i class="fa fa-image text-info mr-1" title="Has image"></i>';
         }
-        $html .= '<span>' . $displaytext . '</span>';
+        $html .= $displaytext;
         $html .= '</a>';
         $html .= '</td>';
         
@@ -587,6 +729,46 @@ function render_question_table($questions, $cm) {
         } else {
             $html .= '<td class="text-center"><span class="bloom-badge badge badge-light">-</span></td>';
         }
+
+        $trust_level = $question->trustworthiness_level ?? 'uncertain';
+        $trust_score = $question->trustworthiness_score ?? 0;
+        $trust_analyzed = !empty($question->trustworthiness_analyzed);
+
+        $trust_class = 'trustworthiness-' . $trust_level;
+        $trust_icon = '';
+        if ($trust_level === 'trustworthy') {
+            $trust_icon = 'fa-check-circle';
+        } else if ($trust_level === 'uncertain') {
+            $trust_icon = 'fa-exclamation-triangle';
+        } else {
+            $trust_icon = 'fa-times-circle';
+        }
+
+        if (!$trust_analyzed) {
+            $html .= '<td class="text-center" data-trustworthiness="uncertain"><span class="badge badge-secondary">Not analyzed</span></td>';
+        } else {
+            $trust_tooltip = '';
+            if (!empty($question->trustworthiness_factors)) {
+                $factors = json_decode($question->trustworthiness_factors, true);
+                $tooltip_parts = [];
+                foreach ($factors as $factor_key => $factor) {
+                    $factor_score = $factor['score'] ?? 0;
+                    $tooltip_parts[] = ucfirst(str_replace('_', ' ', $factor_key)) . ': ' . $factor_score . '%';
+                }
+                $trust_tooltip = htmlspecialchars(implode("\n", $tooltip_parts));
+            }
+
+            $trust_attrs = '';
+            if ($trust_tooltip) {
+                $trust_attrs = ' data-toggle="tooltip" data-placement="top" data-html="true" title="' . $trust_tooltip . '"';
+            }
+
+            $html .= '<td class="text-center" data-trustworthiness="' . $trust_level . '">';
+            $html .= '<span class="badge ' . $trust_class . '" ' . $trust_attrs . '>';
+            $html .= '<i class="fa ' . $trust_icon . '"></i> <span class="trust-score">' . $trust_score . '</span>%';
+            $html .= '</span>';
+            $html .= '</td>';
+        }
         
         $statusclass = $question->status === 'approved' ? 'badge-success' : 'badge-warning';
         $statustext = $question->status === 'approved' ? 'Approved' : 'Pending';
@@ -596,11 +778,11 @@ function render_question_table($questions, $cm) {
         $html .= '<td class="text-center" data-timestamp="' . $question->timecreated . '"><small class="text-muted">' . $createddatetime . '</small></td>';
         
         $html .= '<td><div class="action-btn-group">';
-        $html .= '<a href="' . $editurl . '" class="btn btn-sm btn-outline-primary action-btn" title="Edit question"><i class="fa fa-pencil"></i></a>';
+        $html .= '<a href="' . $editurl . '" class="btn btn-sm btn-outline-primary action-btn" title="Edit"><i class="fa fa-pencil"></i></a>';
         if ($question->status !== 'approved') {
-            $html .= '<a href="' . $approveurl . '" class="btn btn-sm btn-outline-success action-btn" title="Approve question" onclick="return confirm(\'Approve this question?\');"><i class="fa fa-check"></i></a>';
+            $html .= '<a href="' . $approveurl . '" class="btn btn-sm btn-outline-success action-btn" title="Approve" onclick="return confirm(\'Approve this question?\');"><i class="fa fa-check"></i></a>';
         }
-        $html .= '<a href="' . $deleteurl . '" class="btn btn-sm btn-outline-danger action-btn" title="Delete question" onclick="return confirm(\'Delete this question?\');"><i class="fa fa-trash"></i></a>';
+        $html .= '<a href="' . $deleteurl . '" class="btn btn-sm btn-outline-danger action-btn" title="Delete" onclick="return confirm(\'Delete this question?\');"><i class="fa fa-trash"></i></a>';
         $html .= '</div></td>';
         $html .= '</tr>';
         
@@ -609,9 +791,9 @@ function render_question_table($questions, $cm) {
     
     $html .= '</tbody></table>';
     $html .= '</div>'; // table-responsive
-    $html .= '<div id="no-search-results" class="no-results" style="display: none;">';
-    $html .= '<i class="fa fa-search fa-3x mb-3 text-muted"></i>';
-    $html .= '<p>No questions match your search.</p>';
+    $html .= '<div class="no-results-message alert alert-light text-center py-4" style="display: none;">';
+    $html .= '<i class="fa fa-search fa-2x text-muted mb-2"></i>';
+    $html .= '<p class="mb-0 text-muted">No questions match your filter criteria.</p>';
     $html .= '</div>';
     $html .= '</div>'; // questions-table-container
     
@@ -622,7 +804,7 @@ function render_question_table($questions, $cm) {
 if (!empty($manual_questions)) {
     $manual_count = count($manual_questions);
     $collapseid = 'collapse-manual';
-    echo html_writer::start_div('card mb-4');
+    echo html_writer::start_div('card mb-4 border');  // Remove shadow for flatter look
     echo html_writer::start_div('card-header bg-white d-flex justify-content-between align-items-center clickable-header', array(
         'data-toggle' => 'collapse',
         'data-target' => '#' . $collapseid,
@@ -632,11 +814,11 @@ if (!empty($manual_questions)) {
     ));
     echo html_writer::tag(
         'div',
-        html_writer::tag('h4', get_string('manualquestions', 'mod_classengage'), array('class' => 'm-0 d-inline-block mr-2')) .
-        html_writer::span($manual_count, 'badge badge-primary question-count-badge'),
+        html_writer::tag('h5', get_string('manualquestions', 'mod_classengage'), array('class' => 'm-0 mr-2')) .
+        html_writer::span($manual_count, 'badge badge-primary'),
         array('class' => 'd-flex align-items-center')
     );
-    echo html_writer::tag('span', $OUTPUT->pix_icon('t/expanded', get_string('collapse')), array('class' => 'collapse-icon'));
+    echo html_writer::tag('span', '<i class="fa fa-chevron-down"></i>', array('class' => 'collapse-icon'));
     echo html_writer::end_div();
     echo html_writer::start_div('collapse show', array('id' => $collapseid));
     echo html_writer::start_div('card-body p-0');
@@ -648,7 +830,7 @@ if (!empty($manual_questions)) {
 
 // Generated Questions Section
 if (!empty($generated_questions_by_slide)) {
-    echo html_writer::tag('h3', get_string('generatedquestions', 'mod_classengage'), array('class' => 'mt-4 mb-3'));
+    echo html_writer::tag('h5', get_string('generatedquestions', 'mod_classengage'), array('class' => 'mt-4 mb-2 text-muted'));
 
     $i = 0;
     foreach ($generated_questions_by_slide as $slide_title => $slide_questions) {
@@ -658,10 +840,10 @@ if (!empty($generated_questions_by_slide)) {
 
         $meta = $slide_metadata[$slide_title] ?? null;
         $ishighlighted = $highlight && $meta && $highlight === 'slide_' . $meta['slide_id'];
-        $cardclass = 'card mb-4' . ($ishighlighted ? ' highlight-new' : '');
+        $cardclass = 'card mb-3' . ($ishighlighted ? ' highlight-new' : '');
 
         echo html_writer::start_div($cardclass);
-        echo html_writer::start_div('card-header bg-light d-flex justify-content-between align-items-center clickable-header', array(
+        echo html_writer::start_div('card-header bg-white d-flex justify-content-between align-items-center clickable-header', array(
             'data-toggle' => 'collapse',
             'data-target' => '#' . $collapseid,
             'aria-expanded' => 'true',
@@ -670,11 +852,11 @@ if (!empty($generated_questions_by_slide)) {
         ));
         echo html_writer::tag(
             'div',
-            html_writer::tag('h5', get_string('slide', 'mod_classengage') . ': ' . $slide_title, array('class' => 'm-0 d-inline-block mr-2')) .
-            html_writer::span($slide_count, 'badge badge-info question-count-badge'),
+            html_writer::tag('span', get_string('slide', 'mod_classengage') . ': ' . $slide_title, array('class' => 'font-weight-500')) .
+            html_writer::span($slide_count, 'badge badge-info ml-2'),
             array('class' => 'd-flex align-items-center')
         );
-        echo html_writer::tag('span', $OUTPUT->pix_icon('t/expanded', get_string('collapse')), array('class' => 'collapse-icon'));
+        echo html_writer::tag('span', '<i class="fa fa-chevron-down"></i>', array('class' => 'collapse-icon'));
         echo html_writer::end_div();
         echo html_writer::start_div('collapse show', array('id' => $collapseid));
         echo html_writer::start_div('card-body p-0');
@@ -732,116 +914,20 @@ if (!empty($generated_questions_by_slide)) {
 if (empty($manual_questions) && empty($generated_questions_by_slide)) {
     echo html_writer::div(get_string('noquestions', 'mod_classengage'), 'alert alert-info');
 } else {
-    echo html_writer::start_div('d-flex gap-2 mt-3 mb-5');
+    echo html_writer::start_div('d-flex gap-2 mt-3 mb-4');
     echo html_writer::tag('button', '<i class="fa fa-trash mr-1"></i>' . get_string('delete_selected', 'mod_classengage'), array(
         'type' => 'button',
-        'class' => 'btn btn-danger',
-        'onclick' => "if(confirm('Delete selected questions?')) { document.getElementById('bulkaction').value='bulkdelete'; document.getElementById('questionsform').submit(); }"
+        'class' => 'btn btn-sm btn-danger',
+        'onclick' => "var checked = document.querySelectorAll('.question-checkbox:checked').length; if(checked == 0) { alert('Please select at least one question.'); } else if(confirm('Delete ' + checked + ' question(s)?')) { var f = document.getElementById('questionsform'); document.getElementById('bulkaction').value='bulkdelete'; f.submit(); }"
     ));
     echo html_writer::tag('button', '<i class="fa fa-check mr-1"></i>' . get_string('approve_selected', 'mod_classengage'), array(
         'type' => 'button',
-        'class' => 'btn btn-success ml-2',
-        'onclick' => "if(confirm('Approve selected questions?')) { document.getElementById('bulkaction').value='bulkapprove'; document.getElementById('questionsform').submit(); }"
+        'class' => 'btn btn-sm btn-success',
+        'onclick' => "var checked = document.querySelectorAll('.question-checkbox:checked').length; if(checked == 0) { alert('Please select at least one question.'); } else if(confirm('Approve ' + checked + ' question(s)?')) { var f = document.getElementById('questionsform'); document.getElementById('bulkaction').value='bulkapprove'; f.submit(); }"
     ));
     echo html_writer::end_div();
 }
 
 echo html_writer::end_tag('form');
-
-// Enhanced JavaScript for table interactions
-echo html_writer::script("
-document.addEventListener('DOMContentLoaded', function() {
-    // Select All functionality
-    document.querySelectorAll('.selectall-checkbox').forEach(function(selectAll) {
-        selectAll.addEventListener('change', function() {
-            var table = this.closest('table');
-            if (table) {
-                table.querySelectorAll('.question-checkbox').forEach(function(checkbox) {
-                    checkbox.checked = selectAll.checked;
-                });
-            }
-        });
-    });
-    
-    // Search functionality
-    document.querySelectorAll('#question-search').forEach(function(searchInput) {
-        searchInput.addEventListener('input', function() {
-            var container = this.closest('.questions-table-container');
-            var table = container.querySelector('table');
-            var noResults = container.querySelector('#no-search-results');
-            var searchTerm = this.value.toLowerCase();
-            var visibleCount = 0;
-            
-            table.querySelectorAll('tbody tr').forEach(function(row) {
-                var questionText = row.querySelector('.question-text-link').textContent.toLowerCase();
-                if (questionText.includes(searchTerm)) {
-                    row.style.display = '';
-                    visibleCount++;
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-            
-            if (visibleCount === 0 && searchTerm !== '') {
-                table.style.display = 'none';
-                noResults.style.display = 'block';
-            } else {
-                table.style.display = 'table';
-                noResults.style.display = 'none';
-            }
-        });
-    });
-    
-    // Sortable headers
-    document.querySelectorAll('.sortable-header').forEach(function(header) {
-        header.addEventListener('click', function() {
-            var table = this.closest('table');
-            var tbody = table.querySelector('tbody');
-            var rows = Array.from(tbody.querySelectorAll('tr'));
-            var sortType = this.dataset.sort;
-            var currentSort = this.classList.contains('sort-asc') ? 'asc' : 
-                             (this.classList.contains('sort-desc') ? 'desc' : null);
-            var newSort = currentSort === 'asc' ? 'desc' : 'asc';
-            
-            // Reset other headers
-            table.querySelectorAll('.sortable-header').forEach(function(h) {
-                h.classList.remove('sort-asc', 'sort-desc');
-            });
-            this.classList.add('sort-' + newSort);
-            
-            // Sort rows
-            rows.sort(function(a, b) {
-                var aVal, bVal;
-                var index = Array.from(header.parentNode.children).indexOf(header);
-                var aCell = a.children[index];
-                var bCell = b.children[index];
-                
-                if (sortType === 'date') {
-                    // Use data-timestamp attribute for numeric sorting
-                    aVal = parseInt(aCell.dataset.timestamp) || 0;
-                    bVal = parseInt(bCell.dataset.timestamp) || 0;
-                    // For dates, we typically want newest first (desc) as default
-                    if (newSort === 'asc') {
-                        return aVal - bVal;
-                    } else {
-                        return bVal - aVal;
-                    }
-                } else {
-                    aVal = aCell.textContent.trim().toLowerCase();
-                    bVal = bCell.textContent.trim().toLowerCase();
-                    if (aVal < bVal) return newSort === 'asc' ? -1 : 1;
-                    if (aVal > bVal) return newSort === 'asc' ? 1 : -1;
-                    return 0;
-                }
-            });
-            
-            // Re-append sorted rows
-            rows.forEach(function(row) {
-                tbody.appendChild(row);
-            });
-        });
-    });
-});
-");
 
 echo $OUTPUT->footer();

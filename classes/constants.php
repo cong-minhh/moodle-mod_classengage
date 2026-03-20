@@ -267,5 +267,70 @@ class constants
 
     /** @var int Maximum questions per session */
     const MAX_QUESTIONS_PER_SESSION = 100;
+
+    // =========================================================================
+    // Question Trustworthiness Constants
+    // =========================================================================
+
+    /** @var string Question is trustworthy (score 70-100) */
+    const TRUSTWORTHINESS_TRUSTWORTHY = 'trustworthy';
+
+    /** @var string Question trustworthiness is uncertain (score 40-69) */
+    const TRUSTWORTHINESS_UNCERTAIN = 'uncertain';
+
+    /** @var string Question is likely wrong (score 0-39) */
+    const TRUSTWORTHINESS_UNLIKELY = 'unlikely';
+
+    /** @var int Minimum trustworthiness score for trustworthy */
+    const TRUSTWORTHINESS_SCORE_TRUSTWORTHY = 70;
+
+    /** @var int Minimum trustworthiness score for uncertain */
+    const TRUSTWORTHINESS_SCORE_UNCERTAIN = 40;
+
+    /** @var int Default trustworthiness score */
+    const TRUSTWORTHINESS_DEFAULT_SCORE = 50;
+
+    /** @var array Trustworthiness level colors for UI */
+    const TRUSTWORTHINESS_COLORS = [
+        self::TRUSTWORTHINESS_TRUSTWORTHY => [
+            'bg' => '#E3F2FD',
+            'border' => '#2196F3',
+            'text' => '#1565C0',
+            'icon' => 'check-circle',
+            'label' => 'Pretty good chance not wrong'
+        ],
+        self::TRUSTWORTHINESS_UNCERTAIN => [
+            'bg' => '#FFF8E1',
+            'border' => '#FFC107',
+            'text' => '#F57F17',
+            'icon' => 'exclamation-triangle',
+            'label' => 'Could be wrong'
+        ],
+        self::TRUSTWORTHINESS_UNLIKELY => [
+            'bg' => '#FFEBEE',
+            'border' => '#F44336',
+            'text' => '#C62828',
+            'icon' => 'times-circle',
+            'label' => 'Likely be wrong'
+        ]
+    ];
+
+    /** @var array Trustworthiness analysis factors */
+    const TRUSTWORTHINESS_FACTORS = [
+        'source_coverage' => 'Source Coverage',
+        'question_clarity' => 'Question Clarity',
+        'answer_plausibility' => 'Answer Plausibility',
+        'historical_accuracy' => 'Historical Accuracy',
+        'content_consistency' => 'Content Consistency'
+    ];
+
+    /** @var array Factor weights for trustworthiness calculation */
+    const TRUSTWORTHINESS_FACTOR_WEIGHTS = [
+        'source_coverage' => 0.30,
+        'question_clarity' => 0.20,
+        'answer_plausibility' => 0.20,
+        'historical_accuracy' => 0.20,
+        'content_consistency' => 0.10
+    ];
 }
 

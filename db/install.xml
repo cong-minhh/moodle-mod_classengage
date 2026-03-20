@@ -77,6 +77,11 @@
         <FIELD NAME="source" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="nlp" SEQUENCE="false" COMMENT="Source: nlp, manual"/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <!-- Trustworthiness Analysis Fields -->
+        <FIELD NAME="trustworthiness_score" TYPE="int" LENGTH="3" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Trustworthiness score 0-100: 70-100=trustworthy, 40-69=uncertain, 0-39=unlikely"/>
+        <FIELD NAME="trustworthiness_level" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="uncertain" SEQUENCE="false" COMMENT="Trustworthiness level: trustworthy, uncertain, unlikely"/>
+        <FIELD NAME="trustworthiness_factors" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="JSON: Analysis factors contributing to trustworthiness score"/>
+        <FIELD NAME="trustworthiness_analyzed" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Whether trustworthiness has been analyzed"/>
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
@@ -87,6 +92,8 @@
         <INDEX NAME="status" UNIQUE="false" FIELDS="status"/>
         <INDEX NAME="difficulty" UNIQUE="false" FIELDS="difficulty"/>
         <INDEX NAME="classengageid_status" UNIQUE="false" FIELDS="classengageid, status" COMMENT="Enterprise: Filter questions by activity and status"/>
+        <INDEX NAME="trustworthiness_level" UNIQUE="false" FIELDS="trustworthiness_level" COMMENT="Filter questions by trustworthiness level"/>
+        <INDEX NAME="trustworthiness_score" UNIQUE="false" FIELDS="trustworthiness_score" COMMENT="Sort questions by trustworthiness score"/>
       </INDEXES>
     </TABLE>
     <TABLE NAME="classengage_sessions" COMMENT="Stores quiz session information">

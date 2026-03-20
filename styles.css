@@ -1450,7 +1450,7 @@
 
 /* Offline Indicator (Requirement 4.5) */
 .mod-classengage .offline-indicator {
-  display: flex;
+  display: none; /* Hidden by default, shown via JS when offline */
   align-items: center;
   padding: var(--ce-space-sm) var(--ce-space-md);
   background-color: var(--ce-warning-light);
@@ -1629,6 +1629,108 @@
 .mod-classengage .transport-indicator.realtime {
   background-color: var(--ce-success-light);
   color: #3d7a3d;
+}
+
+/* ============================================================================
+   ANSWER FEEDBACK STYLES
+   ============================================================================ */
+
+.mod-classengage .answer-feedback {
+  animation: fade-in 0.3s ease-out;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.mod-classengage .answer-feedback .your-answer {
+  font-size: 1rem;
+}
+
+.mod-classengage .answer-feedback .rationale-section h5 {
+  color: var(--ce-gray-800);
+  margin-bottom: 0.75rem;
+}
+
+.mod-classengage .answer-feedback .rationale-section p {
+  color: var(--ce-gray-700);
+  line-height: 1.6;
+}
+
+.mod-classengage .answer-feedback .question-meta {
+  font-size: 0.9rem;
+}
+
+.mod-classengage .answer-feedback .waiting-next {
+  color: var(--ce-gray-600);
+  font-size: 0.95rem;
+}
+
+/* Question Card */
+.mod-classengage .question-card {
+  background: #fff;
+  padding: var(--ce-space-lg);
+  border-radius: var(--ce-radius-lg);
+  box-shadow: var(--ce-shadow-md);
+}
+
+/* Trustworthiness Badge */
+.mod-classengage .trustworthiness-badge {
+  transition: all var(--ce-transition);
+}
+
+.mod-classengage .trustworthiness-badge:hover {
+  box-shadow: var(--ce-shadow-sm);
+}
+
+.mod-classengage .trustworthiness-badge .text-muted {
+  font-size: 0.85rem;
+}
+
+/* Option labels */
+.mod-classengage .quiz-option-label .option-key {
+  font-size: 0.95rem;
+}
+
+.mod-classengage .quiz-option-label .option-text {
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+/* Selection highlight animation */
+.mod-classengage .quiz-option.selected {
+  animation: select-pulse 0.2s ease-out;
+}
+
+@keyframes select-pulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Correct answer highlight */
+.mod-classengage .quiz-option.correct-answer {
+  border-color: var(--ce-success) !important;
+  background-color: var(--ce-success-light) !important;
+}
+
+/* Wrong answer highlight */
+.mod-classengage .quiz-option.wrong-answer {
+  border-color: var(--ce-danger) !important;
+  background-color: var(--ce-danger-light) !important;
 }
 
 /* ============================================================================
@@ -2512,5 +2614,254 @@
     
     .stat-card {
         margin-bottom: 1rem;
+    }
+}
+
+/* ============================================================================
+   TRUSTWORTHINESS / QUESTION RELIABILITY STYLES
+   ============================================================================ */
+
+.mod-classengage .trustworthiness-badge {
+    font-size: 0.75rem;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    cursor: help;
+}
+
+.mod-classengage .trustworthiness-badge i {
+    margin-right: 3px;
+}
+
+.mod-classengage .trustworthiness-trustworthy {
+    background-color: #E3F2FD !important;
+    color: #1565C0 !important;
+    border: 1px solid #2196F3;
+}
+
+.mod-classengage .trustworthiness-uncertain {
+    background-color: #FFF8E1 !important;
+    color: #F57F17 !important;
+    border: 1px solid #FFC107;
+}
+
+.mod-classengage .trustworthiness-unlikely {
+    background-color: #FFEBEE !important;
+    color: #C62828 !important;
+    border: 1px solid #F44336;
+}
+
+.mod-classengage .trustworthiness-summary {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+    margin-bottom: 15px;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 6px;
+}
+
+.mod-classengage .trustworthiness-summary-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.875rem;
+}
+
+.mod-classengage .trustworthiness-filters {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.mod-classengage .trustworthiness-filter-btn {
+    padding: 4px 12px;
+    border-radius: 16px;
+    font-size: 0.8125rem;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.15s ease;
+}
+
+.mod-classengage .trustworthiness-filter-btn:hover {
+    transform: translateY(-1px);
+}
+
+.mod-classengage .trustworthiness-filter-btn.active {
+    border-color: currentColor;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.mod-classengage .filter-trustworthy {
+    background-color: #E3F2FD;
+    color: #1565C0;
+}
+
+.mod-classengage .filter-uncertain {
+    background-color: #FFF8E1;
+    color: #F57F17;
+}
+
+.mod-classengage .filter-unlikely {
+    background-color: #FFEBEE;
+    color: #C62828;
+}
+
+.mod-classengage .filter-all {
+    background-color: #e9ecef;
+    color: #495057;
+}
+
+/* ============================================================================
+   STUDENT RESULTS PAGE STYLES
+   ============================================================================ */
+
+.mod-classengage.student-results-page .question-item {
+    border-left: 4px solid transparent;
+    margin-bottom: 0;
+    transition: all 0.2s ease;
+}
+
+.mod-classengage.student-results-page .question-item.border-left-success {
+    border-left-color: #28a745;
+}
+
+.mod-classengage.student-results-page .question-item.border-left-danger {
+    border-left-color: #dc3545;
+}
+
+.mod-classengage.student-results-page .question-item:hover {
+    background-color: #f8f9fa;
+}
+
+.mod-classengage.student-results-page .cursor-pointer {
+    cursor: pointer;
+}
+
+.mod-classengage.student-results-page .gradient-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.mod-classengage.student-results-page .result-icon-success {
+    background-color: #d4edda;
+    border: 1px solid #28a745;
+}
+
+.mod-classengage.student-results-page .result-icon-danger {
+    background-color: #f8d7da;
+    border: 1px solid #dc3545;
+}
+
+/* Student Results Question Breakdown */
+.mod-classengage.student-results-page .accordion .question-item {
+    border-left: none;
+    border: 1px solid #dee2e6;
+    margin-bottom: 0.5rem;
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+
+.mod-classengage.student-results-page .accordion .question-item:first-child {
+    border-radius: 0.5rem 0.5rem 0 0;
+}
+
+.mod-classengage.student-results-page .accordion .question-item:last-child {
+    border-radius: 0 0 0.5rem 0.5rem;
+}
+
+.mod-classengage.student-results-page .accordion .collapse {
+    border-top: 1px solid #dee2e6;
+}
+
+/* Student Results Progress Bars */
+.mod-classengage.student-results-page .trustworthiness-trustworthy {
+    background-color: #E3F2FD;
+    border: 1px solid #2196F3;
+    padding: 1rem;
+    border-radius: 0.5rem;
+}
+
+.mod-classengage.student-results-page .trustworthiness-uncertain {
+    background-color: #FFF8E1;
+    border: 1px solid #FFC107;
+    padding: 1rem;
+    border-radius: 0.5rem;
+}
+
+.mod-classengage.student-results-page .trustworthiness-unlikely {
+    background-color: #FFEBEE;
+    border: 1px solid #F44336;
+    padding: 1rem;
+    border-radius: 0.5rem;
+}
+
+/* Student Results Page Animations */
+.mod-classengage.student-results-page .question-item {
+    animation: fadeInUp 0.3s ease forwards;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Student Results Insights */
+.mod-classengage.student-results-page .insight-card {
+    background: white;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 0.5rem;
+    border-left: 4px solid;
+}
+
+.mod-classengage.student-results-page .insight-card.success {
+    background-color: #d4edda;
+    border-left-color: #28a745;
+}
+
+.mod-classengage.student-results-page .insight-card.warning {
+    background-color: #fff3cd;
+    border-left-color: #ffc107;
+}
+
+.mod-classengage.student-results-page .insight-card.info {
+    background-color: #d1ecf1;
+    border-left-color: #17a2b8;
+}
+
+/* Student Results History Table */
+.mod-classengage.student-results-page .history-table tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+.mod-classengage.student-results-page .history-table td {
+    vertical-align: middle;
+}
+
+/* Print Styles for Student Results */
+@media print {
+    .mod-classengage.student-results-page .question-item {
+        page-break-inside: avoid;
+        opacity: 1 !important;
+        transform: none !important;
+    }
+
+    .mod-classengage.student-results-page .btn {
+        display: none !important;
+    }
+
+    .mod-classengage.student-results-page .trustworthiness-summary,
+    .mod-classengage.student-results-page .trustworthiness-filters {
+        display: none !important;
     }
 }

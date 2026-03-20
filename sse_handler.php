@@ -116,6 +116,11 @@ $studentsinterval = 3;   // Students list update every 3 seconds.
 $laststatsupdate = 0;
 $laststudentsupdate = 0;
 
+// For students: periodic question state refresh to catch missed broadcasts
+// This is a fallback mechanism - primarily for students who may have missed events
+$studentquestionrefresh = 5;  // Send question state to students every 5 seconds
+$laststudentquestionupdate = 0;
+
 // Change detection hashes to avoid sending duplicate data.
 $laststathash = '';
 $laststudenthash = '';
@@ -336,10 +341,10 @@ while (true) {
     }
 
     try {
-        // Get current session state.
-        $currentstate = $statemanager->get_session_state($sessionid);
+        // RE-FETCH session data from database on each iteration to get latest state
+        $session = $DB->get_record('classengage_sessions', ['id' => $sessionid]);
 
-        if ($currentstate === null) {
+        if ($session === null) {
             // Session no longer exists.
             $eventid++;
             send_sse_event('session_ended', [
@@ -349,14 +354,48 @@ while (true) {
             break;
         }
 
+        // Get current question directly from database
+        $currentquestion = null;
+        if ($session->status === 'active' && $session->currentquestion >= 0) {
+            $sql = "SELECT q.* 
+                      FROM {classengage_questions} q
+                      JOIN {classengage_session_questions} sq ON sq.questionid = q.id
+                     WHERE sq.sessionid = :sessionid 
+                       AND sq.questionorder = :questionorder";
+            $currentquestion = $DB->get_record_sql($sql, [
+                'sessionid' => $sessionid,
+                'questionorder' => $session->currentquestion + 1
+            ]);
+        }
+
+        // Check if user has already answered
+        $hasanswered = false;
+        if ($currentquestion) {
+            $hasanswered = $DB->record_exists('classengage_responses', [
+                'sessionid' => $sessionid,
+                'questionid' => $currentquestion->id,
+                'userid' => $USER->id
+            ]);
+        }
+
+        // Calculate timer remaining
+        $timelimit = (int) $session->timelimit;
+        $timeremaining = 0;
+        $questionstarttime = 0;
+        if (!empty($session->questionstarttime) && $timelimit > 0) {
+            $questionstarttime = (int) $session->questionstarttime;
+            $elapsed = time() - $questionstarttime;
+            $timeremaining = max(0, $timelimit - $elapsed);
+        }
+
         // Check for state changes.
         $statechanged = false;
 
         if ($laststate === null) {
             $statechanged = true;
-        } else if ($laststate->status !== $currentstate->status) {
+        } else if ($laststate->status !== $session->status) {
             $statechanged = true;
-        } else if ($laststate->currentquestion !== $currentstate->currentquestion) {
+        } else if ($laststate->currentquestion !== $session->currentquestion) {
             $statechanged = true;
         }
 
@@ -365,23 +404,23 @@ while (true) {
             $eventid++;
 
             // Determine event type based on status change.
-            if ($laststate !== null && $laststate->status !== $currentstate->status) {
-                switch ($currentstate->status) {
+            if ($laststate !== null && $laststate->status !== $session->status) {
+                switch ($session->status) {
                     case 'active':
                         if ($laststate->status === 'paused') {
                             send_sse_event('session_resumed', [
                                 'sessionid' => $sessionid,
-                                'status' => $currentstate->status,
-                                'currentquestion' => $currentstate->currentquestion,
-                                'timerremaining' => $currentstate->timerremaining,
+                                'status' => $session->status,
+                                'currentquestion' => $session->currentquestion,
+                                'timerremaining' => $timeremaining,
                                 'timestamp' => time(),
                             ], $eventid);
                         } else {
                             send_sse_event('session_started', [
                                 'sessionid' => $sessionid,
-                                'status' => $currentstate->status,
-                                'currentquestion' => $currentstate->currentquestion,
-                                'timerremaining' => $currentstate->timerremaining,
+                                'status' => $session->status,
+                                'currentquestion' => $session->currentquestion,
+                                'timerremaining' => $timeremaining,
                                 'timestamp' => time(),
                             ], $eventid);
                         }
@@ -390,8 +429,8 @@ while (true) {
                     case 'paused':
                         send_sse_event('session_paused', [
                             'sessionid' => $sessionid,
-                            'status' => $currentstate->status,
-                            'timerremaining' => $currentstate->timerremaining,
+                            'status' => $session->status,
+                            'timerremaining' => $timeremaining,
                             'timestamp' => time(),
                         ], $eventid);
                         break;
@@ -399,7 +438,7 @@ while (true) {
                     case 'completed':
                         send_sse_event('session_completed', [
                             'sessionid' => $sessionid,
-                            'status' => $currentstate->status,
+                            'status' => $session->status,
                             'timestamp' => time(),
                         ], $eventid);
                         // End the SSE connection when session completes.
@@ -408,29 +447,43 @@ while (true) {
                 }
             }
 
-            // Check for question change.
-            if ($lastquestion !== $currentstate->currentquestion && $currentstate->status === 'active') {
-                // Get client state with question details.
-                $clientstate = $statemanager->get_client_state($sessionid, $USER->id);
+            // Check for question change - send broadcast for any question change
+            // Also send on first iteration if session is active
+            $isFirstIteration = ($laststate === null && $session->status === 'active');
+            $questionChanged = ($lastquestion !== $session->currentquestion);
+            
+            if (($questionChanged || $isFirstIteration) && $session->status === 'active') {
+                // Debug log
+                error_log("SSE: Sending question_broadcast for question {$session->currentquestion}, remaining={$timeremaining}s");
 
                 $eventid++;
                 send_sse_event('question_broadcast', [
                     'sessionid' => $sessionid,
-                    'questionnumber' => $currentstate->currentquestion,
-                    'question' => $clientstate->question ? [
-                        'id' => $clientstate->question->id,
-                        'text' => $clientstate->question->questiontext,
-                        'options' => classengage_get_question_options($clientstate->question),
+                    'questionnumber' => $session->currentquestion,
+                    'questionid' => $currentquestion ? $currentquestion->id : null,
+                    'question' => $currentquestion ? [
+                        'id' => $currentquestion->id,
+                        'text' => $currentquestion->questiontext,
+                        'options' => classengage_get_question_options($currentquestion),
+                        'correctanswer' => $currentquestion->correctanswer,
+                        'rationale' => $currentquestion->rationale,
+                        'difficulty' => $currentquestion->difficulty,
+                        'bloomlevel' => $currentquestion->bloomlevel,
+                        'trustworthiness_score' => (int) ($currentquestion->trustworthiness_score ?? 0),
+                        'trustworthiness_level' => $currentquestion->trustworthiness_level ?? 'uncertain',
+                        'trustworthiness_factors' => $currentquestion->trustworthiness_factors,
                     ] : null,
-                    'timelimit' => $currentstate->timerremaining,
-                    'hasanswered' => $clientstate->hasanswered,
+                    'timelimit' => $timelimit,
+                    'timeremaining' => $timeremaining,
+                    'questionstarttime' => $questionstarttime,
+                    'hasanswered' => $hasanswered,
                     'timestamp' => time(),
                 ], $eventid);
 
-                $lastquestion = $currentstate->currentquestion;
+                $lastquestion = $session->currentquestion;
             }
 
-            $laststate = $currentstate;
+            $laststate = $session;
         }
 
         // NOTE: timer_sync removed - Timer is now fully client-side.
@@ -668,6 +721,45 @@ while (true) {
 
                     $eventid++;
                     send_sse_event('students_update', $studentsdata, $eventid);
+                }
+            }
+        }
+
+        // =========================================================================
+        // STUDENT FALLBACK: Periodic question state refresh
+        // This ensures students always have the current question state even if they
+        // missed an event-based broadcast
+        // =========================================================================
+        if (!$isinstructor) {
+            $now = time();
+            if (($now - $laststudentquestionupdate) >= $studentquestionrefresh) {
+                $laststudentquestionupdate = $now;
+                
+                // Only send if session is active and there's a question
+                if ($session->status === 'active' && $currentquestion) {
+                    $eventid++;
+                    send_sse_event('question_broadcast', [
+                        'sessionid' => $sessionid,
+                        'questionnumber' => $session->currentquestion,
+                        'questionid' => $currentquestion->id,
+                        'question' => [
+                            'id' => $currentquestion->id,
+                            'text' => $currentquestion->questiontext,
+                            'options' => classengage_get_question_options($currentquestion),
+                            'correctanswer' => $currentquestion->correctanswer,
+                            'rationale' => $currentquestion->rationale,
+                            'difficulty' => $currentquestion->difficulty,
+                            'bloomlevel' => $currentquestion->bloomlevel,
+                            'trustworthiness_score' => (int) ($currentquestion->trustworthiness_score ?? 0),
+                            'trustworthiness_level' => $currentquestion->trustworthiness_level ?? 'uncertain',
+                            'trustworthiness_factors' => $currentquestion->trustworthiness_factors,
+                        ],
+                        'timelimit' => $timelimit,
+                        'timeremaining' => $timeremaining,
+                        'questionstarttime' => $questionstarttime,
+                        'hasanswered' => $hasanswered,
+                        'timestamp' => time(),
+                    ], $eventid);
                 }
             }
         }

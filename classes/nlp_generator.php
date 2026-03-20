@@ -182,7 +182,7 @@ class nlp_generator {
             $options
         );
 
-        $questionids = $this->store_questions($parsed['questions'], $classengageid, $slideid);
+        $questionids = $this->store_questions($parsed['questions'], $classengageid, $slideid, $text, $images);
 
         $metadata = [
             'provider' => $providerresponse['provider'],
@@ -2419,18 +2419,22 @@ class nlp_generator {
     }
 
     /**
-     * Store generated questions in database.
+     * Store generated questions in database with trustworthiness analysis.
      *
      * @param array $questions
      * @param int $classengageid
      * @param int $slideid
+     * @param string|null $sourcetext Source text for trustworthiness analysis
+     * @param array $sourceimages Source images for trustworthiness analysis
      * @return array
      */
-    protected function store_questions($questions, $classengageid, $slideid) {
+    protected function store_questions($questions, $classengageid, $slideid, $sourcetext = null, $sourceimages = []) {
         global $DB;
 
         $questionids = [];
         $now = time();
+
+        $trustworthiness_analyzer = new question_trustworthiness_analyzer($classengageid);
 
         foreach ($questions as $q) {
             $question = new \stdClass();
@@ -2453,10 +2457,22 @@ class nlp_generator {
             $question->source = 'nlp';
             $question->timecreated = $now;
             $question->timemodified = $now;
+            $question->trustworthiness_score = constants::TRUSTWORTHINESS_DEFAULT_SCORE;
+            $question->trustworthiness_level = constants::TRUSTWORTHINESS_UNCERTAIN;
+            $question->trustworthiness_analyzed = 0;
 
             $questionid = $DB->insert_record('classengage_questions', $question);
             if ($questionid) {
                 $questionids[] = $questionid;
+
+                $question->id = $questionid;
+
+                try {
+                    $analysis = $trustworthiness_analyzer->analyze($question, $sourcetext, $sourceimages);
+                    \debugging("ClassEngage NLP: Trustworthiness analysis for question {$questionid}: score={$analysis['score']}, level={$analysis['level']}", \DEBUG_DEVELOPER);
+                } catch (\Exception $e) {
+                    \debugging("ClassEngage NLP: Trustworthiness analysis failed for question {$questionid}: " . $e->getMessage(), \DEBUG_DEVELOPER);
+                }
             }
         }
 

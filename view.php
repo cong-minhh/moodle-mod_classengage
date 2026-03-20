@@ -107,14 +107,21 @@ if ($activesession) {
 // Show past results
 echo html_writer::tag('h3', get_string('yourresults', 'mod_classengage'));
 
-$sql = "SELECT s.name, r.score, r.timecreated
+// Get user's sessions with their best scores - using subquery to avoid duplicates
+$sql = "SELECT s.id, s.name, 
+            (SELECT AVG(r.score) FROM {classengage_responses} r WHERE r.sessionid = s.id AND r.userid = :userid1) as avgscore,
+            (SELECT MAX(r.timecreated) FROM {classengage_responses} r WHERE r.sessionid = s.id AND r.userid = :userid2) as lastattempt
           FROM {classengage_sessions} s
-          JOIN {classengage_responses} r ON r.sessionid = s.id
          WHERE s.classengageid = :classengageid
-           AND r.userid = :userid
-      ORDER BY r.timecreated DESC";
+           AND EXISTS (SELECT 1 FROM {classengage_responses} r WHERE r.sessionid = s.id AND r.userid = :userid3)
+      ORDER BY lastattempt DESC";
 
-$results = $DB->get_records_sql($sql, array('classengageid' => $classengage->id, 'userid' => $USER->id));
+$results = $DB->get_records_sql($sql, array(
+    'classengageid' => $classengage->id, 
+    'userid1' => $USER->id,
+    'userid2' => $USER->id,
+    'userid3' => $USER->id
+));
 
 if ($results) {
     $table = new html_table();
@@ -125,10 +132,11 @@ if ($results) {
     );
 
     foreach ($results as $result) {
+        $score = is_numeric($result->avgscore) ? round($result->avgscore, 1) . '%' : $result->avgscore;
         $table->data[] = array(
             format_string($result->name),
-            $result->score,
-            userdate($result->timecreated)
+            $score,
+            userdate($result->lastattempt)
         );
     }
 
