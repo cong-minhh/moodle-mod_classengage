@@ -84,28 +84,71 @@ if ($classengage->intro) {
 // Student view only reaches here (teachers are redirected above)
 echo html_writer::start_div('classengage-student-view');
 
+// Hero section for quick actions
+echo html_writer::start_div('card mb-4', array('style' => 'background: linear-gradient(135deg, #4a90a4 0%, #5bc0de 100%); color: white; border: none;'));
+echo html_writer::start_div('card-body py-4');
+echo html_writer::start_div('d-flex justify-content-between align-items-center flex-wrap gap-3');
+
 // Check for active session
 $activesession = $DB->get_record('classengage_sessions', array(
     'classengageid' => $classengage->id,
     'status' => 'active'
 ));
 
+// Get latest completed session (use SQL to avoid duplicates)
+$latest_completed = $DB->get_record_sql(
+    "SELECT id FROM {classengage_sessions} 
+     WHERE classengageid = :classengageid AND status = 'completed' 
+     ORDER BY timecompleted DESC LIMIT 1",
+    array('classengageid' => $classengage->id)
+);
+
 if ($activesession) {
     $quizurl = new moodle_url('/mod/classengage/quiz.php', array('id' => $cm->id, 'sessionid' => $activesession->id));
     echo html_writer::div(
         html_writer::link(
             $quizurl,
-            get_string('joinquiz', 'mod_classengage'),
-            array('class' => 'btn btn-primary btn-lg')
+            '<i class="fa fa-play-circle"></i> ' . get_string('joinquiz', 'mod_classengage'),
+            array('class' => 'btn btn-light btn-lg')
         ),
-        'text-center mb-3'
+        'text-center flex-grow-1'
     );
+    
+    // Also show results from latest completed session
+    if ($latest_completed) {
+        $resultsurl = new moodle_url('/mod/classengage/myresults.php', array('id' => $cm->id, 'sessionid' => $latest_completed->id));
+        echo html_writer::div(
+            html_writer::link(
+                $resultsurl,
+                '<i class="fa fa-chart-bar"></i> View Past Results',
+                array('class' => 'btn btn-outline-light btn-lg')
+            ),
+            'text-center flex-grow-1'
+        );
+    }
 } else {
-    echo html_writer::div(get_string('nosession', 'mod_classengage'), 'alert alert-info');
+    // No active session - show message and link to results
+    echo html_writer::div(
+        '<i class="fa fa-info-circle fa-2x mb-2"></i><br><strong>No Active Quiz</strong><br><small>Wait for your instructor to start a session</small>',
+        'text-center flex-grow-1'
+    );
+    
+    // Link to latest results if available
+    if ($latest_completed) {
+        $resultsurl = new moodle_url('/mod/classengage/myresults.php', array('id' => $cm->id, 'sessionid' => $latest_completed->id));
+        echo html_writer::div(
+            html_writer::link(
+                $resultsurl,
+                '<i class="fa fa-chart-bar"></i> View Your Results',
+                array('class' => 'btn btn-light btn-lg')
+            ),
+            'text-center flex-grow-1'
+        );
+    }
 }
-
-// Show past results
-echo html_writer::tag('h3', get_string('yourresults', 'mod_classengage'));
+echo html_writer::end_div();
+echo html_writer::end_div();
+echo html_writer::end_div();
 
 // Get user's sessions with their best scores - using subquery to avoid duplicates
 $sql = "SELECT s.id, s.name, 
@@ -123,26 +166,58 @@ $results = $DB->get_records_sql($sql, array(
     'userid3' => $USER->id
 ));
 
-if ($results) {
+// Show past results table only if there are multiple sessions
+if ($results && count($results) > 1) {
+    echo html_writer::tag('h3', '<i class="fa fa-history mr-2"></i>' . get_string('yourresults', 'mod_classengage'));
+    
+    // Add table styling
     $table = new html_table();
     $table->head = array(
         get_string('sessionname', 'mod_classengage'),
         get_string('score', 'mod_classengage'),
-        get_string('date')
+        get_string('date'),
+        ''
     );
+    $table->attributes['class'] = 'table table-hover';
 
     foreach ($results as $result) {
         $score = is_numeric($result->avgscore) ? round($result->avgscore, 1) . '%' : $result->avgscore;
+        
+        // Score badge color
+        $score_class = 'badge-secondary';
+        if ($result->avgscore >= 80) {
+            $score_class = 'badge-success';
+        } else if ($result->avgscore >= 50) {
+            $score_class = 'badge-warning';
+        } else if ($result->avgscore >= 0) {
+            $score_class = 'badge-danger';
+        }
+        
+        $viewurl = new moodle_url('/mod/classengage/myresults.php', array('id' => $cm->id, 'sessionid' => $result->id));
+        $viewlink = html_writer::link($viewurl, '<i class="fa fa-eye"></i> View Details', array('class' => 'btn btn-sm btn-primary'));
+        
+        $sessionlink = html_writer::link($viewurl, format_string($result->name), array('class' => 'text-primary font-weight-bold'));
+        
         $table->data[] = array(
-            format_string($result->name),
-            $score,
-            userdate($result->lastattempt)
+            $sessionlink,
+            '<span class="badge ' . $score_class . '">' . $score . '</span>',
+            '<small class="text-muted">' . userdate($result->lastattempt, get_string('strftimedate', 'langconfig')) . '</small>',
+            $viewlink
         );
     }
 
     echo html_writer::table($table);
-} else {
-    echo html_writer::div(get_string('noresults', 'mod_classengage'), 'alert alert-secondary');
+    
+    // Quick link to latest result
+    $latest = reset($results);
+    if ($latest) {
+        $viewurl = new moodle_url('/mod/classengage/myresults.php', array('id' => $cm->id, 'sessionid' => $latest->id));
+        echo html_writer::div(
+            html_writer::link($viewurl, '<i class="fa fa-arrow-right"></i> View Latest Results in Detail', 
+                array('class' => 'btn btn-outline-primary')),
+            'text-center mt-3'
+        );
+    }
 }
 
 echo html_writer::end_div();

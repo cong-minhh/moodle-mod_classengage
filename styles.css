@@ -1734,6 +1734,146 @@
 }
 
 /* ============================================================================
+   STUDENT RESULTS PAGE IMPROVEMENTS
+   ============================================================================ */
+
+/* Quick navigation pills */
+.mod-classengage #quick-nav-pills {
+  background: #f8f9fa;
+  padding: 10px;
+  border-radius: 8px;
+  margin-top: 10px;
+}
+
+.mod-classengage .quick-nav-pill {
+  transition: all 0.2s ease;
+  font-size: 0.85rem;
+}
+
+.mod-classengage .quick-nav-pill:hover {
+  transform: scale(1.1);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.mod-classengage .quick-nav-pill.active {
+  transform: scale(1.15);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+/* Session info bar */
+.mod-classengage .session-info-bar {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 8px;
+  padding: 12px 20px;
+}
+
+/* Sticky nav improvements */
+.mod-classengage .student-results-page .sticky-top {
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+/* Question number badges */
+.mod-classengage .question-number-badge {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 1rem;
+}
+
+/* Keyboard navigation hint */
+.mod-classengage .keyboard-hint {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: rgba(0,0,0,0.8);
+  color: white;
+  padding: 10px 15px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  opacity: 0.7;
+  transition: opacity 0.3s;
+  z-index: 1000;
+}
+
+.mod-classengage .keyboard-hint:hover {
+  opacity: 1;
+}
+
+.mod-classengage .keyboard-hint kbd {
+  background: rgba(255,255,255,0.2);
+  padding: 2px 6px;
+  border-radius: 3px;
+  margin: 0 2px;
+}
+
+/* Print-specific styles */
+@media print {
+  .mod-classengage .sticky-top,
+  .mod-classengage #quick-nav-pills,
+  .mod-classengage .keyboard-hint,
+  .mod-classengage .btn,
+  .mod-classengage .card-header .btn {
+    display: none !important;
+  }
+  
+  .mod-classengage .student-results-page {
+    padding: 0;
+  }
+  
+  .mod-classengage .question-item {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}
+
+/* Results animation */
+.mod-classengage .result-stat-card {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.mod-classengage .result-stat-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+/* Breadcrumb improvements */
+.mod-classengage .breadcrumb {
+  background: transparent;
+  padding: 0;
+  margin-bottom: 1rem;
+}
+
+/* Student view hero section */
+.mod-classengage .classengage-student-view .card[style*="gradient"] {
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgba(74, 144, 164, 0.3);
+}
+
+.mod-classengage .classengage-student-view .card[style*="gradient"] .btn {
+  min-width: 180px;
+}
+
+/* Results table improvements */
+.mod-classengage .classengage-student-view .table th {
+  border-top: none;
+  font-weight: 600;
+  color: var(--ce-gray-600);
+  text-transform: uppercase;
+  font-size: 0.8rem;
+  letter-spacing: 0.5px;
+}
+
+.mod-classengage .classengage-student-view .table td {
+  vertical-align: middle;
+}
+
+/* ============================================================================
    MOBILE RESPONSIVE QUIZ STYLES (Requirement 8.1)
    ============================================================================ */
 

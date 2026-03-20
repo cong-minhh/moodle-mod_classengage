@@ -61,35 +61,138 @@ $PAGE->set_pagelayout('incourse');
 $PAGE->requires->js_call_amd('mod_classengage/student_results', 'init');
 
 echo $OUTPUT->header();
+
+// Breadcrumb - build manually for Moodle 4 compatibility
+echo html_writer::start_div('breadcrumb-nav mb-3');
+echo html_writer::link(
+    new moodle_url('/course/view.php', array('id' => $course->id)),
+    '<i class="fa fa-home"></i> ' . format_string($course->fullname),
+    array('class' => 'breadcrumb-link')
+);
+echo ' <i class="fa fa-chevron-right text-muted"></i> ';
+echo html_writer::link(
+    new moodle_url('/mod/classengage/view.php', array('id' => $cm->id)),
+    format_string($classengage->name),
+    array('class' => 'breadcrumb-link')
+);
+echo ' <i class="fa fa-chevron-right text-muted"></i> ';
+echo '<span class="text-muted">My Results</span>';
+echo html_writer::end_div();
+
+// Page title
 echo $OUTPUT->heading(format_string($classengage->name));
 
 echo html_writer::start_div('mod-classengage student-results-page');
 
-echo html_writer::start_div('card shadow-sm mb-4');
-echo html_writer::start_div('card-body d-flex justify-content-between align-items-center flex-wrap');
+// Sticky navigation bar
+echo html_writer::start_div('card shadow-sm mb-4 sticky-top', array('style' => 'z-index: 100;'));
+echo html_writer::start_div('card-body py-3');
+echo html_writer::start_div('d-flex justify-content-between align-items-center flex-wrap gap-2');
+
+// Left side - Back button
 $backurl = new moodle_url('/mod/classengage/view.php', array('id' => $cm->id));
 echo html_writer::link(
     $backurl,
-    '<i class="fa fa-arrow-left"></i> ' . get_string('backtoactivity', 'mod_classengage'),
+    '<i class="fa fa-arrow-left"></i> Back to Activity',
     array('class' => 'btn btn-outline-secondary')
 );
 
+// Center - Quick navigation
+$history = [];
+try {
+    $renderer = new student_results_renderer($classengage->id, $sessionid, $USER->id);
+    $history = $renderer->get_session_history();
+} catch (Exception $e) {
+    // Ignore
+}
+
+if (count($history) > 1) {
+    echo html_writer::start_div('btn-group mx-2');
+    
+    // Previous session
+    $prev_session = null;
+    $next_session = null;
+    $found_current = false;
+    foreach ($history as $h) {
+        if ($h->id == $sessionid) {
+            $found_current = true;
+            continue;
+        }
+        if (!$found_current && !$prev_session) {
+            $prev_session = $h;
+        }
+        if ($found_current && !$next_session) {
+            $next_session = $h;
+            break;
+        }
+    }
+    
+    if ($prev_session) {
+        $prev_url = new moodle_url('/mod/classengage/myresults.php', array('id' => $cm->id, 'sessionid' => $prev_session->id));
+        echo html_writer::link(
+            $prev_url,
+            '<i class="fa fa-chevron-left"></i> Previous',
+            array('class' => 'btn btn-outline-secondary', 'title' => format_string($prev_session->name))
+        );
+    }
+    
+    // Session selector dropdown
+    $session_options = [];
+    foreach ($history as $h) {
+        $session_options[$h->id] = format_string($h->name) . ' - ' . userdate($h->timecompleted, get_string('strftimedate', 'langconfig'));
+    }
+    echo html_writer::select($session_options, 'session_selector', $sessionid, null, 
+        array('class' => 'custom-select custom-select-sm mx-2', 'style' => 'width: auto;', 
+              'onchange' => 'window.location.href=this.value ? "/mod/classengage/myresults.php?id=' . $cm->id . '&sessionid=" + this.value : ""'));
+    
+    if ($next_session) {
+        $next_url = new moodle_url('/mod/classengage/myresults.php', array('id' => $cm->id, 'sessionid' => $next_session->id));
+        echo html_writer::link(
+            $next_url,
+            'Next <i class="fa fa-chevron-right"></i>',
+            array('class' => 'btn btn-outline-secondary', 'title' => format_string($next_session->name))
+        );
+    }
+    
+    echo html_writer::end_div();
+}
+
+// Right side - Action buttons
 echo html_writer::start_div('btn-group');
 echo html_writer::link(
     'javascript:window.print()',
-    '<i class="fa fa-print"></i> Print Results',
+    '<i class="fa fa-print"></i> Print',
     array('class' => 'btn btn-outline-primary')
 );
 
-if (!empty($session->classengageid)) {
-    $quizurl = new moodle_url('/mod/classengage/quiz.php', array('id' => $cm->id, 'sessionid' => $sessionid));
+// Show "Retake" only if there's an active session to retake
+$activesession = $DB->get_record('classengage_sessions', array('classengageid' => $classengage->id, 'status' => 'active'));
+if ($activesession) {
+    $quizurl = new moodle_url('/mod/classengage/quiz.php', array('id' => $cm->id, 'sessionid' => $activesession->id));
     echo html_writer::link(
         $quizurl,
-        '<i class="fa fa-refresh"></i> Retake Quiz',
+        '<i class="fa fa-refresh"></i> Retake',
         array('class' => 'btn btn-outline-info')
     );
 }
+
+$viewcourse = new moodle_url('/course/view.php', array('id' => $course->id));
+echo html_writer::link(
+    $viewcourse,
+    '<i class="fa fa-home"></i> Course',
+    array('class' => 'btn btn-outline-secondary')
+);
 echo html_writer::end_div();
+
+echo html_writer::end_div();
+echo html_writer::end_div();
+echo html_writer::end_div();
+
+// Session info bar
+echo html_writer::start_div('alert alert-info mb-4 py-2');
+echo html_writer::start_div('d-flex justify-content-between align-items-center flex-wrap');
+echo html_writer::tag('strong', '<i class="fa fa-calendar mr-2"></i>Session: ' . format_string($session->name));
+echo html_writer::tag('small', '<i class="fa fa-clock-o mr-1"></i>' . userdate($session->timecompleted, get_string('strftimedatetime', 'langconfig')));
 echo html_writer::end_div();
 echo html_writer::end_div();
 
@@ -159,6 +262,11 @@ try {
     );
 }
 
+echo html_writer::end_div();
+
+// Keyboard navigation hint
+echo html_writer::start_div('keyboard-hint', array('title' => 'Keyboard shortcuts'));
+echo '<kbd>J</kbd> / <kbd>↓</kbd> Next &nbsp; <kbd>K</kbd> / <kbd>↑</kbd> Prev &nbsp; <kbd>Esc</kbd> Close';
 echo html_writer::end_div();
 
 echo $OUTPUT->footer();
