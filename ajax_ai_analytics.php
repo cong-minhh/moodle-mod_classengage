@@ -94,8 +94,11 @@ try {
     // Provide more helpful error messages
     if (strpos($errormessage, 'curl extension') !== false || strpos($errormessage, 'Class "curl"') !== false) {
         $errormessage = 'Server configuration issue: PHP curl extension is not installed. Please contact your server administrator.';
-    } else if (strpos($errormessage, 'No NLP providers configured') !== false) {
-        $errormessage = 'AI analysis is not configured. Please configure API keys in the plugin settings.';
+    } else if (
+        strpos($errormessage, 'No NLP providers configured') !== false ||
+        strpos($errormessage, 'No question-generation providers are available') !== false
+    ) {
+        $errormessage = 'No analysis provider is available in this runtime.';
     } else if (strpos($errormessage, 'Connection failed') !== false) {
         $errormessage = 'Could not connect to AI service. Please check your API keys and internet connection.';
     }

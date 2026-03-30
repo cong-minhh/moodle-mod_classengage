@@ -36,6 +36,7 @@ define('AJAX_SCRIPT', true);
 
 require(__DIR__ . '/../../config.php');
 require_once(__DIR__ . '/lib.php');
+require_once(__DIR__ . '/classes/nlp_generator.php');
 
 use mod_classengage\rate_limiter;
 use mod_classengage\constants;
@@ -54,10 +55,256 @@ require_sesskey();
 
 $response = ['success' => false];
 
+/**
+ * Maximum file size for automatic inline execution.
+ */
+const MOD_CLASSENGAGE_INLINE_MAX_FILESIZE = 26214400; // 25 MB.
+
+/**
+ * Maximum question count for automatic inline execution.
+ */
+const MOD_CLASSENGAGE_INLINE_MAX_QUESTIONS = 20;
+
+/**
+ * Get the configured execution mode for user-triggered NLP actions.
+ *
+ * @return string
+ */
+function mod_classengage_get_execution_mode(): string {
+    $mode = (string)(get_config('mod_classengage', 'nlpexecutionmode') ?: 'auto');
+    if (!in_array($mode, ['auto', 'background', 'inline'], true)) {
+        return 'auto';
+    }
+    return $mode;
+}
+
+/**
+ * Update slide NLP job state.
+ *
+ * @param int $slideid
+ * @param array $fields
+ * @return void
+ */
+function mod_classengage_update_slide_job(int $slideid, array $fields): void {
+    global $DB;
+
+    $record = (object)array_merge([
+        'id' => $slideid,
+        'timemodified' => time(),
+    ], $fields);
+
+    $DB->update_record('classengage_slides', $record);
+}
+
+/**
+ * Get the stored file for a slide.
+ *
+ * @param int $contextid
+ * @param int $slideid
+ * @return \stored_file
+ */
+function mod_classengage_get_slide_file(int $contextid, int $slideid): \stored_file {
+    $fs = get_file_storage();
+    $files = $fs->get_area_files($contextid, 'mod_classengage', 'slides', $slideid, 'id', false);
+
+    if (empty($files)) {
+        throw new Exception('Slide file not found in storage');
+    }
+
+    return reset($files);
+}
+
+/**
+ * Determine whether the current request should execute inline.
+ *
+ * @param int $contextid
+ * @param int $slideid
+ * @param array $options
+ * @return bool
+ */
+function mod_classengage_should_run_inline(int $contextid, int $slideid, array $options = []): bool {
+    $mode = mod_classengage_get_execution_mode();
+    if ($mode === 'background') {
+        return false;
+    }
+
+    if ($mode === 'inline') {
+        return true;
+    }
+
+    $file = mod_classengage_get_slide_file($contextid, $slideid);
+    if ((int)$file->get_filesize() > MOD_CLASSENGAGE_INLINE_MAX_FILESIZE) {
+        return false;
+    }
+
+    $numquestions = (int)($options['numQuestions'] ?? (get_config('mod_classengage', 'defaultquestions') ?: 5));
+    if ($numquestions > MOD_CLASSENGAGE_INLINE_MAX_QUESTIONS) {
+        return false;
+    }
+
+    return true;
+}
+
+/**
+ * Build default generation options for quick-generate flows.
+ *
+ * @return array
+ */
+function mod_classengage_build_default_generation_options(): array {
+    return [
+        'numQuestions' => max(1, (int)(get_config('mod_classengage', 'defaultquestions') ?: 5)),
+        'difficulty' => 'mixed',
+        'bloomLevel' => 'remember',
+    ];
+}
+
+/**
+ * Run inspection inline inside the current request.
+ *
+ * @param int $slideid
+ * @param int $contextid
+ * @return array
+ */
+function mod_classengage_perform_inline_inspection(int $slideid, int $contextid): array {
+    $file = mod_classengage_get_slide_file($contextid, $slideid);
+
+    mod_classengage_update_slide_job($slideid, [
+        'nlp_job_status' => 'inspecting',
+        'nlp_job_progress' => 10,
+        'nlp_job_error' => null,
+    ]);
+
+    try {
+        $generator = new \mod_classengage\nlp_generator();
+        $inspection = $generator->inspect_document($file);
+    } catch (Exception $e) {
+        mod_classengage_update_slide_job($slideid, [
+            'nlp_job_status' => 'inspect_failed',
+            'nlp_job_error' => $e->getMessage(),
+        ]);
+        throw $e;
+    }
+
+    $inspectiondata = [
+        'docId' => $inspection['docId'],
+        'pages' => $inspection['pages'],
+        'inspected_at' => time(),
+        'page_count' => count($inspection['pages'] ?? []),
+    ];
+
+    mod_classengage_update_slide_job($slideid, [
+        'nlp_generation_metadata' => json_encode($inspectiondata),
+        'nlp_job_status' => 'inspected',
+        'nlp_job_progress' => 100,
+        'nlp_job_error' => null,
+    ]);
+
+    return $inspectiondata;
+}
+
+/**
+ * Run question generation inline inside the current request.
+ *
+ * @param int $slideid
+ * @param int $classengageid
+ * @param int $contextid
+ * @param array $options
+ * @param array|null $inspectiondata
+ * @return array
+ */
+function mod_classengage_perform_inline_generation(
+    int $slideid,
+    int $classengageid,
+    int $contextid,
+    array $options = [],
+    ?array $inspectiondata = null
+): array {
+    if (empty($inspectiondata['docId'])) {
+        $inspectiondata = mod_classengage_perform_inline_inspection($slideid, $contextid);
+    }
+
+    $started = time();
+    mod_classengage_update_slide_job($slideid, [
+        'nlp_job_status' => 'running',
+        'nlp_job_progress' => 10,
+        'nlp_job_error' => null,
+        'nlp_job_started' => $started,
+        'nlp_job_completed' => null,
+    ]);
+
+    $generator = new \mod_classengage\nlp_generator();
+    try {
+        mod_classengage_update_slide_job($slideid, [
+            'nlp_job_status' => 'running',
+            'nlp_job_progress' => 60,
+        ]);
+
+        $result = $generator->generate_questions_from_document(
+            $inspectiondata['docId'],
+            $classengageid,
+            $slideid,
+            $options
+        );
+    } catch (Exception $e) {
+        mod_classengage_update_slide_job($slideid, [
+            'nlp_job_status' => 'failed',
+            'nlp_job_progress' => 60,
+            'nlp_job_error' => $e->getMessage(),
+            'nlp_job_completed' => time(),
+        ]);
+        throw $e;
+    }
+
+    $completed = time();
+    $count = count($result['questionids'] ?? []);
+
+    mod_classengage_update_slide_job($slideid, [
+        'nlp_job_status' => 'completed',
+        'nlp_job_progress' => 100,
+        'nlp_job_error' => null,
+        'nlp_questions_count' => $count,
+        'nlp_job_completed' => $completed,
+        'nlp_provider' => $result['provider'] ?? null,
+        'nlp_model' => $result['model'] ?? null,
+        'nlp_generation_metadata' => !empty($result['metadata']) ? json_encode($result['metadata']) : null,
+    ]);
+
+    purge_caches();
+
+    $event = \mod_classengage\event\questions_generated::create([
+        'objectid' => $slideid,
+        'context' => \context::instance_by_id($contextid),
+        'other' => [
+            'classengageid' => $classengageid,
+            'count' => $count,
+        ],
+    ]);
+    $event->trigger();
+
+    $response = [
+        'success' => true,
+        'status' => 'completed',
+        'progress' => 100,
+        'count' => $count,
+        'provider' => $result['provider'] ?? 'unknown',
+        'model' => $result['model'] ?? null,
+        'duration' => $completed - $started,
+        'inline' => true,
+    ];
+
+    if (!empty($result['metadata'])) {
+        $response['metadata'] = [
+            'generated' => $result['metadata']['generated'] ?? null,
+            'expected' => $result['metadata']['requested'] ?? null,
+        ];
+    }
+
+    return $response;
+}
+
 try {
     switch ($action) {
         case 'inspect':
-            // ASYNC INSPECTION - Queues task, returns immediately
             require_capability('mod/classengage:uploadslides', $context);
 
             // Check if already inspected
@@ -73,7 +320,7 @@ try {
                 break;
             }
 
-            // Check if inspection is already in progress
+            // Check if inspection is already in progress.
             if ($slide->nlp_job_status === 'inspecting') {
                 $response = [
                     'success' => true,
@@ -84,21 +331,32 @@ try {
                 break;
             }
 
-            // Mark as inspecting and queue task
-            $DB->update_record('classengage_slides', (object) [
-                'id' => $slideid,
+            if (mod_classengage_should_run_inline($context->id, $slideid)) {
+                $inspectiondata = mod_classengage_perform_inline_inspection($slideid, $context->id);
+                $response = [
+                    'success' => true,
+                    'status' => 'inspected',
+                    'progress' => 100,
+                    'docid' => $inspectiondata['docId'],
+                    'pages' => $inspectiondata['pages'],
+                    'page_count' => $inspectiondata['page_count'],
+                    'cached' => true,
+                    'inline' => true,
+                ];
+                break;
+            }
+
+            mod_classengage_update_slide_job($slideid, [
                 'nlp_job_status' => 'inspecting',
                 'nlp_job_progress' => 5,
                 'nlp_job_error' => null,
-                'timemodified' => time()
             ]);
 
-            // Queue inspection task
             $task = new \mod_classengage\task\inspect_document_task();
             $task->set_custom_data([
                 'slideid' => $slideid,
                 'classengageid' => $classengage->id,
-                'contextid' => $context->id
+                'contextid' => $context->id,
             ]);
             $task->set_component('mod_classengage');
             \core\task\manager::queue_adhoc_task($task);
@@ -107,7 +365,7 @@ try {
                 'success' => true,
                 'status' => 'inspecting',
                 'progress' => 5,
-                'message' => 'Document inspection queued. Poll inspectionstatus for results.'
+                'message' => 'Document inspection queued. Poll inspectionstatus for results.',
             ];
             break;
 
@@ -171,18 +429,25 @@ try {
                 break;
             }
 
-            // Mark as pending and enqueue adhoc task.
-            $DB->update_record('classengage_slides', (object) [
-                'id' => $slideid,
+            if (mod_classengage_should_run_inline($context->id, $slideid, $options)) {
+                $response = mod_classengage_perform_inline_generation(
+                    $slideid,
+                    $classengage->id,
+                    $context->id,
+                    $options,
+                    $metadata
+                );
+                break;
+            }
+
+            mod_classengage_update_slide_job($slideid, [
                 'nlp_job_status' => 'pending',
-                'nlp_job_progress' => 0,
+                'nlp_job_progress' => 5,
                 'nlp_job_error' => null,
                 'nlp_job_started' => null,
                 'nlp_job_completed' => null,
-                'timemodified' => time()
             ]);
 
-            // Create and queue the adhoc task.
             $task = new \mod_classengage\task\generate_nlp_task();
             $task->set_custom_data([
                 'slideid' => $slideid,
@@ -190,67 +455,80 @@ try {
                 'docid' => $docid,
                 'options' => $options,
                 'contextid' => $context->id,
-                'inspection_data' => $metadata  // Pass inspection data to avoid re-inspection
+                'inspection_data' => $metadata,
             ]);
             $task->set_component('mod_classengage');
-
-            debugging("ClassEngage: Queuing generation task for slide {$slideid}", DEBUG_DEVELOPER);
-
             \core\task\manager::queue_adhoc_task($task);
-
-            debugging("ClassEngage: Generation task queued successfully for slide {$slideid}", DEBUG_DEVELOPER);
 
             $response = [
                 'success' => true,
                 'status' => 'pending',
                 'progress' => 5,
-                'message' => 'Question generation queued successfully. Check status with nlpstatus action.'
+                'message' => 'Question generation queued successfully. Check status with nlpstatus action.',
             ];
             break;
 
         case 'generatenlp':
-            // SIMPLIFIED: Just inspect + generate in one flow
             require_capability('mod/classengage:uploadslides', $context);
 
-            // Prevent duplicate generation if already running.
-            if (($slide->nlp_job_status ?? 'idle') === 'running') {
+            if (in_array(($slide->nlp_job_status ?? 'idle'), ['pending', 'running', 'inspecting'], true)) {
                 $response = [
-                    'success' => false,
-                    'error' => 'Generation already in progress for this slide'
+                    'success' => true,
+                    'status' => $slide->nlp_job_status,
+                    'progress' => (int)($slide->nlp_job_progress ?? 0),
+                    'message' => 'Generation already in progress for this slide',
                 ];
                 break;
             }
 
-            // Check if already completed - allow regeneration by resetting first
+            $options = mod_classengage_build_default_generation_options();
+
             if (($slide->nlp_job_status ?? 'idle') === 'completed') {
                 $DB->delete_records('classengage_questions', ['slideid' => $slideid]);
             }
 
-            // Queue inspection task first (it will queue generation after)
-            $DB->update_record('classengage_slides', (object) [
-                'id' => $slideid,
-                'nlp_job_status' => 'inspecting',
+            if (mod_classengage_should_run_inline($context->id, $slideid, $options)) {
+                $response = mod_classengage_perform_inline_generation(
+                    $slideid,
+                    $classengage->id,
+                    $context->id,
+                    $options
+                );
+                break;
+            }
+
+            $metadata = json_decode($slide->nlp_generation_metadata ?? '', true);
+
+            mod_classengage_update_slide_job($slideid, [
+                'nlp_job_status' => 'pending',
                 'nlp_job_progress' => 5,
                 'nlp_job_error' => null,
-                'timemodified' => time()
+                'nlp_job_started' => null,
+                'nlp_job_completed' => null,
             ]);
 
-            // Queue inspection task with auto-generate flag
-            $task = new \mod_classengage\task\inspect_document_task();
-            $task->set_custom_data([
+            $task = new \mod_classengage\task\generate_nlp_task();
+            $customdata = [
                 'slideid' => $slideid,
                 'classengageid' => $classengage->id,
                 'contextid' => $context->id,
-                'auto_generate' => true,  // Auto-queue generation after inspection
-                'options' => []
-            ]);
+                'options' => $options,
+            ];
+
+            if (!empty($metadata['docId'])) {
+                $customdata['docid'] = $metadata['docId'];
+                $customdata['inspection_data'] = $metadata;
+            }
+
+            $task->set_custom_data($customdata);
             $task->set_component('mod_classengage');
             \core\task\manager::queue_adhoc_task($task);
 
             $response = [
                 'success' => true,
-                'status' => 'inspecting',
-                'message' => 'Document inspection started. Generation will begin automatically after inspection.'
+                'status' => 'pending',
+                'progress' => 5,
+                'message' => 'Question generation queued successfully. Check status with nlpstatus action.',
             ];
             break;
 

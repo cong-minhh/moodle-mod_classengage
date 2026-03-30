@@ -68,6 +68,9 @@ if (!empty($options['help'])) {
 
 $generator = new \mod_classengage\nlp_generator();
 $pdftools = $generator->check_pdf_tools();
+$pdfmode = $generator->get_pdf_text_extraction_mode();
+$activepdfbackend = $generator->get_active_pdf_text_backend();
+$executionmode = (string)(get_config('mod_classengage', 'nlpexecutionmode') ?: 'auto');
 
 $providers = [
     'gemini' => 'geminiapikey',
@@ -87,22 +90,36 @@ foreach ($providers as $name => $configkey) {
     }
 }
 
+$pdfbackendready = false;
+if ($pdfmode === 'external') {
+    $pdfbackendready = !empty($pdftools['shell_exec']) && !empty($pdftools['pdftotext']);
+} else if ($pdfmode === 'bundled') {
+    $pdfbackendready = !empty($pdftools['pdfparser']);
+} else {
+    $pdfbackendready = (
+        (!empty($pdftools['shell_exec']) && !empty($pdftools['pdftotext'])) ||
+        !empty($pdftools['pdfparser'])
+    );
+}
+
 $results = [
     'PHP CLI bootstrap' => true,
+    'PDF text backend ready' => $pdfbackendready,
     'shell_exec()' => !empty($pdftools['shell_exec']),
     'pdftotext' => !empty($pdftools['pdftotext']),
+    'Bundled PDF parser' => !empty($pdftools['pdfparser']),
     'pdfinfo' => !empty($pdftools['pdfinfo']),
     'Imagick' => !empty($pdftools['imagick']),
     'ZipArchive' => class_exists('\ZipArchive'),
-    'AI provider configured' => !empty($configuredproviders),
+    'Built-in question generator' => true,
+    'External AI provider configured' => !empty($configuredproviders),
 ];
 
 $required = [
     'PHP CLI bootstrap',
-    'shell_exec()',
-    'pdftotext',
+    'PDF text backend ready',
     'ZipArchive',
-    'AI provider configured',
+    'Built-in question generator',
 ];
 
 $user = 'unknown';
@@ -119,6 +136,9 @@ cli_writeln('Moodle dirroot: ' . $CFG->dirroot);
 cli_writeln('PHP binary: ' . PHP_BINARY);
 cli_writeln('PHP version: ' . PHP_VERSION);
 cli_writeln('User: ' . $user);
+cli_writeln('User-triggered execution mode: ' . $executionmode);
+cli_writeln('PDF mode: ' . $pdfmode);
+cli_writeln('Preferred PDF backend in this runtime: ' . $activepdfbackend);
 cli_writeln('');
 
 foreach ($results as $label => $ok) {
@@ -128,9 +148,10 @@ foreach ($results as $label => $ok) {
 
 cli_writeln('');
 if (!empty($configuredproviders)) {
-    cli_writeln('Configured AI providers: ' . implode(', ', $configuredproviders));
+    cli_writeln('Configured external AI providers: ' . implode(', ', $configuredproviders));
 } else {
-    cli_writeln('Configured AI providers: none');
+    cli_writeln('Configured external AI providers: none');
+    cli_writeln('Question generation will fall back to the built-in generator.');
 }
 
 $missingrequired = [];

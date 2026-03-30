@@ -697,14 +697,26 @@ $string['referenceimage'] = 'Reference Image';
 
 // AI Provider Settings
 $string['settings:ai_providers'] = 'AI Question Generation Providers';
-$string['settings:ai_providers_desc'] = 'Configure multiple AI providers for question generation. The system will automatically fall back to the next available provider if one fails.';
+$string['settings:ai_providers_desc'] = 'Configure external AI providers for higher-quality generation. If no external provider is available, ClassEngage falls back to its built-in generator.';
 $string['settings:nlpendpoint_deprecated'] = 'Note: External Node.js NLP service is deprecated. The plugin now uses built-in PHP providers (see below).';
 $string['settings:nlpdefaultprovider'] = 'Default Provider';
-$string['settings:nlpdefaultprovider_desc'] = 'The primary AI provider to use for question generation';
+$string['settings:nlpdefaultprovider_desc'] = 'The primary generator to try first. External providers can fall back to the built-in generator automatically.';
 $string['settings:nlpproviderpriority'] = 'Provider Fallback Priority';
-$string['settings:nlpproviderpriority_desc'] = 'Comma-separated list of provider names in fallback order (e.g., gemini,openai,anthropic)';
+$string['settings:nlpproviderpriority_desc'] = 'Comma-separated list of provider names in fallback order (e.g., gemini,openai,anthropic,builtin)';
 $string['settings:nlprequesttimeout'] = 'Request Timeout (seconds)';
 $string['settings:nlprequesttimeout_desc'] = 'Maximum time to wait for AI provider response';
+$string['settings:pdfprocessing'] = 'PDF Processing';
+$string['settings:pdfprocessing_desc'] = 'Choose how ClassEngage extracts text from PDFs. Auto mode prefers external tools when available, but falls back to the bundled parser.';
+$string['settings:pdftextmode'] = 'PDF Text Extraction Mode';
+$string['settings:pdftextmode_desc'] = 'Auto uses pdftotext when available and falls back to the bundled parser. External requires Poppler tools. Bundled keeps processing fully inside the plugin.';
+$string['settings:pdftextmode:auto'] = 'Auto-detect external tools, then fall back to bundled parser';
+$string['settings:pdftextmode:external'] = 'External tools only (shell_exec + pdftotext)';
+$string['settings:pdftextmode:bundled'] = 'Bundled parser only (plugin-contained)';
+$string['settings:nlpexecutionmode'] = 'User-Triggered Execution Mode';
+$string['settings:nlpexecutionmode_desc'] = 'Controls how user-triggered inspection and question generation requests run. Auto prefers inline execution for normal first-run usage and falls back to background tasks for larger workloads.';
+$string['settings:nlpexecutionmode:auto'] = 'Auto: inline for normal requests, background for larger jobs';
+$string['settings:nlpexecutionmode:background'] = 'Background tasks only';
+$string['settings:nlpexecutionmode:inline'] = 'Inline request execution';
 
 // Provider-specific settings
 $string['settings:gemini'] = 'Google Gemini';
@@ -757,9 +769,11 @@ $string['settings:kimicnendpoint_desc'] = 'Kimi China API base URL';
 
 $string['settings:local'] = 'Local/Ollama';
 $string['settings:localendpoint'] = 'Ollama Endpoint';
-$string['settings:localendpoint_desc'] = 'Your local Ollama server URL (e.g., http://localhost:11434)';
+$string['settings:localendpoint_desc'] = 'Your external Ollama server URL (e.g., http://localhost:11434)';
 $string['settings:localmodel'] = 'Ollama Model';
 $string['settings:localmodel_desc'] = 'The Ollama model to use (e.g., qwen3-vl:4b)';
+$string['settings:builtin'] = 'Built-in Fallback Generator';
+$string['settings:builtin_desc'] = 'No external API key or separate AI server is required. This mode generates questions from extracted text entirely inside the plugin and is used automatically when external providers are unavailable.';
 
 // NLP Diagnostics
 

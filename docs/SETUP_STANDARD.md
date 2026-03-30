@@ -10,22 +10,25 @@ For the current NLP pipeline, that means:
 
 - Moodle cron is enabled and runs reliably
 - the Moodle CLI runtime can bootstrap the same site as the web runtime
-- `shell_exec` is enabled for the task runner
-- `pdftotext` is installed for PDF text extraction
 - `ZipArchive` is available for PPTX and DOCX processing
-- at least one AI provider is configured
+- PDF text extraction is available through either:
+  - external tools (`shell_exec` + `pdftotext`), or
+  - the bundled PDF parser included with the plugin package
+- no external AI provider is required for text-based generation because the plugin includes a built-in fallback generator
 
 Recommended for full PDF previews:
 
 - `pdfinfo`
 - PHP `Imagick`
 - ImageMagick policy that allows PDF reads
+- an external AI provider for higher-quality or image-only generation
 
 ## Install The Plugin
 
 1. Copy the plugin into `mod/classengage`.
 2. Visit **Site administration > Notifications** to complete installation.
-3. Configure an AI provider in **Site administration > Plugins > Activity modules > In-class Learning Engagement**.
+3. Set **PDF Text Extraction Mode** to `auto` or `bundled` in **Site administration > Plugins > Activity modules > In-class Learning Engagement**.
+4. Optionally configure an external AI provider if you want higher-quality or multimodal generation.
 
 ## Install Server Dependencies
 
@@ -37,6 +40,8 @@ Debian or Ubuntu example:
 sudo apt-get update
 sudo apt-get install -y poppler-utils php-zip
 ```
+
+If you want the plugin to stay self-contained, you can leave Poppler uninstalled and use the bundled PDF parser instead. `php-zip` is still required for PPTX and DOCX support.
 
 Optional preview support:
 
@@ -100,12 +105,14 @@ php /path/to/moodle/mod/classengage/cli/runtime_check.php
 This verifies:
 
 - PHP CLI bootstrap
-- `shell_exec`
-- `pdftotext`
+- the active PDF backend for the selected mode
+- `shell_exec` and `pdftotext` when external mode is selected
+- the bundled PDF parser when bundled mode is selected
 - `pdfinfo`
 - `Imagick`
 - `ZipArchive`
-- configured AI providers
+- built-in generator availability
+- configured external AI providers
 
 ## Operational Notes
 

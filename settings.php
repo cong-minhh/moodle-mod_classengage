@@ -25,6 +25,36 @@
 defined('MOODLE_INTERNAL') || die();
 
 if ($ADMIN->fulltree) {
+    $settings->add(new admin_setting_heading(
+        'mod_classengage/pdfprocessing_heading',
+        get_string('settings:pdfprocessing', 'mod_classengage'),
+        get_string('settings:pdfprocessing_desc', 'mod_classengage')
+    ));
+
+    $settings->add(new admin_setting_configselect(
+        'mod_classengage/pdftextmode',
+        get_string('settings:pdftextmode', 'mod_classengage'),
+        get_string('settings:pdftextmode_desc', 'mod_classengage'),
+        'auto',
+        [
+            'auto' => get_string('settings:pdftextmode:auto', 'mod_classengage'),
+            'external' => get_string('settings:pdftextmode:external', 'mod_classengage'),
+            'bundled' => get_string('settings:pdftextmode:bundled', 'mod_classengage'),
+        ]
+    ));
+
+    $settings->add(new admin_setting_configselect(
+        'mod_classengage/nlpexecutionmode',
+        get_string('settings:nlpexecutionmode', 'mod_classengage'),
+        get_string('settings:nlpexecutionmode_desc', 'mod_classengage'),
+        'auto',
+        [
+            'auto' => get_string('settings:nlpexecutionmode:auto', 'mod_classengage'),
+            'background' => get_string('settings:nlpexecutionmode:background', 'mod_classengage'),
+            'inline' => get_string('settings:nlpexecutionmode:inline', 'mod_classengage'),
+        ]
+    ));
+
     // Legacy NLP Service Settings (deprecated, kept for compatibility)
     $settings->add(new admin_setting_heading(
         'mod_classengage/nlpheading',
@@ -75,6 +105,7 @@ if ($ADMIN->fulltree) {
             'kimi' => 'Kimi (Global)',
             'kimicn' => 'Kimi (China)',
             'local' => 'Local/Ollama',
+            'builtin' => get_string('settings:builtin', 'mod_classengage'),
         ]
     ));
 
@@ -82,7 +113,7 @@ if ($ADMIN->fulltree) {
         'mod_classengage/nlpproviderpriority',
         get_string('settings:nlpproviderpriority', 'mod_classengage'),
         get_string('settings:nlpproviderpriority_desc', 'mod_classengage'),
-        'gemini,openai,anthropic,deepseek,kimi,kimicn,local'
+        'gemini,openai,anthropic,deepseek,kimi,kimicn,local,builtin'
     ));
 
     $settings->add(new admin_setting_configtext(
@@ -280,6 +311,12 @@ if ($ADMIN->fulltree) {
         get_string('settings:localmodel', 'mod_classengage'),
         get_string('settings:localmodel_desc', 'mod_classengage'),
         'qwen3-vl:4b'
+    ));
+
+    $settings->add(new admin_setting_heading(
+        'mod_classengage/builtin_heading',
+        get_string('settings:builtin', 'mod_classengage'),
+        get_string('settings:builtin_desc', 'mod_classengage')
     ));
 
     $settings->add(new admin_setting_configcheckbox(

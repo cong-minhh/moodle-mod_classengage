@@ -18,25 +18,28 @@ The runtime that executes background tasks must provide:
 
 - Moodle cron
 - PHP CLI access to the same Moodle site
-- `shell_exec`
-- `pdftotext`
 - `ZipArchive`
-- one configured AI provider
+- one working PDF text backend:
+  - external Poppler tools (`shell_exec` + `pdftotext`), or
+  - the bundled PDF parser included with the plugin package
+- no external AI provider is required for standard text-based generation
 
 Recommended:
 
 - `pdfinfo`
 - PHP `Imagick`
+- an external AI provider for higher-quality or multimodal generation
 
 ## Choose Your Deployment
 
 ### Option A: Standard Moodle Server
 
 1. Install the plugin into `mod/classengage`.
-2. Install `poppler-utils` and `php-zip` on the server.
-3. Configure Moodle cron every minute.
-4. Optionally run `mod/classengage/classes/task/task_worker.php` as a long-running service.
-5. Configure an AI provider in plugin settings.
+2. Install `php-zip` on the server.
+3. If you want the external PDF backend, also install `poppler-utils`. Otherwise keep the plugin in `auto` or `bundled` PDF mode.
+4. Configure Moodle cron every minute.
+5. Optionally run `mod/classengage/classes/task/task_worker.php` as a long-running service.
+6. Optionally configure an external AI provider in plugin settings.
 
 ### Option B: Docker With Sidecar Worker
 
@@ -44,7 +47,7 @@ Recommended:
 2. Add a worker container and a cron container.
 3. Mount the same Moodle code and `moodledata` into webserver, worker, and cron.
 4. Ensure all containers point at the same database and `config.php`.
-5. Configure an AI provider in plugin settings.
+5. Optionally configure an external AI provider in plugin settings.
 
 ## Verification
 

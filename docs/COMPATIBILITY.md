@@ -17,12 +17,14 @@ This document describes ClassEngage compatibility in capability terms rather tha
 |------------|-----------------------------|-------------------------|-------|
 | Moodle cron | Yes | Yes | Required for scheduled tasks and fallback adhoc execution |
 | PHP CLI bootstrap | Yes | Yes | Needed by cron and the optional worker |
-| `shell_exec` | Yes | No | Used for PDF tooling detection and execution |
-| `pdftotext` | Yes | No | Required for current PDF text extraction pipeline |
+| `shell_exec` | Sometimes | No | Required only when PDF mode is set to `external` |
+| `pdftotext` | Sometimes | No | Required only when PDF mode is set to `external` |
+| Bundled PDF parser | Sometimes | No | Required only when PDF mode is set to `bundled`; `auto` can use either backend |
 | `pdfinfo` | No | No | Recommended for better PDF page counting |
 | `ZipArchive` | No | Yes | Required for PPTX and DOCX inspection |
 | PHP `Imagick` | No | No | Recommended for PDF previews |
-| AI provider configuration | Yes | Yes | At least one provider must be configured |
+| Built-in generator | Yes | Yes | Included in the plugin for text-based generation |
+| External AI provider configuration | No | No | Optional, but recommended for better quality and image-heavy material |
 
 ## Execution Models
 
@@ -46,3 +48,5 @@ php /path/to/moodle/mod/classengage/cli/runtime_check.php
 Present the plugin requirements like this:
 
 > ClassEngage works on both standard Moodle and Dockerized Moodle. Docker is optional. The key requirement is that the runtime executing background tasks has Moodle cron plus the PDF and AI dependencies needed by the current NLP pipeline.
+> 
+> For the self-contained path, use the bundled PDF parser and built-in generator. External AI services are optional.

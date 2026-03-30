@@ -41,8 +41,10 @@ class nlp_generator {
     private const CACHE_SUBDIR = 'mod_classengage_nlp';
     /** @var string File area used for extracted image assets. */
     private const ASSET_FILEAREA = 'nlpassets';
+    /** @var string Built-in heuristic generator model label. */
+    private const BUILTIN_MODEL = 'classengage-builtin-v1';
     /** @var array Supported provider identifiers. */
-    private const PROVIDERS = ['gemini', 'openai', 'anthropic', 'deepseek', 'kimi', 'kimicn', 'local'];
+    private const PROVIDERS = ['gemini', 'openai', 'anthropic', 'deepseek', 'kimi', 'kimicn', 'local', 'builtin'];
 
     /**
      * Inspect document content and return pages/images inventory.
@@ -172,7 +174,13 @@ class nlp_generator {
         }
 
         $prompt = $this->build_generation_prompt($text, $images, $options, $numquestions);
-        $providerresponse = $this->request_provider_response($prompt, $images, 'questions');
+        $providerresponse = $this->request_provider_response($prompt, $images, 'questions', [
+            'text' => $text,
+            'images' => $images,
+            'selectedslides' => $generationinput['selectedslides'],
+            'options' => $options,
+            'numquestions' => $numquestions,
+        ]);
 
         $parsed = $this->parse_questions_response(
             $providerresponse['text'],
@@ -300,7 +308,13 @@ class nlp_generator {
         ];
 
         $prompt = $this->build_generation_prompt($text, [], $options, (int)$options['numQuestions']);
-        $providerresponse = $this->request_provider_response($prompt, [], 'questions');
+        $providerresponse = $this->request_provider_response($prompt, [], 'questions', [
+            'text' => $text,
+            'images' => [],
+            'selectedslides' => [],
+            'options' => $options,
+            'numquestions' => (int)$options['numQuestions'],
+        ]);
         $parsed = $this->parse_questions_response($providerresponse['text'], (int)$options['numQuestions'], [], [], $options);
 
         return $this->store_questions($parsed['questions'], $classengageid, 0);
@@ -315,7 +329,10 @@ class nlp_generator {
      */
     public function analyze_session($sessiondata, $options = []) {
         $prompt = $this->build_analysis_prompt($sessiondata, $options);
-        $response = $this->request_provider_response($prompt, [], 'text');
+        $response = $this->request_provider_response($prompt, [], 'text', [
+            'sessiondata' => $sessiondata,
+            'options' => $options,
+        ]);
 
         $parsed = $this->try_decode_json_payload($response['text']);
         if (!is_array($parsed)) {
@@ -373,6 +390,7 @@ class nlp_generator {
             'pdfinfo' => false,
             'imagick' => false,
             'shell_exec' => false,
+            'pdfparser' => $this->bundled_pdf_parser_available(),
         ];
 
         if (function_exists('shell_exec')) {
@@ -384,6 +402,43 @@ class nlp_generator {
         $status['imagick'] = class_exists('\Imagick');
 
         return $status;
+    }
+
+    /**
+     * Get the configured PDF text extraction mode.
+     *
+     * Modes:
+     * - auto: use external tools when available, otherwise bundled parser
+     * - external: require pdftotext
+     * - bundled: always use the bundled parser
+     *
+     * @return string
+     */
+    public function get_pdf_text_extraction_mode(): string {
+        $mode = (string)(\get_config('mod_classengage', 'pdftextmode') ?: 'auto');
+        if (!in_array($mode, ['auto', 'external', 'bundled'], true)) {
+            return 'auto';
+        }
+        return $mode;
+    }
+
+    /**
+     * Get the backend that would currently be used for PDF text extraction.
+     *
+     * @return string
+     */
+    public function get_active_pdf_text_backend(): string {
+        $mode = $this->get_pdf_text_extraction_mode();
+        if ($mode !== 'auto') {
+            return $mode;
+        }
+
+        $tools = $this->check_pdf_tools();
+        if (!empty($tools['shell_exec']) && !empty($tools['pdftotext'])) {
+            return 'external';
+        }
+
+        return 'bundled';
     }
 
     /**
@@ -427,19 +482,25 @@ class nlp_generator {
 
         // Check if required tools are available.
         $tools = $this->check_pdf_tools();
-        $missingTools = [];
+        $mode = $this->get_pdf_text_extraction_mode();
 
-        if (!$tools['shell_exec']) {
-            $missingTools[] = 'shell_exec (PHP function)';
-        }
-        if (!$tools['pdftotext']) {
-            $missingTools[] = 'pdftotext (Poppler utils)';
+        if ($mode === 'external' && (!$tools['shell_exec'] || !$tools['pdftotext'])) {
+            throw new \Exception(
+                'PDF extraction mode is set to external, but shell_exec() or pdftotext is not available. ' .
+                'Switch the plugin to bundled or auto mode, or install the external PDF tools.'
+            );
         }
 
-        if (!empty($missingTools)) {
-            $errorMsg = 'PDF extraction requires the following tools which are not available: ' . implode(', ', $missingTools) . '. ';
-            $errorMsg .= 'Install the required packages on the server or in the worker/container image that executes background tasks.';
-            throw new \Exception($errorMsg);
+        if ($mode === 'bundled' && !$tools['pdfparser']) {
+            throw new \Exception(
+                'PDF extraction mode is set to bundled, but the bundled PDF parser is not available in this plugin installation.'
+            );
+        }
+
+        if ($mode === 'auto' && !$tools['pdftotext'] && !$tools['pdfparser']) {
+            throw new \Exception(
+                'PDF extraction requires either pdftotext or the bundled PDF parser, but neither is available in this runtime.'
+            );
         }
 
         $texts = $this->extract_pdf_text_by_page($filepath);
@@ -869,7 +930,12 @@ class nlp_generator {
      * @param string $mode questions|text
      * @return array
      */
-    private function request_provider_response(string $prompt, array $images, string $mode = 'questions'): array {
+    private function request_provider_response(
+        string $prompt,
+        array $images,
+        string $mode = 'questions',
+        array $context = []
+    ): array {
         $order = $this->get_provider_order();
         $errors = [];
 
@@ -880,7 +946,11 @@ class nlp_generator {
             }
 
             try {
-                if ($mode === 'text') {
+                if ($provider === 'builtin') {
+                    $result = $mode === 'text'
+                        ? $this->call_builtin_text($context)
+                        : $this->call_builtin_questions($context);
+                } else if ($mode === 'text') {
                     $result = $this->call_provider_text($provider, $config, $prompt);
                 } else {
                     $result = $this->call_provider_questions($provider, $config, $prompt, $images);
@@ -898,7 +968,7 @@ class nlp_generator {
         }
 
         if (empty($errors)) {
-            throw new \Exception('No NLP providers configured. Configure API keys in plugin settings.');
+            throw new \Exception('No question-generation providers are available in this runtime.');
         }
 
         throw new \Exception('All configured NLP providers failed: ' . implode(' | ', $errors));
@@ -1262,6 +1332,681 @@ class nlp_generator {
             'text' => $text,
             'model' => $model,
         ];
+    }
+
+    /**
+     * Call the built-in heuristic question generator.
+     *
+     * @param array $context
+     * @return array
+     */
+    private function call_builtin_questions(array $context): array {
+        $text = $this->normalize_text((string)($context['text'] ?? ''));
+        $images = !empty($context['images']) && is_array($context['images']) ? $context['images'] : [];
+        $selectedslides = !empty($context['selectedslides']) && is_array($context['selectedslides'])
+            ? $context['selectedslides']
+            : [];
+        $options = !empty($context['options']) && is_array($context['options']) ? $context['options'] : [];
+        $numquestions = max(1, (int)($context['numquestions'] ?? 5));
+
+        $questions = $this->generate_builtin_questions($text, $images, $selectedslides, $options, $numquestions);
+
+        return [
+            'text' => json_encode(['questions' => $questions], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            'model' => self::BUILTIN_MODEL,
+        ];
+    }
+
+    /**
+     * Call the built-in session analysis generator.
+     *
+     * @param array $context
+     * @return array
+     */
+    private function call_builtin_text(array $context): array {
+        $sessiondata = !empty($context['sessiondata']) && is_array($context['sessiondata'])
+            ? $context['sessiondata']
+            : [];
+
+        return [
+            'text' => json_encode(
+                $this->build_builtin_session_analysis($sessiondata),
+                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+            ),
+            'model' => self::BUILTIN_MODEL,
+        ];
+    }
+
+    /**
+     * Generate multiple-choice questions without an external AI provider.
+     *
+     * @param string $text
+     * @param array $images
+     * @param array $selectedslides
+     * @param array $options
+     * @param int $numquestions
+     * @return array
+     */
+    private function generate_builtin_questions(
+        string $text,
+        array $images,
+        array $selectedslides,
+        array $options,
+        int $numquestions
+    ): array {
+        if ($text === '') {
+            throw new \Exception(
+                'Built-in question generation requires extractable text. ' .
+                'For image-only content, configure an external multimodal provider.'
+            );
+        }
+
+        $passages = $this->extract_builtin_passages($text);
+        if (empty($passages)) {
+            throw new \Exception('Built-in question generation could not find enough usable source sentences.');
+        }
+
+        $termbank = $this->build_builtin_term_bank($text, $passages);
+        if (count($termbank) < 4) {
+            throw new \Exception('Built-in question generation needs more distinct terms in the selected content.');
+        }
+
+        $defaultdifficulty = $this->normalize_difficulty((string)($options['difficulty'] ?? 'medium'));
+        if ($defaultdifficulty === 'mixed') {
+            $defaultdifficulty = 'medium';
+        }
+
+        $defaultbloom = $this->normalize_bloom_level((string)($options['bloomLevel'] ?? 'remember'));
+        if ($defaultbloom === '') {
+            $defaultbloom = 'remember';
+        }
+
+        $difficulties = $this->build_builtin_distribution_sequence(
+            $options['difficultyDistribution'] ?? null,
+            ['easy', 'medium', 'hard'],
+            $numquestions,
+            $defaultdifficulty
+        );
+
+        $blooms = $this->build_builtin_distribution_sequence(
+            $options['bloomDistribution'] ?? null,
+            ['remember', 'understand', 'apply', 'analyze', 'evaluate', 'create'],
+            $numquestions,
+            $defaultbloom
+        );
+
+        $questions = [];
+        $usedanswers = [];
+        $usedstems = [];
+        $defaultimageid = count($images) === 1 && !empty($images[0]['imageId'])
+            ? (string)$images[0]['imageId']
+            : null;
+
+        foreach ($passages as $passage) {
+            if (count($questions) >= $numquestions) {
+                break;
+            }
+
+            $answer = $this->select_builtin_answer_term($passage, $termbank);
+            if ($answer === '') {
+                continue;
+            }
+
+            $answerkey = \core_text::strtolower($answer);
+            if (isset($usedanswers[$answerkey])) {
+                continue;
+            }
+
+            $distractors = $this->build_builtin_distractors($answer, $termbank, $passage);
+            if (count($distractors) < 3) {
+                continue;
+            }
+
+            $stem = $this->build_builtin_question_stem($passage, $answer, $blooms[count($questions)]);
+            $stemkey = \core_text::strtolower($stem);
+            if (isset($usedstems[$stemkey])) {
+                continue;
+            }
+
+            $choices = [$answer, $distractors[0], $distractors[1], $distractors[2]];
+            $choices = $this->stable_sort_builtin_choices($choices, $passage . '|' . $answer);
+
+            $optionletters = ['A', 'B', 'C', 'D'];
+            $correctanswer = 'A';
+            $row = [
+                'questiontext' => $stem,
+                'difficulty' => $difficulties[count($questions)],
+                'cognitive_level' => $blooms[count($questions)],
+                'rationale' => 'The source states: ' . $passage,
+            ];
+
+            foreach ($optionletters as $index => $letter) {
+                $row['option' . strtolower($letter)] = $choices[$index];
+                if ($choices[$index] === $answer) {
+                    $correctanswer = $letter;
+                }
+            }
+
+            if ($defaultimageid !== null) {
+                $row['question_image'] = $defaultimageid;
+            }
+
+            $row['correctanswer'] = $correctanswer;
+            $questions[] = $row;
+            $usedanswers[$answerkey] = true;
+            $usedstems[$stemkey] = true;
+        }
+
+        if (count($questions) < $numquestions) {
+            foreach ($termbank as $term => $score) {
+                if (count($questions) >= $numquestions) {
+                    break;
+                }
+
+                $passage = $this->find_builtin_passage_for_term($passages, $term);
+                if ($passage === '') {
+                    continue;
+                }
+
+                $answerkey = \core_text::strtolower($term);
+                if (isset($usedanswers[$answerkey])) {
+                    continue;
+                }
+
+                $distractors = $this->build_builtin_distractors($term, $termbank, $passage);
+                if (count($distractors) < 3) {
+                    continue;
+                }
+
+                $stem = $this->build_builtin_question_stem($passage, $term, $blooms[count($questions)]);
+                $stemkey = \core_text::strtolower($stem);
+                if (isset($usedstems[$stemkey])) {
+                    continue;
+                }
+
+                $choices = [$term, $distractors[0], $distractors[1], $distractors[2]];
+                $choices = $this->stable_sort_builtin_choices($choices, $passage . '|' . $term);
+
+                $row = [
+                    'questiontext' => $stem,
+                    'difficulty' => $difficulties[count($questions)],
+                    'cognitive_level' => $blooms[count($questions)],
+                    'rationale' => 'The source states: ' . $passage,
+                ];
+
+                foreach (['A', 'B', 'C', 'D'] as $index => $letter) {
+                    $row['option' . strtolower($letter)] = $choices[$index];
+                    if ($choices[$index] === $term) {
+                        $row['correctanswer'] = $letter;
+                    }
+                }
+
+                if ($defaultimageid !== null) {
+                    $row['question_image'] = $defaultimageid;
+                }
+
+                $questions[] = $row;
+                $usedanswers[$answerkey] = true;
+                $usedstems[$stemkey] = true;
+            }
+        }
+
+        if (empty($questions)) {
+            throw new \Exception('Built-in question generation could not build a valid multiple-choice set from the selected text.');
+        }
+
+        return $questions;
+    }
+
+    /**
+     * Build a heuristic session analysis without an external AI provider.
+     *
+     * @param array $sessiondata
+     * @return array
+     */
+    private function build_builtin_session_analysis(array $sessiondata): array {
+        $engagement = !empty($sessiondata['engagement']) && is_array($sessiondata['engagement'])
+            ? $sessiondata['engagement']
+            : [];
+        $comprehension = !empty($sessiondata['comprehension']) && is_array($sessiondata['comprehension'])
+            ? $sessiondata['comprehension']
+            : [];
+
+        $participants = (int)($engagement['unique_participants'] ?? $engagement['participants'] ?? 0);
+        $participation = (float)($engagement['participation_rate'] ?? $engagement['participationrate'] ?? 0);
+        $correctness = (float)($comprehension['avg_correctness'] ?? $comprehension['correctness'] ?? 0);
+        $responsetime = (float)($engagement['avg_response_time'] ?? $engagement['avgresponsetime'] ?? 0);
+
+        if ($participants === 0 && $participation <= 0 && $correctness <= 0) {
+            return [
+                'summary' => 'No student response data is available yet. Wait until learners participate before relying on the analytics view.',
+                'strengths' => [],
+                'areas_for_improvement' => ['There is not enough evidence yet to judge engagement or comprehension.'],
+                'actionable_advice' => [
+                    'Run at least one question cycle and collect responses before using the analytics summary.',
+                    'Encourage students to join the activity early so the first analytics snapshot is meaningful.',
+                ],
+            ];
+        }
+
+        $summaryparts = [];
+        $summaryparts[] = $participants > 0
+            ? $participants . ' student(s) participated in this session.'
+            : 'Participation data is limited.';
+
+        if ($correctness >= 75) {
+            $summaryparts[] = 'Overall comprehension appears strong.';
+        } else if ($correctness >= 50) {
+            $summaryparts[] = 'Overall comprehension is mixed.';
+        } else {
+            $summaryparts[] = 'Overall comprehension appears weak and needs reinforcement.';
+        }
+
+        if ($participation > 0) {
+            $summaryparts[] = 'Observed participation rate: ' . round($participation, 1) . '%.';
+        }
+
+        $strengths = [];
+        if ($participation >= 70) {
+            $strengths[] = 'Student participation was high across the session.';
+        }
+        if ($correctness >= 75) {
+            $strengths[] = 'Most students answered correctly, which suggests the core concepts were understood.';
+        }
+        if ($responsetime > 0 && $responsetime <= 20) {
+            $strengths[] = 'Responses were submitted quickly, which suggests students were confident.';
+        }
+
+        $improvements = [];
+        if ($participation > 0 && $participation < 50) {
+            $improvements[] = 'Participation was lower than expected, so some students may not be engaging consistently.';
+        }
+        if ($correctness > 0 && $correctness < 60) {
+            $improvements[] = 'Correctness is low enough that the main topic likely needs re-teaching or additional examples.';
+        }
+        if ($responsetime >= 35) {
+            $improvements[] = 'Students took a long time to respond, which may indicate uncertainty or unclear prompts.';
+        }
+
+        if (empty($strengths)) {
+            $strengths[] = 'The session produced enough data to identify participation and comprehension trends.';
+        }
+        if (empty($improvements)) {
+            $improvements[] = 'No major risk indicators were detected in the available session metrics.';
+        }
+
+        $advice = [];
+        if ($correctness < 60) {
+            $advice[] = 'Revisit the hardest concept with one worked example and one follow-up check question.';
+        }
+        if ($participation < 50) {
+            $advice[] = 'Use a short warm-up question at the start of the next session to increase early participation.';
+        }
+        if ($responsetime >= 35) {
+            $advice[] = 'Shorten the question wording or reduce the number of new ideas introduced per question.';
+        }
+        if (empty($advice)) {
+            $advice[] = 'Keep the current pacing and add one higher-order follow-up question to confirm durable understanding.';
+        }
+
+        return [
+            'summary' => implode(' ', $summaryparts),
+            'strengths' => array_values(array_unique($strengths)),
+            'areas_for_improvement' => array_values(array_unique($improvements)),
+            'actionable_advice' => array_values(array_unique($advice)),
+        ];
+    }
+
+    /**
+     * Extract candidate passages for built-in question generation.
+     *
+     * @param string $text
+     * @return array
+     */
+    private function extract_builtin_passages(string $text): array {
+        $text = str_replace(["\xE2\x80\xA2", "\xC2\xB7", "\t"], ["\n", "\n", ' '], $text);
+        $blocks = preg_split('/\n+/u', $text);
+        $passages = [];
+
+        foreach ($blocks as $block) {
+            $block = $this->normalize_text((string)$block);
+            if ($block === '') {
+                continue;
+            }
+
+            $parts = preg_split('/(?<=[.!?])\s+/u', $block);
+            if (!$parts) {
+                $parts = [$block];
+            }
+
+            foreach ($parts as $part) {
+                $candidate = $this->normalize_text((string)$part);
+                if ($candidate === '') {
+                    continue;
+                }
+
+                $wordcount = $this->builtin_word_count($candidate);
+                if ($wordcount < 6 || $wordcount > 40) {
+                    continue;
+                }
+
+                $length = \core_text::strlen($candidate);
+                if ($length < 35 || $length > 280) {
+                    continue;
+                }
+
+                if (preg_match('/^[0-9\W]+$/u', $candidate)) {
+                    continue;
+                }
+
+                $key = \core_text::strtolower($candidate);
+                $passages[$key] = $candidate;
+            }
+        }
+
+        return array_values($passages);
+    }
+
+    /**
+     * Build an importance-ranked term bank from the source text.
+     *
+     * @param string $text
+     * @param array $passages
+     * @return array
+     */
+    private function build_builtin_term_bank(string $text, array $passages): array {
+        $scores = [];
+        $stopwords = $this->get_builtin_stopwords();
+
+        if (preg_match_all('/\b(?:[A-Z][\p{L}\p{Mn}-]+|[A-Z]{2,})(?:\s+(?:[A-Z][\p{L}\p{Mn}-]+|[A-Z]{2,})){0,3}\b/u', $text, $matches)) {
+            foreach ($matches[0] as $phrase) {
+                $phrase = trim((string)$phrase);
+                if ($phrase === '' || \core_text::strlen($phrase) < 3) {
+                    continue;
+                }
+                $scores[$phrase] = ($scores[$phrase] ?? 0) + 8 + min(4, substr_count($phrase, ' '));
+            }
+        }
+
+        if (preg_match_all('/\b[\p{L}][\p{L}\p{Mn}-]{3,}\b/u', \core_text::strtolower($text), $matches)) {
+            foreach ($matches[0] as $word) {
+                if (isset($stopwords[$word])) {
+                    continue;
+                }
+                $term = trim((string)$word);
+                if ($term === '') {
+                    continue;
+                }
+                $scores[$term] = ($scores[$term] ?? 0) + 1;
+            }
+        }
+
+        foreach ($passages as $passage) {
+            $terms = $this->extract_builtin_sentence_terms($passage);
+            foreach ($terms as $term) {
+                $scores[$term] = ($scores[$term] ?? 0) + 4;
+            }
+        }
+
+        arsort($scores);
+        return array_slice($scores, 0, 120, true);
+    }
+
+    /**
+     * Extract sentence-level answer candidates.
+     *
+     * @param string $sentence
+     * @return array
+     */
+    private function extract_builtin_sentence_terms(string $sentence): array {
+        $terms = [];
+        $stopwords = $this->get_builtin_stopwords();
+
+        if (preg_match_all('/\b(?:[A-Z][\p{L}\p{Mn}-]+|[A-Z]{2,})(?:\s+(?:[A-Z][\p{L}\p{Mn}-]+|[A-Z]{2,})){0,2}\b/u', $sentence, $matches)) {
+            foreach ($matches[0] as $phrase) {
+                $phrase = trim((string)$phrase);
+                if ($phrase !== '' && \core_text::strlen($phrase) >= 3) {
+                    $terms[$phrase] = $phrase;
+                }
+            }
+        }
+
+        if (preg_match_all('/\b[\p{L}][\p{L}\p{Mn}-]{4,}\b/u', $sentence, $matches)) {
+            foreach ($matches[0] as $word) {
+                $normalized = \core_text::strtolower((string)$word);
+                if (isset($stopwords[$normalized])) {
+                    continue;
+                }
+                $terms[$normalized] = $word;
+            }
+        }
+
+        return array_values($terms);
+    }
+
+    /**
+     * Pick the best answer term for a sentence.
+     *
+     * @param string $sentence
+     * @param array $termbank
+     * @return string
+     */
+    private function select_builtin_answer_term(string $sentence, array $termbank): string {
+        $sentenceTerms = $this->extract_builtin_sentence_terms($sentence);
+        $bestterm = '';
+        $bestscore = -1;
+
+        foreach ($sentenceTerms as $term) {
+            $score = (int)($termbank[$term] ?? $termbank[\core_text::strtolower($term)] ?? 0);
+            if ($score <= 0) {
+                $score = $this->builtin_word_count($term) > 1 ? 4 : 1;
+            }
+
+            if (\core_text::strlen($term) > 18) {
+                $score += 2;
+            }
+
+            if ($score > $bestscore) {
+                $bestscore = $score;
+                $bestterm = $term;
+            }
+        }
+
+        return $bestterm;
+    }
+
+    /**
+     * Build distractors from the ranked term bank.
+     *
+     * @param string $answer
+     * @param array $termbank
+     * @param string $sentence
+     * @return array
+     */
+    private function build_builtin_distractors(string $answer, array $termbank, string $sentence): array {
+        $answerlower = \core_text::strtolower($answer);
+        $answerwords = $this->builtin_word_count($answer);
+        $answerlength = \core_text::strlen($answer);
+        $candidates = [];
+
+        foreach ($termbank as $term => $score) {
+            $candidate = (string)$term;
+            if ($this->builtin_terms_conflict($answerlower, $candidate)) {
+                continue;
+            }
+
+            $candidatelower = \core_text::strtolower($candidate);
+            if ($candidatelower === '') {
+                continue;
+            }
+
+            $rank = (int)$score;
+            $rank -= abs($this->builtin_word_count($candidate) - $answerwords) * 2;
+            $rank -= (int)floor(abs(\core_text::strlen($candidate) - $answerlength) / 6);
+
+            if (preg_match('/\b' . preg_quote($candidate, '/') . '\b/ui', $sentence)) {
+                $rank -= 2;
+            }
+
+            $candidates[$candidate] = $rank;
+        }
+
+        arsort($candidates);
+        $result = [];
+        foreach (array_keys($candidates) as $candidate) {
+            $candidatekey = \core_text::strtolower($candidate);
+            if (isset($result[$candidatekey])) {
+                continue;
+            }
+            $result[$candidatekey] = $candidate;
+            if (count($result) >= 3) {
+                break;
+            }
+        }
+
+        return array_values($result);
+    }
+
+    /**
+     * Build a question stem for a selected passage.
+     *
+     * @param string $sentence
+     * @param string $answer
+     * @param string $bloom
+     * @return string
+     */
+    private function build_builtin_question_stem(string $sentence, string $answer, string $bloom): string {
+        $replacement = preg_replace('/' . preg_quote($answer, '/') . '/u', '_____', $sentence, 1);
+        if (!is_string($replacement) || trim($replacement) === '') {
+            $replacement = $sentence;
+        }
+
+        $templates = [
+            'remember' => 'Which term best completes the following statement?',
+            'understand' => 'Which concept best fits the following explanation?',
+            'apply' => 'Based on the material, which option best completes the following statement?',
+            'analyze' => 'Which concept best matches the relationship described below?',
+            'evaluate' => 'Which option is most consistent with the statement below?',
+            'create' => 'Which idea from the material best completes the statement below?',
+        ];
+
+        $lead = $templates[$bloom] ?? $templates['remember'];
+        return $lead . "\n\n" . $replacement;
+    }
+
+    /**
+     * Find a representative passage for a term.
+     *
+     * @param array $passages
+     * @param string $term
+     * @return string
+     */
+    private function find_builtin_passage_for_term(array $passages, string $term): string {
+        foreach ($passages as $passage) {
+            if (preg_match('/\b' . preg_quote($term, '/') . '\b/ui', $passage)) {
+                return $passage;
+            }
+        }
+        return '';
+    }
+
+    /**
+     * Expand a configured distribution into a per-question sequence.
+     *
+     * @param mixed $distribution
+     * @param array $allowed
+     * @param int $count
+     * @param string $fallback
+     * @return array
+     */
+    private function build_builtin_distribution_sequence($distribution, array $allowed, int $count, string $fallback): array {
+        $normalized = $this->normalize_distribution($distribution, $allowed);
+        if (empty($normalized)) {
+            return array_fill(0, $count, $fallback);
+        }
+
+        $sequence = [];
+        foreach ($allowed as $item) {
+            $portion = max(0.0, min(1.0, (float)($normalized[$item] ?? 0)));
+            $target = (int)round($portion * $count);
+            for ($i = 0; $i < $target; $i++) {
+                $sequence[] = $item;
+            }
+        }
+
+        while (count($sequence) < $count) {
+            $sequence[] = $fallback;
+        }
+
+        return array_slice($sequence, 0, $count);
+    }
+
+    /**
+     * Deterministically order answer choices.
+     *
+     * @param array $choices
+     * @param string $seed
+     * @return array
+     */
+    private function stable_sort_builtin_choices(array $choices, string $seed): array {
+        usort($choices, static function(string $left, string $right) use ($seed): int {
+            $leftkey = sha1($seed . '|' . $left);
+            $rightkey = sha1($seed . '|' . $right);
+            return strcmp($leftkey, $rightkey);
+        });
+        return array_values($choices);
+    }
+
+    /**
+     * Count words in Unicode text.
+     *
+     * @param string $text
+     * @return int
+     */
+    private function builtin_word_count(string $text): int {
+        if (!preg_match_all('/\b[\p{L}\p{N}][\p{L}\p{N}\p{Mn}-]*\b/u', $text, $matches)) {
+            return 0;
+        }
+        return count($matches[0]);
+    }
+
+    /**
+     * Check whether two candidate terms are too similar to coexist as options.
+     *
+     * @param string $answerlower
+     * @param string $candidate
+     * @return bool
+     */
+    private function builtin_terms_conflict(string $answerlower, string $candidate): bool {
+        $candidatelower = \core_text::strtolower($candidate);
+        if ($candidatelower === $answerlower) {
+            return true;
+        }
+
+        if (strpos($answerlower, $candidatelower) !== false || strpos($candidatelower, $answerlower) !== false) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Common stopwords used by the built-in generator.
+     *
+     * @return array
+     */
+    private function get_builtin_stopwords(): array {
+        $words = [
+            'a', 'about', 'after', 'all', 'also', 'an', 'and', 'are', 'as', 'at', 'be', 'because', 'been', 'being',
+            'between', 'both', 'but', 'by', 'can', 'could', 'did', 'do', 'does', 'during', 'each', 'for', 'from',
+            'had', 'has', 'have', 'how', 'however', 'if', 'in', 'into', 'is', 'it', 'its', 'may', 'more', 'most',
+            'must', 'not', 'of', 'on', 'one', 'or', 'other', 'our', 'out', 'over', 'should', 'since', 'so', 'some',
+            'such', 'than', 'that', 'the', 'their', 'them', 'there', 'these', 'they', 'this', 'those', 'through',
+            'to', 'under', 'up', 'use', 'used', 'using', 'very', 'was', 'we', 'were', 'what', 'when', 'where',
+            'which', 'while', 'who', 'why', 'will', 'with', 'within', 'without', 'would', 'you', 'your'
+        ];
+
+        return array_fill_keys($words, true);
     }
 
     /**
@@ -1867,7 +2612,7 @@ class nlp_generator {
     private function get_provider_order(): array {
         $default = (string)(\get_config('mod_classengage', 'nlpdefaultprovider') ?: 'gemini');
         $prioritycsv = (string)(\get_config('mod_classengage', 'nlpproviderpriority')
-            ?: 'gemini,openai,anthropic,deepseek,kimi,kimicn,local');
+            ?: 'gemini,openai,anthropic,deepseek,kimi,kimicn,local,builtin');
 
         $priority = array_values(array_filter(array_map('trim', explode(',', strtolower($prioritycsv)))));
         $ordered = [];
@@ -1960,6 +2705,14 @@ class nlp_generator {
                     'timeout' => max($timeout, 180),
                 ];
 
+            case 'builtin':
+                return [
+                    'apikey' => '',
+                    'model' => self::BUILTIN_MODEL,
+                    'endpoint' => '',
+                    'timeout' => 0,
+                ];
+
             default:
                 return [
                     'apikey' => '',
@@ -1978,6 +2731,10 @@ class nlp_generator {
      * @return bool
      */
     private function provider_is_configured(string $provider, array $config): bool {
+        if ($provider === 'builtin') {
+            return true;
+        }
+
         if ($provider === 'local') {
             return trim((string)($config['endpoint'] ?? '')) !== '';
         }
@@ -2204,6 +2961,40 @@ class nlp_generator {
      * @return array
      */
     private function extract_pdf_text_by_page(string $filepath): array {
+        $mode = $this->get_pdf_text_extraction_mode();
+
+        if ($mode === 'external') {
+            return $this->extract_pdf_text_by_page_external($filepath);
+        }
+
+        if ($mode === 'bundled') {
+            return $this->extract_pdf_text_by_page_bundled($filepath);
+        }
+
+        if (function_exists('shell_exec') && !empty(shell_exec('which pdftotext 2>/dev/null'))) {
+            $result = $this->extract_pdf_text_by_page_external($filepath);
+            if ($this->has_non_empty_page_text($result)) {
+                \debugging('ClassEngage NLP: Using external pdftotext backend', \DEBUG_DEVELOPER);
+                return $result;
+            }
+
+            \debugging(
+                'ClassEngage NLP: External pdftotext backend returned no usable text, falling back to bundled parser',
+                \DEBUG_DEVELOPER
+            );
+        }
+
+        \debugging('ClassEngage NLP: Using bundled PDF parser backend', \DEBUG_DEVELOPER);
+        return $this->extract_pdf_text_by_page_bundled($filepath);
+    }
+
+    /**
+     * Extract PDF text with pdftotext and split by pages.
+     *
+     * @param string $filepath
+     * @return array
+     */
+    private function extract_pdf_text_by_page_external(string $filepath): array {
         if (!function_exists('shell_exec')) {
             throw new \Exception('PDF extraction requires shell_exec PHP function which is disabled. Please enable it or install a PDF extraction plugin.');
         }
@@ -2281,6 +3072,44 @@ class nlp_generator {
     }
 
     /**
+     * Extract PDF text with the bundled Smalot parser.
+     *
+     * @param string $filepath
+     * @return array
+     */
+    private function extract_pdf_text_by_page_bundled(string $filepath): array {
+        if (!$this->bundled_pdf_parser_available()) {
+            throw new \Exception('Bundled PDF parser is not available in this plugin installation.');
+        }
+
+        try {
+            $parser = new \Smalot\PdfParser\Parser();
+            $document = $parser->parseFile($filepath);
+            $pages = $document->getPages();
+            $result = [];
+
+            foreach ($pages as $index => $page) {
+                $text = '';
+                if (is_object($page) && method_exists($page, 'getText')) {
+                    $text = $this->normalize_text((string)$page->getText());
+                }
+                $result[$index + 1] = $text;
+            }
+
+            if (empty($result)) {
+                $fallback = $this->normalize_text((string)$document->getText());
+                if ($fallback !== '') {
+                    $result[1] = $fallback;
+                }
+            }
+
+            return $result;
+        } catch (\Throwable $e) {
+            throw new \Exception('Bundled PDF parser failed: ' . $e->getMessage(), 0, $e);
+        }
+    }
+
+    /**
      * Get PDF page count using pdfinfo.
      *
      * @param string $filepath
@@ -2306,6 +3135,40 @@ class nlp_generator {
         }
 
         return 0;
+    }
+
+    /**
+     * Determine whether there is any usable page text in an extraction result.
+     *
+     * @param array $pages
+     * @return bool
+     */
+    private function has_non_empty_page_text(array $pages): bool {
+        foreach ($pages as $text) {
+            if (trim((string)$text) !== '') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Check whether the bundled PDF parser is available.
+     *
+     * @return bool
+     */
+    private function bundled_pdf_parser_available(): bool {
+        if (class_exists('\Smalot\PdfParser\Parser')) {
+            return true;
+        }
+
+        $autoload = dirname(__DIR__) . '/vendor/autoload.php';
+        if (is_file($autoload)) {
+            require_once($autoload);
+        }
+
+        return class_exists('\Smalot\PdfParser\Parser');
     }
 
     /**

@@ -41,41 +41,83 @@ $PAGE->set_pagelayout('admin');
 
 require_once(__DIR__ . '/classes/nlp_generator.php');
 $generator = new \mod_classengage\nlp_generator();
+$pdftools = $generator->check_pdf_tools();
+$pdfmode = $generator->get_pdf_text_extraction_mode();
+$activepdfbackend = $generator->get_active_pdf_text_backend();
+$executionmode = (string)(get_config('mod_classengage', 'nlpexecutionmode') ?: 'auto');
+
+$pdfbackendready = false;
+if ($pdfmode === 'external') {
+    $pdfbackendready = !empty($pdftools['shell_exec']) && !empty($pdftools['pdftotext']);
+} else if ($pdfmode === 'bundled') {
+    $pdfbackendready = !empty($pdftools['pdfparser']);
+} else {
+    $pdfbackendready = (
+        (!empty($pdftools['shell_exec']) && !empty($pdftools['pdftotext'])) ||
+        !empty($pdftools['pdfparser'])
+    );
+}
 
 // Run diagnostics.
 $diagnostics = [];
 
+// Check PDF backend.
+$diagnostics['execution_mode'] = [
+    'name' => 'User-Triggered Execution Mode',
+    'required' => true,
+    'available' => true,
+    'message' => 'Mode: ' . $executionmode,
+];
+
+$diagnostics['pdf_backend'] = [
+    'name' => 'PDF Text Backend',
+    'required' => true,
+    'available' => $pdfbackendready,
+    'message' => 'Mode: ' . $pdfmode . ' | Active backend: ' . $activepdfbackend,
+];
+
 // Check PHP functions.
 $diagnostics['php_shell_exec'] = [
     'name' => 'PHP shell_exec()',
-    'required' => true,
-    'available' => function_exists('shell_exec'),
-    'message' => function_exists('shell_exec') ? 'Available' : 'DISABLED - PDF extraction requires shell_exec',
+    'required' => ($pdfmode === 'external'),
+    'available' => !empty($pdftools['shell_exec']),
+    'message' => !empty($pdftools['shell_exec'])
+        ? 'Available'
+        : 'Disabled in this runtime',
 ];
 
 // Check external tools.
 $diagnostics['tool_pdftotext'] = [
     'name' => 'pdftotext (Poppler)',
-    'required' => true,
-    'available' => !empty(shell_exec('which pdftotext 2>/dev/null')),
-    'message' => !empty(shell_exec('which pdftotext 2>/dev/null')) ? 'Installed' : 'NOT INSTALLED',
+    'required' => ($pdfmode === 'external'),
+    'available' => !empty($pdftools['pdftotext']),
+    'message' => !empty($pdftools['pdftotext']) ? 'Installed' : 'Not installed in this runtime',
     'docker_fix' => 'RUN apt-get update && apt-get install -y poppler-utils',
 ];
 
 $diagnostics['tool_pdfinfo'] = [
     'name' => 'pdfinfo (Poppler)',
     'required' => false,
-    'available' => !empty(shell_exec('which pdfinfo 2>/dev/null')),
-    'message' => !empty(shell_exec('which pdfinfo 2>/dev/null')) ? 'Installed' : 'NOT INSTALLED (optional)',
+    'available' => !empty($pdftools['pdfinfo']),
+    'message' => !empty($pdftools['pdfinfo']) ? 'Installed' : 'Not installed (optional)',
     'docker_fix' => 'RUN apt-get update && apt-get install -y poppler-utils',
+];
+
+$diagnostics['tool_pdfparser'] = [
+    'name' => 'Bundled PDF Parser',
+    'required' => ($pdfmode === 'bundled'),
+    'available' => !empty($pdftools['pdfparser']),
+    'message' => !empty($pdftools['pdfparser'])
+        ? 'Available inside plugin package'
+        : 'Not available in this plugin package',
 ];
 
 // Check PHP extensions.
 $diagnostics['ext_imagick'] = [
     'name' => 'Imagick PHP Extension',
     'required' => false,
-    'available' => class_exists('\Imagick'),
-    'message' => class_exists('\Imagick') ? 'Installed' : 'NOT INSTALLED (optional - for PDF images)',
+    'available' => !empty($pdftools['imagick']),
+    'message' => !empty($pdftools['imagick']) ? 'Installed' : 'Not installed (optional for previews)',
     'docker_fix' => 'RUN apt-get update && apt-get install -y libmagickwand-dev && pecl install imagick && docker-php-ext-enable imagick',
 ];
 
@@ -86,15 +128,15 @@ $diagnostics['ext_zip'] = [
     'message' => class_exists('\ZipArchive') ? 'Installed' : 'NOT INSTALLED',
 ];
 
-// Check AI providers.
-$diagnostics['ai_providers'] = [
-    'name' => 'AI Provider Configuration',
+// Check generation providers.
+$diagnostics['builtin_generator'] = [
+    'name' => 'Built-in Question Generator',
     'required' => true,
-    'available' => false,
-    'message' => 'Checking...',
+    'available' => true,
+    'message' => 'Available inside the plugin',
 ];
 
-// Check if any provider is configured.
+// Check if any external provider is configured.
 $providers = [
     'gemini' => 'geminiapikey',
     'openai' => 'openaiapikey',
@@ -113,10 +155,14 @@ foreach ($providers as $name => $configkey) {
     }
 }
 
-$diagnostics['ai_providers']['available'] = !empty($configuredProviders);
-$diagnostics['ai_providers']['message'] = !empty($configuredProviders)
+$diagnostics['external_ai_providers'] = [
+    'name' => 'External AI Providers',
+    'required' => false,
+    'available' => !empty($configuredProviders),
+    'message' => !empty($configuredProviders)
     ? 'Configured: ' . implode(', ', $configuredProviders)
-    : 'NO PROVIDERS CONFIGURED - Please add API keys in settings';
+    : 'None configured - built-in generator will be used',
+];
 
 // Overall status.
 $allRequired = true;
@@ -141,6 +187,15 @@ echo html_writer::tag(
     'pre',
     'php /path/to/moodle/mod/classengage/cli/runtime_check.php'
 );
+echo html_writer::tag(
+    'p',
+    'Configured PDF mode: <strong>' . s($pdfmode) . '</strong>. ' .
+    'Preferred backend in this runtime: <strong>' . s($activepdfbackend) . '</strong>.'
+);
+echo html_writer::tag(
+    'p',
+    'Configured user-triggered execution mode: <strong>' . s($executionmode) . '</strong>.'
+);
 echo $OUTPUT->box_end();
 
 // Status banner.
@@ -163,8 +218,14 @@ echo html_writer::tag(
 );
 
 $standardLines = [];
-if (empty($diagnostics['tool_pdftotext']['available']) || empty($diagnostics['tool_pdfinfo']['available'])) {
+if ($pdfmode === 'external' && empty($diagnostics['tool_pdftotext']['available'])) {
     $standardLines[] = 'Debian/Ubuntu example: sudo apt-get install -y poppler-utils';
+}
+if ($pdfmode === 'auto' && empty($diagnostics['tool_pdftotext']['available']) && empty($diagnostics['tool_pdfparser']['available'])) {
+    $standardLines[] = 'Install poppler-utils or package the plugin with its bundled PDF parser files.';
+}
+if ($pdfmode === 'bundled' && empty($diagnostics['tool_pdfparser']['available'])) {
+    $standardLines[] = 'Bundled mode requires the plugin package to include its vendor PDF parser files.';
 }
 if (empty($diagnostics['ext_zip']['available'])) {
     $standardLines[] = 'Install the PHP ZIP extension for the PHP runtime used by Moodle.';
@@ -172,7 +233,7 @@ if (empty($diagnostics['ext_zip']['available'])) {
 if (empty($diagnostics['ext_imagick']['available'])) {
     $standardLines[] = 'Optional preview support: install ImageMagick and the PHP Imagick extension in the task runner.';
 }
-if (empty($diagnostics['php_shell_exec']['available'])) {
+if ($pdfmode === 'external' && empty($diagnostics['php_shell_exec']['available'])) {
     $standardLines[] = 'Enable shell_exec() for the runtime that executes background tasks.';
 }
 
@@ -212,18 +273,32 @@ foreach ($diagnostics as $key => $check) {
     $statusIcon = $check['available'] ? '✓' : ($check['required'] ? '✗' : '⚠');
     $notes = '';
 
-    if ($key === 'php_shell_exec') {
-        $notes = 'Required for PDF tooling in the background task runner.';
+    if ($key === 'execution_mode') {
+        $notes = 'Controls whether instructor-triggered requests run inline, in the background, or choose automatically.';
+    } else if ($key === 'pdf_backend') {
+        $notes = 'This is the effective PDF extraction requirement for the current mode.';
+    } else if ($key === 'php_shell_exec') {
+        $notes = $pdfmode === 'external'
+            ? 'Required because PDF mode is set to external.'
+            : 'Only needed when using external Poppler tools.';
     } else if ($key === 'tool_pdftotext') {
-        $notes = 'Required for PDF text extraction.';
+        $notes = $pdfmode === 'external'
+            ? 'Required because PDF mode is set to external.'
+            : 'Optional. Auto mode prefers this when available.';
     } else if ($key === 'tool_pdfinfo') {
         $notes = 'Recommended for better PDF page counting.';
+    } else if ($key === 'tool_pdfparser') {
+        $notes = $pdfmode === 'bundled'
+            ? 'Required because PDF mode is set to bundled.'
+            : 'Optional unless bundled mode is selected.';
     } else if ($key === 'ext_imagick') {
         $notes = 'Optional, but recommended for PDF page previews.';
     } else if ($key === 'ext_zip') {
         $notes = 'Required for PPTX and DOCX inspection.';
-    } else if ($key === 'ai_providers') {
-        $notes = 'At least one provider must be configured before generating questions.';
+    } else if ($key === 'builtin_generator') {
+        $notes = 'Provides offline, text-based question generation and analytics fallback.';
+    } else if ($key === 'external_ai_providers') {
+        $notes = 'Optional. External providers can improve quality and multimodal coverage.';
     }
 
     echo html_writer::start_tag('tr');
@@ -241,8 +316,8 @@ echo html_writer::end_tag('table');
 echo $OUTPUT->heading('Test PDF Extraction', 3);
 echo $OUTPUT->box_start();
 
-if (!$allRequired) {
-    echo $OUTPUT->notification('Please install missing required components in this runtime first', 'warning');
+if (!$pdfbackendready) {
+    echo $OUTPUT->notification('Please make a working PDF backend available in this runtime first.', 'warning');
 } else {
     echo html_writer::tag('p', 'Upload a test PDF to verify extraction is working:');
     echo html_writer::start_tag('form', ['method' => 'post', 'enctype' => 'multipart/form-data']);
@@ -266,10 +341,11 @@ if (!$allRequired) {
             );
 
             // Show sample.
-            if (!empty($pages[0])) {
+            $firstpage = reset($pages);
+            if (!empty($firstpage)) {
                 echo html_writer::tag('h5', 'Page 1 Sample:');
-                $preview = substr($pages[0]['text'], 0, 500);
-                echo html_writer::tag('pre', s($preview) . (strlen($pages[0]['text']) > 500 ? '...' : ''));
+                $preview = substr((string)$firstpage['text'], 0, 500);
+                echo html_writer::tag('pre', s($preview) . (strlen((string)$firstpage['text']) > 500 ? '...' : ''));
             }
         } catch (Exception $e) {
             echo $OUTPUT->notification('ERROR: ' . $e->getMessage(), 'error');

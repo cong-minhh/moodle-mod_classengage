@@ -2,8 +2,8 @@
  * Slides manager with NLP generation - enterprise edition
  *
  * ARCHITECTURE:
- * - Requests enqueue work (AJAX to slides_api.php?action=generatenlp)
- * - Workers do work (adhoc task via cron)
+ * - Requests may complete inline or queue work (AJAX to slides_api.php?action=generatenlp)
+ * - Workers remain available for queued execution
  * - UI observes state (polling slides_api.php?action=nlpstatus)
  *
  * Key principles:
@@ -24,6 +24,7 @@ define(['jquery', 'core/notification', 'core/str'], function($, Notification, St
     // Status messages for progress display.
     var STATUS_MESSAGES = {
         'idle': 'Ready to generate',
+        'inspecting': 'Inspecting document...',
         'pending': 'Queued for processing...',
         'running': 'Generating questions...',
         'completed': 'Questions generated!',
@@ -86,7 +87,7 @@ define(['jquery', 'core/notification', 'core/str'], function($, Notification, St
                 var status = card.data('nlp-status');
                 var slideid = card.data('slideid');
 
-                if (status === 'pending' || status === 'running') {
+                if (status === 'inspecting' || status === 'pending' || status === 'running') {
                     var progress = parseInt(card.data('nlp-progress') || 0, 10);
                     self.showProgressOverlay(card, status, progress);
                     self.startPolling(slideid, card);
@@ -133,7 +134,7 @@ define(['jquery', 'core/notification', 'core/str'], function($, Notification, St
         },
 
         /**
-         * Send NLP generation request (synchronous - waits for full response).
+         * Send NLP generation request.
          * @param {number} slideId - Slide ID.
          * @param {jQuery} card - Card element.
          * @param {jQuery} btn - Button element.
@@ -144,11 +145,9 @@ define(['jquery', 'core/notification', 'core/str'], function($, Notification, St
             // Disable button immediately.
             btn.prop('disabled', true).addClass('disabled');
 
-            // Show progress overlay with running state.
-            this.showProgressOverlay(card, 'running', 30);
+            // Show an initial overlay immediately.
+            this.showProgressOverlay(card, 'pending', 5);
 
-            // Make synchronous request to NLP service.
-            // Longer timeout since we're waiting for the full NLP response.
             $.ajax({
                 url: M.cfg.wwwroot + '/mod/classengage/slides_api.php',
                 method: 'POST',
@@ -158,16 +157,27 @@ define(['jquery', 'core/notification', 'core/str'], function($, Notification, St
                     sesskey: M.cfg.sesskey
                 },
                 dataType: 'json',
-                timeout: 120000 // 2 minute timeout for NLP processing.
+                timeout: 120000
             }).done(function(response) {
-                if (response.success && response.status === 'completed') {
-                    // Success - show result and reload.
-                    self.showSuccess(card, response.count);
-                } else {
-                    // Failed.
+                if (!response.success) {
                     self.showError(card, response.error || 'Generation failed');
                     btn.prop('disabled', false).removeClass('disabled');
+                    return;
                 }
+
+                if (response.status === 'completed') {
+                    self.showSuccess(card, response.count);
+                    return;
+                }
+
+                if (response.status === 'inspecting' || response.status === 'pending' || response.status === 'running') {
+                    self.updateProgress(card, response.status, response.progress || 5);
+                    self.startPolling(slideId, card);
+                    return;
+                }
+
+                self.showError(card, response.error || 'Generation failed');
+                btn.prop('disabled', false).removeClass('disabled');
             }).fail(function(xhr, status, error) {
                 var errorMsg = 'Network error: ' + (error || status);
                 if (status === 'timeout') {
@@ -262,6 +272,8 @@ define(['jquery', 'core/notification', 'core/str'], function($, Notification, St
             var message = STATUS_MESSAGES[status] || 'Processing...';
             if (status === 'running' && progress > 0) {
                 message = getProgressMessage(progress);
+            } else if (status === 'inspecting') {
+                message = 'Inspecting document...';
             }
 
             var overlay = $(
@@ -300,6 +312,8 @@ define(['jquery', 'core/notification', 'core/str'], function($, Notification, St
             var message = STATUS_MESSAGES[status] || 'Processing...';
             if (status === 'running' && progress > 0) {
                 message = getProgressMessage(progress);
+            } else if (status === 'inspecting') {
+                message = 'Inspecting document...';
             }
             overlay.find('.nlp-progress-text').text(message);
         },

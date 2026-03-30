@@ -89,7 +89,7 @@ mod/classengage/
 1. Download the plugin and extract it to `mod/classengage` in your Moodle installation.
 2. Log in to your Moodle site as an administrator.
 3. Go to **Site administration > Notifications** to trigger the database update.
-4. Configure the AI provider settings in **Site administration > Plugins > Activity modules > In-class Learning Engagement**.
+4. Review the PDF extraction and generator settings in **Site administration > Plugins > Activity modules > In-class Learning Engagement**.
 
 ### Runtime Compatibility
 
@@ -106,16 +106,18 @@ For the current NLP pipeline:
 
 - Moodle cron must run reliably
 - PHP CLI must be able to bootstrap the same Moodle installation as the web runtime
-- `shell_exec` must be enabled for the task runner
-- `pdftotext` is required for PDF text extraction
 - `ZipArchive` is required for PPTX and DOCX processing
-- at least one AI provider must be configured
+- PDF text extraction must have either:
+  - external Poppler tools (`shell_exec` + `pdftotext`), or
+  - the bundled PDF parser shipped with the plugin
+- no external AI provider is required for text-based question generation because the plugin now includes a built-in generator
 
 Recommended for better PDF previews and richer inspection:
 
 - `pdfinfo`
 - PHP `Imagick`
 - ImageMagick policy that allows PDF reads
+- an external AI provider if you want higher-quality generation or image-heavy/multimodal question generation
 
 ### Background Processing Model
 
@@ -147,7 +149,13 @@ For production use, choose one of these execution models:
 
 ### NLP Provider Configuration
 
-The plugin supports multiple AI providers for question generation. Configure your preferred provider in **Site administration > Plugins > Activity modules > In-class Learning Engagement > NLP Settings**.
+The plugin can generate questions with its built-in fallback generator and can optionally use external AI providers for higher-quality or multimodal generation. Configure your preferred order in **Site administration > Plugins > Activity modules > In-class Learning Engagement > NLP Settings**.
+
+If you want the plugin to stay self-contained, keep:
+
+- **PDF Text Extraction Mode**: `auto` or `bundled`
+- **Default provider**: any value is fine, because the provider list now falls back to `builtin`
+- external provider settings empty
 
 #### Gemini (Default)
 
@@ -205,7 +213,7 @@ For offline or self-hosted AI:
 You can configure fallback providers. If the first provider fails, the system will try the next:
 
 ```
-gemini,openai,anthropic,deepseek,local
+gemini,openai,anthropic,deepseek,local,builtin
 ```
 
 ### Troubleshooting NLP Issues
@@ -213,9 +221,10 @@ gemini,openai,anthropic,deepseek,local
 | Issue | Cause | Solution |
 |-------|-------|----------|
 | Questions generate but don't appear | Cron not running | Ensure Moodle cron runs every minute |
-| PDF text not extracted | Missing `pdftotext` in the task runner | Install `poppler-utils` on the server or in the worker/container image |
+| PDF text not extracted | No working PDF backend in the task runner | Install `poppler-utils` or package the plugin with its bundled PDF parser files |
 | Images not processing | ImageMagick blocked | Fix ImageMagick security policy |
 | Generation times out | Large PDF or slow API | Reduce image resolution or increase timeout |
+| No external AI configured | External providers are optional | The built-in generator will still handle text-based generation |
 | Questions stored with classengageid=0 | Variable bug (v1.0.0) | Update to v1.0.1+ |
 
 ### Clicker Integration Setup

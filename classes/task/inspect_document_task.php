@@ -118,6 +118,21 @@ class inspect_document_task extends \core\task\adhoc_task {
                 'timemodified' => time()
             ]);
 
+            if (!empty($data->auto_generate)) {
+                $task = new \mod_classengage\task\generate_nlp_task();
+                $task->set_custom_data([
+                    'slideid' => $slideid,
+                    'classengageid' => $classengageid,
+                    'contextid' => $contextid,
+                    'docid' => $inspection['docId'],
+                    'options' => (array)($data->options ?? []),
+                    'inspection_data' => $inspection_data,
+                ]);
+                $task->set_component('mod_classengage');
+                \core\task\manager::queue_adhoc_task($task);
+                \mtrace("ClassEngage Inspection: Auto-queued generation for slide {$slideid}");
+            }
+
             \mtrace("ClassEngage Inspection: Completed for slide {$slideid}. Found " . count($inspection['pages']) . " pages");
 
         } catch (\Exception $e) {

@@ -19,15 +19,17 @@ Whichever container executes background tasks must have:
 - access to the same `config.php`
 - access to the same database
 - access to the same `moodledata`
-- `shell_exec` enabled
-- `pdftotext` installed
 - `ZipArchive` available
+- a working PDF backend:
+  - external tools (`shell_exec` + `pdftotext`), or
+  - the bundled PDF parser included with the plugin package
 
 Recommended:
 
 - `pdfinfo`
 - PHP `Imagick`
 - ImageMagick PDF policy adjusted for reads
+- an external AI provider for higher-quality or multimodal generation
 
 ## Recommended Container Layout
 

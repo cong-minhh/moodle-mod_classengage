@@ -291,35 +291,11 @@ class slide_processor
     /**
      * Check if auto-generation is enabled
      *
-     * @return bool True if any AI provider is configured and auto-generation is enabled
+     * @return bool True if auto-generation is enabled
      */
     protected function is_auto_generation_enabled()
     {
         $autogenerate = \get_config('mod_classengage', self::CONFIG_AUTO_GENERATE);
-        if (!$autogenerate) {
-            return false;
-        }
-
-        // Check if any provider is configured.
-        $providers = [
-            'gemini' => 'geminiapikey',
-            'openai' => 'openaiapikey',
-            'anthropic' => 'anthropicapikey',
-            'deepseek' => 'deepseekapikey',
-            'kimi' => 'kimiapikey',
-            'kimicn' => 'kimicnapikey',
-            'local' => 'localendpoint'
-        ];
-
-        foreach ($providers as $key => $configkey) {
-            $value = \get_config('mod_classengage', $configkey);
-            if (!empty($value)) {
-                return true;
-            }
-        }
-
-        // Fallback: check legacy NLP endpoint for backward compatibility.
-        $nlpendpoint = \get_config('mod_classengage', self::CONFIG_NLP_ENDPOINT);
-        return !empty($nlpendpoint);
+        return !empty($autogenerate);
     }
 }
