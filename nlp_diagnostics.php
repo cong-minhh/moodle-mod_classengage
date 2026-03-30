@@ -131,20 +131,55 @@ foreach ($diagnostics as $key => $check) {
 echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('nlpdiagnostics', 'mod_classengage'));
 
+echo $OUTPUT->box_start();
+echo html_writer::tag('h3', 'Runtime scope');
+echo html_writer::tag(
+    'p',
+    'This page checks the PHP runtime serving this request. If Moodle cron or the optional ClassEngage worker runs in a different CLI process, host, or container, validate that runtime separately too.'
+);
+echo html_writer::tag(
+    'pre',
+    'php /path/to/moodle/mod/classengage/cli/runtime_check.php'
+);
+echo $OUTPUT->box_end();
+
 // Status banner.
 if ($allRequired) {
     echo $OUTPUT->notification(get_string('diagnostics_allgood', 'mod_classengage'), 'success');
 } else {
     echo $OUTPUT->notification(
-        get_string('diagnostics_missing', 'mod_classengage', implode(', ', $missingRequired)),
+        get_string('diagnostics_missing', 'mod_classengage', implode(', ', $missingRequired)) .
+        ' Install the missing components in the runtime that executes background tasks.',
         'error'
     );
 }
 
-// Docker notice.
+// Runtime guidance.
 echo $OUTPUT->box_start();
-echo html_writer::tag('h3', 'Docker Installation');
-echo html_writer::tag('p', 'If you are running Moodle in Docker, add these lines to your Dockerfile:');
+echo html_writer::tag('h3', 'Installation guidance');
+echo html_writer::tag(
+    'p',
+    'ClassEngage works on both standard Moodle and Dockerized Moodle. The required tools must exist in the runtime that executes Moodle cron or task_worker.php.'
+);
+
+$standardLines = [];
+if (empty($diagnostics['tool_pdftotext']['available']) || empty($diagnostics['tool_pdfinfo']['available'])) {
+    $standardLines[] = 'Debian/Ubuntu example: sudo apt-get install -y poppler-utils';
+}
+if (empty($diagnostics['ext_zip']['available'])) {
+    $standardLines[] = 'Install the PHP ZIP extension for the PHP runtime used by Moodle.';
+}
+if (empty($diagnostics['ext_imagick']['available'])) {
+    $standardLines[] = 'Optional preview support: install ImageMagick and the PHP Imagick extension in the task runner.';
+}
+if (empty($diagnostics['php_shell_exec']['available'])) {
+    $standardLines[] = 'Enable shell_exec() for the runtime that executes background tasks.';
+}
+
+if (!empty($standardLines)) {
+    echo html_writer::tag('p', 'Standard server examples:');
+    echo html_writer::tag('pre', implode("\n", array_unique($standardLines)));
+}
 
 $dockerLines = [];
 foreach ($diagnostics as $key => $check) {
@@ -154,9 +189,8 @@ foreach ($diagnostics as $key => $check) {
 }
 
 if (!empty($dockerLines)) {
+    echo html_writer::tag('p', 'Docker image examples:');
     echo html_writer::tag('pre', implode("\n", array_unique($dockerLines)));
-} else {
-    echo html_writer::tag('pre', '# All required tools are already installed!');
 }
 
 echo $OUTPUT->box_end();
@@ -176,12 +210,27 @@ echo html_writer::start_tag('tbody');
 foreach ($diagnostics as $key => $check) {
     $statusClass = $check['available'] ? 'text-success' : ($check['required'] ? 'text-danger' : 'text-warning');
     $statusIcon = $check['available'] ? '✓' : ($check['required'] ? '✗' : '⚠');
+    $notes = '';
+
+    if ($key === 'php_shell_exec') {
+        $notes = 'Required for PDF tooling in the background task runner.';
+    } else if ($key === 'tool_pdftotext') {
+        $notes = 'Required for PDF text extraction.';
+    } else if ($key === 'tool_pdfinfo') {
+        $notes = 'Recommended for better PDF page counting.';
+    } else if ($key === 'ext_imagick') {
+        $notes = 'Optional, but recommended for PDF page previews.';
+    } else if ($key === 'ext_zip') {
+        $notes = 'Required for PPTX and DOCX inspection.';
+    } else if ($key === 'ai_providers') {
+        $notes = 'At least one provider must be configured before generating questions.';
+    }
 
     echo html_writer::start_tag('tr');
     echo html_writer::tag('td', $check['name']);
     echo html_writer::tag('td', html_writer::tag('span', $statusIcon . ' ' . $check['message'], ['class' => $statusClass]));
     echo html_writer::tag('td', $check['required'] ? 'Yes' : 'No');
-    echo html_writer::tag('td', !empty($check['docker_fix']) && !$check['available'] ? 'Docker: ' . $check['docker_fix'] : '');
+    echo html_writer::tag('td', $notes);
     echo html_writer::end_tag('tr');
 }
 
@@ -193,7 +242,7 @@ echo $OUTPUT->heading('Test PDF Extraction', 3);
 echo $OUTPUT->box_start();
 
 if (!$allRequired) {
-    echo $OUTPUT->notification('Please install missing required components first', 'warning');
+    echo $OUTPUT->notification('Please install missing required components in this runtime first', 'warning');
 } else {
     echo html_writer::tag('p', 'Upload a test PDF to verify extraction is working:');
     echo html_writer::start_tag('form', ['method' => 'post', 'enctype' => 'multipart/form-data']);
@@ -209,7 +258,7 @@ if (!$allRequired) {
 
         try {
             // Test extraction.
-            $pages = $generator->inspect_pdf($tmpFile, 1, 1, 'test_doc');
+            $pages = $generator->test_pdf_extraction($tmpFile);
 
             echo $OUTPUT->notification(
                 'SUCCESS: Extracted ' . count($pages) . ' pages from PDF',

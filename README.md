@@ -89,38 +89,61 @@ mod/classengage/
 1. Download the plugin and extract it to `mod/classengage` in your Moodle installation.
 2. Log in to your Moodle site as an administrator.
 3. Go to **Site administration > Notifications** to trigger the database update.
-4. Configure the plugin settings (NLP endpoint, API keys) in **Site administration > Plugins > Activity modules > In-class Learning Engagement**.
+4. Configure the AI provider settings in **Site administration > Plugins > Activity modules > In-class Learning Engagement**.
 
-### Docker Installation for PDF Processing
+### Runtime Compatibility
 
-The NLP features require `pdftotext` (for text extraction) and `Imagick` (for image extraction from PDFs). If using Docker, use the provided custom Dockerfile:
+ClassEngage is compatible with both:
 
-1. **Copy the custom Dockerfile:**
-   ```bash
-   cp bin/Dockerfile.custom /path/to/your/moodle-docker/
-   ```
+- **Standard Moodle deployments** running directly on a VM or bare-metal host
+- **Dockerized Moodle deployments** using either a custom Moodle image or sidecar worker/cron containers
 
-2. **Update docker-compose.yml** to use the custom image:
-   ```yaml
-   services:
-     webserver:
-       build:
-         context: .
-         dockerfile: Dockerfile.custom
-       # ... other config
-   ```
+Docker is optional. The plugin works anywhere the runtime that executes background tasks provides the required capabilities.
 
-3. **Rebuild and start:**
-   ```bash
-   docker-compose down
-   docker-compose build --no-cache webserver
-   docker-compose up -d
-   ```
+### Required Runtime Capabilities
 
-The custom Dockerfile includes:
-- `poppler-utils` for PDF text extraction
-- `Imagick` PHP extension for image processing
-- Cron daemon for automatic Moodle task execution
+For the current NLP pipeline:
+
+- Moodle cron must run reliably
+- PHP CLI must be able to bootstrap the same Moodle installation as the web runtime
+- `shell_exec` must be enabled for the task runner
+- `pdftotext` is required for PDF text extraction
+- `ZipArchive` is required for PPTX and DOCX processing
+- at least one AI provider must be configured
+
+Recommended for better PDF previews and richer inspection:
+
+- `pdfinfo`
+- PHP `Imagick`
+- ImageMagick policy that allows PDF reads
+
+### Background Processing Model
+
+The current NLP flow is background-first:
+
+- Web requests queue adhoc tasks through [`slides_api.php`](slides_api.php)
+- Document inspection runs in [`classes/task/inspect_document_task.php`](classes/task/inspect_document_task.php)
+- Question generation runs in [`classes/task/generate_nlp_task.php`](classes/task/generate_nlp_task.php)
+- Standard Moodle scheduled tasks remain declared in [`db/tasks.php`](db/tasks.php)
+
+For production use, choose one of these execution models:
+
+1. **Cron only**
+   - Run `admin/cli/cron.php` every minute
+   - Simpler to operate
+   - Slower task pickup
+2. **Cron + dedicated worker** (recommended)
+   - Keep Moodle cron enabled
+   - Also run `mod/classengage/classes/task/task_worker.php`
+   - Gives near real-time 2-5 second task pickup for `mod_classengage`
+
+### Deployment Guides
+
+- Standard Moodle setup: [`docs/SETUP_STANDARD.md`](docs/SETUP_STANDARD.md)
+- Docker setup: [`docs/SETUP_DOCKER.md`](docs/SETUP_DOCKER.md)
+- Compatibility matrix: [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md)
+- University quick setup: [`docs/CLASSENGAGE_QUICK_SETUP.md`](docs/CLASSENGAGE_QUICK_SETUP.md)
+- Runtime verification from CLI: `php mod/classengage/cli/runtime_check.php`
 
 ### NLP Provider Configuration
 
@@ -190,7 +213,7 @@ gemini,openai,anthropic,deepseek,local
 | Issue | Cause | Solution |
 |-------|-------|----------|
 | Questions generate but don't appear | Cron not running | Ensure Moodle cron runs every minute |
-| PDF text not extracted | Missing `pdftotext` | Install `poppler-utils` in Docker |
+| PDF text not extracted | Missing `pdftotext` in the task runner | Install `poppler-utils` on the server or in the worker/container image |
 | Images not processing | ImageMagick blocked | Fix ImageMagick security policy |
 | Generation times out | Large PDF or slow API | Reduce image resolution or increase timeout |
 | Questions stored with classengageid=0 | Variable bug (v1.0.0) | Update to v1.0.1+ |

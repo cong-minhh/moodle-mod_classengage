@@ -387,6 +387,30 @@ class nlp_generator {
     }
 
     /**
+     * Run a lightweight PDF extraction check for diagnostics pages and CLI.
+     *
+     * This verifies that the current runtime can extract text from a local PDF
+     * without needing a Moodle stored_file context.
+     *
+     * @param string $filepath Absolute path to a local PDF
+     * @return array
+     */
+    public function test_pdf_extraction(string $filepath): array {
+        $texts = $this->extract_pdf_text_by_page($filepath);
+        $pages = [];
+
+        foreach ($texts as $page => $text) {
+            $pages[] = [
+                'page' => (int)$page,
+                'text' => $text,
+                'images' => [],
+            ];
+        }
+
+        return $pages;
+    }
+
+    /**
      * Inspect PDF file.
      *
      * @param string $filepath
@@ -414,7 +438,7 @@ class nlp_generator {
 
         if (!empty($missingTools)) {
             $errorMsg = 'PDF extraction requires the following tools which are not available: ' . implode(', ', $missingTools) . '. ';
-            $errorMsg .= 'If running in Docker, add this to your Dockerfile: RUN apt-get update && apt-get install -y poppler-utils';
+            $errorMsg .= 'Install the required packages on the server or in the worker/container image that executes background tasks.';
             throw new \Exception($errorMsg);
         }
 
@@ -2188,7 +2212,7 @@ class nlp_generator {
         if (empty(shell_exec('which pdftotext 2>/dev/null'))) {
             throw new \Exception(
                 'PDF extraction requires pdftotext (Poppler utils) which is not installed. ' .
-                'If running in Docker, add this to your Dockerfile: RUN apt-get update && apt-get install -y poppler-utils'
+                'Install the Poppler utilities package on the server or in the worker/container image that executes background tasks.'
             );
         }
 

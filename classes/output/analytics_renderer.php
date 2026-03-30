@@ -1719,16 +1719,16 @@ class analytics_renderer extends plugin_renderer_base
         $output .= html_writer::div('', '', ['id' => $containerid]);
 
         // Generate Button
-        $output .= html_writer::tag(
-            'button',
-            html_writer::tag('i', '', ['class' => 'fa fa-magic mr-2']) . get_string('generateaiinsights', 'mod_classengage'),
-            [
-                'id' => $btnid,
-                'class' => 'btn btn-outline-primary btn-lg btn-block',
-                'data-context' => $context,
-                'data-container' => $containerid
-            ]
-        );
+        // $output .= html_writer::tag(
+        //     'button',
+        //     html_writer::tag('i', '', ['class' => 'fa fa-magic mr-2']) . get_string('generateaiinsights', 'mod_classengage'),
+        //     [
+        //         'id' => $btnid,
+        //         'class' => 'btn btn-outline-primary btn-lg btn-block',
+        //         'data-context' => $context,
+        //         'data-container' => $containerid
+        //     ]
+        // );
 
         $output .= html_writer::end_div();
 

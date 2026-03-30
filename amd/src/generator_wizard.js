@@ -50,7 +50,7 @@ define([
           // Set Body
           Templates.render("mod_classengage/generator_wizard", {
             numquestions_options: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20],
-          }).then(function(html, js) {
+          }).then(function (html, js) {
             modal.setBody(html);
             Templates.runTemplateJS(js);
             // Set default number of questions to 5
@@ -166,23 +166,23 @@ define([
     showLoadingPlaceholders: function () {
       var self = this;
       var container = self.modal.getRoot().find("#slides-container");
-      
+
       // Show loading placeholders
-      var placeholderHtml = 
+      var placeholderHtml =
         '<div class="text-center p-5">' +
         '  <div class="spinner-border text-primary mb-3" role="status">' +
         '    <span class="sr-only">Loading...</span>' +
-        '  </div>' +
-        '  <h5>Analyzing document...</h5>' +
+        "  </div>" +
+        "  <h5>Analyzing document...</h5>" +
         '  <p class="text-muted">Extracting text and rendering page previews</p>' +
         '  <div class="progress mt-3" style="max-width: 300px; margin: 0 auto;">' +
         '    <div id="inspection-progress" class="progress-bar progress-bar-striped progress-bar-animated" ' +
         '         role="progressbar" style="width: 10%" aria-valuenow="10" aria-valuemin="0" aria-valuemax="100">' +
-        '      10%' +
-        '    </div>' +
-        '  </div>' +
-        '</div>';
-      
+        "      10%" +
+        "    </div>" +
+        "  </div>" +
+        "</div>";
+
       container.html(placeholderHtml);
     },
 
@@ -201,7 +201,7 @@ define([
         success: function (response) {
           if (response.success) {
             var progress = response.progress || 10;
-            
+
             // Update progress bar
             var progressBar = self.modal.getRoot().find("#inspection-progress");
             progressBar.css("width", progress + "%");
@@ -229,22 +229,32 @@ define([
           } else {
             // Error - retry with backoff
             if (retryCount > 10) {
-              self.showInspectionError("Failed to check inspection status. Please try again.");
+              self.showInspectionError(
+                "Failed to check inspection status. Please try again.",
+              );
             } else {
-              setTimeout(function () {
-                self.pollInspectionStatus(retryCount + 1);
-              }, 2000 + retryCount * 500);
+              setTimeout(
+                function () {
+                  self.pollInspectionStatus(retryCount + 1);
+                },
+                2000 + retryCount * 500,
+              );
             }
           }
         },
         error: function () {
           // Network error - retry with backoff
           if (retryCount > 5) {
-            self.showInspectionError("Connection lost. Please refresh and try again.");
+            self.showInspectionError(
+              "Connection lost. Please refresh and try again.",
+            );
           } else {
-            setTimeout(function () {
-              self.pollInspectionStatus(retryCount + 1);
-            }, 2000 + retryCount * 1000);
+            setTimeout(
+              function () {
+                self.pollInspectionStatus(retryCount + 1);
+              },
+              2000 + retryCount * 1000,
+            );
           }
         },
       });
@@ -255,12 +265,14 @@ define([
       var container = self.modal.getRoot().find("#slides-container");
       container.html(
         '<div class="alert alert-danger m-3">' +
-        '  <h5><i class="fa fa-exclamation-triangle"></i> Inspection Failed</h5>' +
-        '  <p>' + msg + '</p>' +
-        '  <button class="btn btn-outline-danger btn-sm" onclick="location.reload()">' +
-        '    <i class="fa fa-refresh"></i> Retry' +
-        '  </button>' +
-        '</div>'
+          '  <h5><i class="fa fa-exclamation-triangle"></i> Inspection Failed</h5>' +
+          "  <p>" +
+          msg +
+          "</p>" +
+          '  <button class="btn btn-outline-danger btn-sm" onclick="location.reload()">' +
+          '    <i class="fa fa-refresh"></i> Retry' +
+          "  </button>" +
+          "</div>",
       );
     },
 
@@ -320,7 +332,7 @@ define([
           page.images.forEach(function (img) {
             // URL is stored as relative path: /pluginfile.php/...
             // Prepend wwwroot to create full URL
-            var fullUrl = '';
+            var fullUrl = "";
             if (img.url) {
               // img.url is always relative path now
               fullUrl = M.cfg.wwwroot + img.url;
@@ -525,14 +537,6 @@ define([
       var difficultyDistribution = null;
       var bloomDistribution = null;
 
-      if (difficulty === "mixed") {
-        difficultyDistribution = {};
-        root.find('.dist-input[data-type="difficulty"]').each(function () {
-          difficultyDistribution[$(this).data("key")] =
-            parseInt($(this).val()) || 0;
-        });
-      }
-
       if (bloomLevel === "mixed") {
         bloomDistribution = {};
         root.find('.dist-input[data-type="bloom"]').each(function () {
@@ -610,7 +614,10 @@ define([
         },
         dataType: "json",
         success: function (response) {
-          if (response.success && (response.status === "running" || response.status === "pending")) {
+          if (
+            response.success &&
+            (response.status === "running" || response.status === "pending")
+          ) {
             // Job started (or queued), begin Smart Polling
             self.updateProgress(5, "Job queued...");
             self.pollStatus(0);
@@ -708,10 +715,16 @@ define([
               }
             } else if (response.status === "failed") {
               self.showError(response.error);
-            } else if (response.status === "pending" || response.status === "running") {
+            } else if (
+              response.status === "pending" ||
+              response.status === "running"
+            ) {
               // Job is queued or running - update UI and poll again
               var progress = response.progress || 0;
-              var statusText = response.status === "pending" ? "Waiting in queue..." : "Generating...";
+              var statusText =
+                response.status === "pending"
+                  ? "Waiting in queue..."
+                  : "Generating...";
               if (progress < 5) {
                 progress = 5;
               }

@@ -5,6 +5,12 @@
 
 # But keep README.md (case-sensitive)
 !README.md
+!docs/
+!docs/CLASSENGAGE_DEPLOYMENT_GUIDE.md
+!docs/CLASSENGAGE_QUICK_SETUP.md
+!docs/COMPATIBILITY.md
+!docs/SETUP_DOCKER.md
+!docs/SETUP_STANDARD.md
 /vendor
 composer.lock
 /amd/build

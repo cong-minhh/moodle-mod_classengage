@@ -765,7 +765,8 @@ $string['settings:localmodel_desc'] = 'The Ollama model to use (e.g., qwen3-vl:4
 
 $string['nlpdiagnostics'] = 'NLP Environment Diagnostics';
 $string['diagnostics_allgood'] = 'All required components are installed and configured!';
-$string['diagnostics_missing'] = 'Missing required components: {$a}';$string['task_inspect_document'] = 'Inspect PDF document for question generation';
+$string['diagnostics_missing'] = 'Missing required components in this runtime: {$a}';
+$string['task_inspect_document'] = 'Inspect PDF document for question generation';
 
 // Privacy / GDPR Metadata Strings
 $string['privacy:metadata:responses'] = 'Quiz response data';
@@ -933,4 +934,3 @@ $string['manualquestions'] = 'Manual Questions';
 $string['questioncountbadge'] = '{$a} questions';
 $string['approve_selected'] = 'Approve Selected';
 $string['delete_selected'] = 'Delete Selected';
-
