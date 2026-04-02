@@ -137,6 +137,26 @@ function mod_classengage_should_run_inline(int $contextid, int $slideid, array $
         return false;
     }
 
+    $extension = strtolower(pathinfo($file->get_filename(), PATHINFO_EXTENSION));
+    if ($extension === 'pdf') {
+        $generator = new \mod_classengage\nlp_generator();
+        $pdftools = $generator->check_pdf_tools();
+
+        // In auto mode, prefer background execution if this web runtime would
+        // lose richer PDF handling such as page preview rendering or would
+        // fall back to the bundled text parser instead of the external stack.
+        if ($mode === 'auto') {
+            if (empty($pdftools['imagick'])) {
+                return false;
+            }
+
+            if ($generator->get_pdf_text_extraction_mode() === 'auto' &&
+                $generator->get_active_pdf_text_backend() === 'bundled') {
+                return false;
+            }
+        }
+    }
+
     $numquestions = (int)($options['numQuestions'] ?? (get_config('mod_classengage', 'defaultquestions') ?: 5));
     if ($numquestions > MOD_CLASSENGAGE_INLINE_MAX_QUESTIONS) {
         return false;
