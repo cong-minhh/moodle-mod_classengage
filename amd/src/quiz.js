@@ -886,6 +886,7 @@ define([
 
                 // Build rich feedback HTML
                 var html = '<div class="answer-feedback">';
+                html += this.renderQuestionImage(question);
 
                 // Result banner
                 if (isCorrect) {
@@ -1150,6 +1151,7 @@ define([
 
             // Question text
             html += '<div class="question-text mb-4">';
+            html += this.renderQuestionImage(question);
             html += '<h4>' + question.text + '</h4>';
             html += '</div>';
 
@@ -1249,6 +1251,54 @@ define([
             }
 
             html += '</div>';
+            return html;
+        },
+
+        /**
+         * Resolve the question image URL for browser output.
+         *
+         * @param {Object} question Question data
+         * @return {string} Resolved image URL
+         */
+        getQuestionImageUrl: function(question) {
+            if (!question || !question.question_image) {
+                return '';
+            }
+
+            var imageUrl = question.question_image;
+            if (/^[a-z][a-z0-9+.-]*:/i.test(imageUrl) || imageUrl.indexOf('//') === 0) {
+                return imageUrl;
+            }
+
+            if (typeof M !== 'undefined' && M.cfg && M.cfg.wwwroot) {
+                return M.cfg.wwwroot.replace(/\/$/, '') + '/' + imageUrl.replace(/^\//, '');
+            }
+
+            return imageUrl;
+        },
+
+        /**
+         * Render the optional question image block.
+         *
+         * @param {Object} question Question data
+         * @return {string} HTML output
+         */
+        renderQuestionImage: function(question) {
+            var imageUrl = this.getQuestionImageUrl(question);
+            var html = '';
+
+            if (!imageUrl) {
+                return html;
+            }
+
+            html += '<div class="question-image text-center mb-3">';
+            html += '<img src="' + imageUrl + '" alt="Reference image"';
+            html += ' class="img-fluid rounded shadow-sm"';
+            html += ' style="max-height: 300px; cursor: zoom-in;"';
+            html += ' loading="lazy"';
+            html += ' onclick="window.open(this.src, \'_blank\')">';
+            html += '</div>';
+
             return html;
         },
 

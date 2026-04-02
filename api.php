@@ -41,6 +41,7 @@ use mod_classengage\session_state_manager;
 use mod_classengage\event_logger;
 use mod_classengage\rate_limiter;
 use mod_classengage\constants;
+use mod_classengage\local\asset_helper;
 
 // Security: Initialize global database variable
 global $DB;
@@ -467,6 +468,7 @@ function get_session_status($sessionid, $classengageid)
                 'id' => $q->id,
                 'text' => $q->questiontext,
                 'options' => $formattedOptions,
+                'question_image' => asset_helper::resolve_browser_url($q->question_image ?? ''),
                 'timeremaining' => $timeremaining,
                 'timelimit' => $q->timelimit,
                 'number' => $questionNumber,
@@ -515,6 +517,7 @@ function handle_reconnect($sessionid, $connectionid = '')
         $questiondata = [
             'id' => $clientstate->question->id,
             'text' => $clientstate->question->questiontext,
+            'question_image' => asset_helper::resolve_browser_url($clientstate->question->question_image ?? ''),
             'options' => [],
         ];
 

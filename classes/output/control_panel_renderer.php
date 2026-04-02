@@ -25,6 +25,7 @@
 namespace mod_classengage\output;
 
 use mod_classengage\constants;
+use mod_classengage\local\asset_helper;
 use html_writer;
 use moodle_url;
 
@@ -161,12 +162,7 @@ class control_panel_renderer
 
         // Display referenced image if present
         if (!empty($question->question_image)) {
-            // Construct full URL from stored path
-            $imagesrc = $question->question_image;
-            if (strpos($imagesrc, '/') === 0) {
-                $nlppublicurl = rtrim(get_config('mod_classengage', 'nlppublicurl'), '/');
-                $imagesrc = $nlppublicurl . $imagesrc;
-            }
+            $imagesrc = asset_helper::resolve_browser_url($question->question_image);
             $output .= html_writer::start_div('question-image text-center mb-3');
             $output .= html_writer::empty_tag('img', [
                 'src' => $imagesrc,

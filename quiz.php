@@ -27,6 +27,7 @@ require_once(__DIR__ . '/lib.php');
 
 use mod_classengage\session_manager;
 use mod_classengage\constants;
+use mod_classengage\local\asset_helper;
 
 // ============================================================================
 // PARAMETER VALIDATION AND SETUP
@@ -197,12 +198,7 @@ echo html_writer::end_div();
 
         // Display referenced image if present (with lazy loading for performance)
         if (!empty($currentquestion->question_image)) {
-            // Construct full URL from stored path
-            $imagesrc = $currentquestion->question_image;
-            if (strpos($imagesrc, '/') === 0) {
-                $nlppublicurl = rtrim(get_config('mod_classengage', 'nlppublicurl'), '/');
-                $imagesrc = $nlppublicurl . $imagesrc;
-            }
+            $imagesrc = asset_helper::resolve_browser_url($currentquestion->question_image);
             echo html_writer::start_div('question-image text-center mb-3');
             echo html_writer::empty_tag('img', array(
                 'src' => $imagesrc,

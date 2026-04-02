@@ -26,6 +26,8 @@ require(__DIR__ . '/../../config.php');
 require_once(__DIR__ . '/lib.php');
 require_once(__DIR__ . '/classes/form/edit_question_form.php');
 
+use mod_classengage\local\asset_helper;
+
 // Prevent caching - critical for showing newly generated questions
 header('Cache-Control: no-cache, no-store, must-revalidate');
 header('Pragma: no-cache');
@@ -535,7 +537,7 @@ function render_question_table($questions, $cm) {
 
         if (!empty($question->question_image)) {
             $modalcontent .= '<div class="text-center mb-3 p-3 bg-light rounded">';
-            $modalcontent .= '<img src="' . s($question->question_image) . '" class="img-fluid rounded shadow-sm" style="max-height: 300px;" alt="Question image">';
+            $modalcontent .= '<img src="' . s(asset_helper::resolve_browser_url($question->question_image)) . '" class="img-fluid rounded shadow-sm" style="max-height: 300px;" alt="Question image">';
             $modalcontent .= '</div>';
         }
 

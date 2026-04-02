@@ -1,0 +1,35 @@
+CONTAINER=bin-webserver-1
+COURSEID=4
+SESSIONID=20
+PREFIX=classdemo01
+PASSWORD='admin'
+COUNT=200
+
+docker exec "$CONTAINER" php /var/www/html/mod/classengage/cli/demo_setup.php \
+  --courseid="$COURSEID" \
+  --count="$COUNT" \
+  --prefix="$PREFIX" \
+  --password="$PASSWORD"
+
+
+docker exec "$CONTAINER" php /var/www/html/mod/classengage/cli/demo_responder.php \
+  --sessionid="$SESSIONID" \
+  --prefix="$PREFIX" \
+  --spread-seconds=8 \
+  --correct-rate=70
+
+// Benchmark 
+CONTAINER=bin-webserver-1
+COURSEID=2
+SESSIONID=20
+PREFIX=classdemo01
+PASSWORD='admin'
+COUNT=200
+OUTDIR=/tmp/classengage-report-$SESSIONID
+mkdir -p "$OUTDIR"
+
+docker exec "$CONTAINER" php /var/www/html/mod/classengage/cli/demo_setup.php \
+  --courseid="$COURSEID" \
+  --count="$COUNT" \
+  --prefix="$PREFIX" \
+  --password="$PASSWORD"

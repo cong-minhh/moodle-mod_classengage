@@ -28,6 +28,8 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->libdir . '/formslib.php');
 
+use mod_classengage\local\asset_helper;
+
 /**
  * Edit question form class
  */
@@ -162,14 +164,7 @@ class edit_question_form extends \moodleform
 
                     foreach ($sources['images'] as $img) {
                         $label = s($img['label'] ?? 'Image');
-                        $url = $img['url'] ?? '';
-
-                        // Build public URL for images
-                        $publicurl = get_config('mod_classengage', 'nlppublicurl');
-                        $baseurl = !empty($publicurl) ? $publicurl : get_config('mod_classengage', 'nlpendpoint');
-                        if ($url && strpos($url, 'http') !== 0) {
-                            $url = rtrim($baseurl, '/') . $url;
-                        }
+                        $url = asset_helper::resolve_browser_url($img['url'] ?? '');
 
                         if ($url) {
                             $sourceshtml .= '<div class="card" style="width: 100px;">' .
@@ -243,4 +238,3 @@ class edit_question_form extends \moodleform
         return implode(', ', $ranges);
     }
 }
-

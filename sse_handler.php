@@ -35,6 +35,7 @@
 require(__DIR__ . '/../../config.php');
 require_once(__DIR__ . '/lib.php');
 
+use mod_classengage\local\asset_helper;
 use mod_classengage\session_state_manager;
 
 $sessionid = required_param('sessionid', PARAM_INT);
@@ -181,6 +182,29 @@ function classengage_get_question_options($question): array
     }
 
     return $options;
+}
+
+/**
+ * Format question data for student-facing real-time payloads.
+ *
+ * @param stdClass $question Question object
+ * @return array
+ */
+function classengage_get_question_payload($question): array
+{
+    return [
+        'id' => $question->id,
+        'text' => $question->questiontext,
+        'options' => classengage_get_question_options($question),
+        'question_image' => asset_helper::resolve_browser_url($question->question_image ?? ''),
+        'correctanswer' => $question->correctanswer,
+        'rationale' => $question->rationale,
+        'difficulty' => $question->difficulty,
+        'bloomlevel' => $question->bloomlevel,
+        'trustworthiness_score' => (int)($question->trustworthiness_score ?? 0),
+        'trustworthiness_level' => $question->trustworthiness_level ?? 'uncertain',
+        'trustworthiness_factors' => $question->trustworthiness_factors,
+    ];
 }
 
 // Send initial connection confirmation.
@@ -461,18 +485,7 @@ while (true) {
                     'sessionid' => $sessionid,
                     'questionnumber' => $session->currentquestion,
                     'questionid' => $currentquestion ? $currentquestion->id : null,
-                    'question' => $currentquestion ? [
-                        'id' => $currentquestion->id,
-                        'text' => $currentquestion->questiontext,
-                        'options' => classengage_get_question_options($currentquestion),
-                        'correctanswer' => $currentquestion->correctanswer,
-                        'rationale' => $currentquestion->rationale,
-                        'difficulty' => $currentquestion->difficulty,
-                        'bloomlevel' => $currentquestion->bloomlevel,
-                        'trustworthiness_score' => (int) ($currentquestion->trustworthiness_score ?? 0),
-                        'trustworthiness_level' => $currentquestion->trustworthiness_level ?? 'uncertain',
-                        'trustworthiness_factors' => $currentquestion->trustworthiness_factors,
-                    ] : null,
+                    'question' => $currentquestion ? classengage_get_question_payload($currentquestion) : null,
                     'timelimit' => $timelimit,
                     'timeremaining' => $timeremaining,
                     'questionstarttime' => $questionstarttime,
@@ -742,18 +755,7 @@ while (true) {
                         'sessionid' => $sessionid,
                         'questionnumber' => $session->currentquestion,
                         'questionid' => $currentquestion->id,
-                        'question' => [
-                            'id' => $currentquestion->id,
-                            'text' => $currentquestion->questiontext,
-                            'options' => classengage_get_question_options($currentquestion),
-                            'correctanswer' => $currentquestion->correctanswer,
-                            'rationale' => $currentquestion->rationale,
-                            'difficulty' => $currentquestion->difficulty,
-                            'bloomlevel' => $currentquestion->bloomlevel,
-                            'trustworthiness_score' => (int) ($currentquestion->trustworthiness_score ?? 0),
-                            'trustworthiness_level' => $currentquestion->trustworthiness_level ?? 'uncertain',
-                            'trustworthiness_factors' => $currentquestion->trustworthiness_factors,
-                        ],
+                        'question' => classengage_get_question_payload($currentquestion),
                         'timelimit' => $timelimit,
                         'timeremaining' => $timeremaining,
                         'questionstarttime' => $questionstarttime,

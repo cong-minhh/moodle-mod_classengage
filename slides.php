@@ -48,6 +48,7 @@ $PAGE->set_url('/mod/classengage/slides.php', array('id' => $cm->id));
 $PAGE->set_title(format_string($classengage->name));
 $PAGE->set_heading(format_string($course->fullname));
 $PAGE->set_context($context);
+$PAGE->requires->css('/mod/classengage/styles.css');
 
 // Handle bulk actions
 if ($bulkaction === 'delete' && confirm_sesskey()) {
@@ -221,7 +222,11 @@ $PAGE->requires->js_call_amd('mod_classengage/generator_wizard', 'init', [$cm->i
 
 echo $OUTPUT->header();
 
-echo $OUTPUT->heading(format_string($classengage->name));
+echo classengage_render_brand_header(
+    format_string($classengage->name),
+    get_string('modulename', 'mod_classengage'),
+    get_string('slidespage', 'mod_classengage')
+);
 
 // Clean Professional CSS
 echo html_writer::tag('style', '

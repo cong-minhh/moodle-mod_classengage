@@ -62,6 +62,7 @@ $PAGE->set_url('/mod/classengage/view.php', array('id' => $cm->id));
 $PAGE->set_title(format_string($classengage->name));
 $PAGE->set_heading(format_string($course->fullname));
 $PAGE->set_context($context);
+$PAGE->requires->css('/mod/classengage/styles.css');
 
 // Check if user is teacher or student - do this before any output
 $isteacher = has_capability('mod/classengage:managequestions', $context);
@@ -74,15 +75,17 @@ if ($isteacher) {
 
 echo $OUTPUT->header();
 
-echo $OUTPUT->heading(format_string($classengage->name));
+// Student view only reaches here (teachers are redirected above)
+echo html_writer::start_div('mod-classengage classengage-student-view');
+echo classengage_render_brand_header(
+    format_string($classengage->name),
+    get_string('modulename', 'mod_classengage')
+);
 
 // Introduction
 if ($classengage->intro) {
     echo $OUTPUT->box(format_module_intro('classengage', $classengage, $cm->id), 'generalbox', 'intro');
 }
-
-// Student view only reaches here (teachers are redirected above)
-echo html_writer::start_div('classengage-student-view');
 
 // Hero section for quick actions
 echo html_writer::start_div('card mb-4', array('style' => 'background: linear-gradient(135deg, #4a90a4 0%, #5bc0de 100%); color: white; border: none;'));

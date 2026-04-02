@@ -247,6 +247,47 @@ function classengage_reset_userdata($data) {
 }
 
 /**
+ * Render the shared ClassEngage brand header.
+ *
+ * @param string $title Main page title
+ * @param string $eyebrow Small label above the title
+ * @param string $subtitle Optional supporting text
+ * @return string
+ */
+function classengage_render_brand_header($title, $eyebrow = '', $subtitle = '') {
+    $brandmarkurl = new moodle_url('/mod/classengage/pix/brandmark.png');
+    $attributes = array(
+        'src' => $brandmarkurl->out(false),
+        'alt' => get_string('modulename', 'mod_classengage'),
+        'class' => 'classengage-brand-header__logo',
+        'width' => 72,
+        'height' => 72,
+    );
+
+    $output = html_writer::start_div('classengage-brand-header');
+    $output .= html_writer::div(
+        html_writer::empty_tag('img', $attributes),
+        'classengage-brand-header__media'
+    );
+    $output .= html_writer::start_div('classengage-brand-header__content');
+
+    if ($eyebrow !== '') {
+        $output .= html_writer::div($eyebrow, 'classengage-brand-header__eyebrow');
+    }
+
+    $output .= html_writer::tag('h2', $title, array('class' => 'classengage-brand-header__title'));
+
+    if ($subtitle !== '') {
+        $output .= html_writer::div($subtitle, 'classengage-brand-header__subtitle');
+    }
+
+    $output .= html_writer::end_div();
+    $output .= html_writer::end_div();
+
+    return $output;
+}
+
+/**
  * Render standard ClassEngage tab navigation
  *
  * This function generates consistent tab navigation across all ClassEngage pages.
@@ -301,17 +342,15 @@ function classengage_pluginfile($course, $cm, $context, $filearea, $args, $force
 
     require_login($course, true, $cm);
 
-    // Define file areas that require specific capabilities.
-    $fileareas = [
-        'nlpassets' => 'mod/classengage:managequestions', // AI-extracted image assets.
-    ];
-
-    if (!isset($fileareas[$filearea])) {
-        return false;
-    }
-
-    if (!has_capability($fileareas[$filearea], $context)) {
-        return false;
+    switch ($filearea) {
+        case 'nlpassets':
+            // These assets are referenced directly from student and teacher-facing pages.
+            if (!has_capability('mod/classengage:view', $context)) {
+                return false;
+            }
+            break;
+        default:
+            return false;
     }
 
     $itemid = array_shift($args);
@@ -327,4 +366,3 @@ function classengage_pluginfile($course, $cm, $context, $filearea, $args, $force
 
     send_stored_file($file, 86400, 0, $forcedownload, $options);
 }
-

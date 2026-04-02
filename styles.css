@@ -72,6 +72,69 @@
   border-radius: var(--ce-radius-lg);
 }
 
+.classengage-brand-header {
+  display: flex;
+  align-items: center;
+  gap: var(--ce-space-md);
+  margin-bottom: var(--ce-space-lg);
+  padding: var(--ce-space-md) var(--ce-space-lg);
+  background: linear-gradient(135deg, #ffffff 0%, #eef8f0 100%);
+  border: 1px solid var(--ce-gray-200);
+  border-radius: var(--ce-radius-lg);
+  box-shadow: var(--ce-shadow-sm);
+}
+
+.classengage-brand-header__media {
+  flex-shrink: 0;
+}
+
+.classengage-brand-header__logo {
+  display: block;
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  border-radius: 18px;
+  box-shadow: var(--ce-shadow-sm);
+}
+
+.classengage-brand-header__content {
+  min-width: 0;
+}
+
+.classengage-brand-header__eyebrow {
+  margin-bottom: 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #3f8f46;
+}
+
+.classengage-brand-header__title {
+  margin: 0;
+  font-size: clamp(1.75rem, 2vw, 2.4rem);
+  line-height: 1.1;
+  color: var(--ce-gray-900);
+}
+
+.classengage-brand-header__subtitle {
+  margin-top: 0.5rem;
+  color: var(--ce-gray-600);
+}
+
+@media (max-width: 767.98px) {
+  .classengage-brand-header {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: var(--ce-space-md);
+  }
+
+  .classengage-brand-header__logo {
+    width: 64px;
+    height: 64px;
+  }
+}
+
 /* ============================================================================
    CARDS - Clean, spacious design
    ============================================================================ */
